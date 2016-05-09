@@ -1,0 +1,201 @@
+#=====================================
+# System Crap not needed
+#=====================================
+
+#----------------------------------
+# Windows
+#----------------------------------
+
+# Windows image file caches
+Thumbs.db
+ehthumbs.db
+
+# Folder config file
+Desktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+#----------------------------------
+# Linux
+#----------------------------------
+
+#
+*~
+
+# KDE directory preferences
+.directory
+
+# Linux trash folder which might appear on any partition or disk
+.Trash-*
+
+#----------------------------------
+# OSX
+#----------------------------------
+
+#
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Icon must end with two \r
+Icon
+
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+#=====================================
+# Build generated files
+#=====================================
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+*.ko
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.lai
+*.la
+*.lo
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+
+# Waf build system temp files
+waf-*
+.waf-*
+.lock-*
+
+# Python precompiled files
+*.pyc
+
+#=====================================
+# Editor and IDE files
+#=====================================
+
+#----------------------------------
+# Vim
+#----------------------------------
+
+[._]*.s[a-w][a-z]
+[._]s[a-w][a-z]
+*.un~
+Session.vim
+.netrwhist
+*~
+
+#----------------------------------
+# Visual Studio
+#----------------------------------
+
+# Project Files
+*.sln
+*.vcxproj
+*.vcxproj.user
+*.vcxproj.filters
+
+# Build generated
+*.obj
+*.exe
+*.log
+*.tlog
+*.idb
+*.pdb
+*.ilk
+*.lastbuildstate
+*..unsuccessfulbuild
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+build/
+bld/
+[Bb]in/
+[Oo]bj/
+
+# Precompiled Headers
+*.ipch
+*.pch
+ipch/
+
+# Visual C++ cache files
+*.aps
+*.ncb
+*.opensdf
+*.sdf
+*.cachefile
+
+# Visual Studo 2015 cache/options directory
+.vs/
+
+# Visual Studio profiler
+*.psess
+*.vsp
+*.vspx
+
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+#=====================================
+# General untracked files and folders
+#=====================================
+
+# Doxygen generated documentation
+doc/gen/
+
+# Temporary folder
+tmp/
+
+#=====================================
+# Whitelist
+#=====================================
+
+# Allow obj model files
+!ext/**/*.obj
+
