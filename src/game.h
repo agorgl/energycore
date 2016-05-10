@@ -28,32 +28,22 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#include "mainloop.h"
-#include "game.h"
+#ifndef _GAME_H_
+#define _GAME_H_
 
-int main(int argc, char* argv[])
+struct game_context
 {
-    (void) argc;
-    (void) argv;
+    /* Master run flag, indicates when the game should exit */
+    int* should_terminate;
+};
 
-    /* Initialize */
-    struct game_context ctx = {};
-    init(&ctx);
+/* Initializes the game instance */
+void init(struct game_context* ctx);
+/* Update callback used by the main loop */
+void update(void* userdata, float dt);
+/* Render callback used by the main loop */
+void render(void* userdata, float interpolation);
+/* De-initializes the game instance */
+void shutdown(struct game_context* ctx);
 
-    /* Setup mainloop parameters */
-    struct mainloop_data mld = {};
-    mld.max_frameskip = 5;
-    mld.updates_per_second = 60;
-    mld.update_callback = update;
-    mld.render_callback = render;
-    mld.userdata = &ctx;
-    ctx.should_terminate = &mld.should_terminate;
-
-    /* Run mainloop */
-    mainloop(&mld);
-
-    /* De-initialize */
-    shutdown(&ctx);
-
-    return 0;
-}
+#endif /* ! _GAME_H_ */

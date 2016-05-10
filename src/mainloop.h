@@ -28,32 +28,22 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#include "mainloop.h"
-#include "game.h"
+#ifndef _MAINLOOP_H_
+#define _MAINLOOP_H_
 
-int main(int argc, char* argv[])
+typedef void(*mainloop_update_fn)(void*, float);
+typedef void(*mainloop_render_fn)(void*, float);
+
+struct mainloop_data
 {
-    (void) argc;
-    (void) argv;
+    mainloop_update_fn update_callback;
+    mainloop_render_fn render_callback;
+    int should_terminate;
+    int updates_per_second;
+    int max_frameskip;
+    void* userdata;
+};
 
-    /* Initialize */
-    struct game_context ctx = {};
-    init(&ctx);
+void mainloop(struct mainloop_data*);
 
-    /* Setup mainloop parameters */
-    struct mainloop_data mld = {};
-    mld.max_frameskip = 5;
-    mld.updates_per_second = 60;
-    mld.update_callback = update;
-    mld.render_callback = render;
-    mld.userdata = &ctx;
-    ctx.should_terminate = &mld.should_terminate;
-
-    /* Run mainloop */
-    mainloop(&mld);
-
-    /* De-initialize */
-    shutdown(&ctx);
-
-    return 0;
-}
+#endif /* ! _MAINLOOP_H_ */
