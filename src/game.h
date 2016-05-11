@@ -33,6 +33,8 @@
 
 struct game_context
 {
+    /* Window assiciated with the game */
+    struct window* wnd;
     /* Master run flag, indicates when the game should exit */
     int* should_terminate;
 };
