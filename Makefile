@@ -4,6 +4,10 @@ ifeq ($(OS), Windows_NT)
 	SHELL = cmd.exe
 endif
 
+# Set current makefile location
+MKLOC ?= $(CURDIR)/$(firstword $(MAKEFILE_LIST))
+export MKLOC
+
 #---------------------------------------------------------------
 # Usage
 #---------------------------------------------------------------
@@ -240,8 +244,7 @@ build-$(strip $(1)):
 	@echo ===================================
 	@echo Building $(strip $(1))
 	@echo ===================================
-	@$(eval MKFILE = $(CURDIR)/Makefile)
-	@$(MAKE) -C $(strip $(1)) -f $(MKFILE) all
+	@$(MAKE) -C $(strip $(1)) -f $(MKLOC) all
 endef
 
 # Generate dependency build rules
@@ -253,8 +256,7 @@ deps: $(foreach dep, $(DEPS), build-$(dep))
 define clean-rule
 clean-$(strip $(1)):
 	@echo Cleaning $(strip $(1))
-	@$(eval MKFILE = $(CURDIR)/Makefile)
-	@$(MAKE) -C $(strip $(1)) -f $(MKFILE) clean
+	@$(MAKE) -C $(strip $(1)) -f $(MKLOC) clean
 endef
 
 # Generate dependency clean rules
