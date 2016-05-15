@@ -42,6 +42,7 @@ export MKLOC
 # Variant = (Debug|Release)
 VARIANT ?= Debug
 QUIET ?= 0
+TOOLCHAIN ?= GCC
 
 #---------------------------------------------------------------
 # Per project configuration
@@ -119,27 +120,61 @@ endif
 #---------------------------------------------------------------
 # Toolchain dependent values
 #---------------------------------------------------------------
-# Compiler
-CC = gcc
-CXX = g++
-CPPFLAGS = $(strip $(foreach define, $(DEFINES), -D$(define)))
-INCFLAG = -I
-LIBFLAG = -l
-LIBSDIRFLAG = -L
-# Archiver
-AR = ar
-ARFLAGS = rcs
-SLIBEXT = .a
-SLIBPREF = lib
-# Linker
-LD = gcc
-LDFLAGS = -static -static-libgcc
+ifeq ($(TOOLCHAIN), MSVC)
+	# Compiler
+	CC = cl
+	CXX = cl
+	CDBGFLAGS = /MTd /Zi /Od /FS /Fd:$(BUILDDIR)/$(TARGETNAME).pdb
+	CRELFLAGS = /MT /O2
+	CALLFLAGS = /nologo /EHsc /W4 /c
+	COUTFLAG = /Fo:
+	INCFLAG = /I
+	DEFINEFLAG = /D
+	OUTFLAG = /OUT:
+	# Archiver
+	AR = lib
+	ARFLAGS = /nologo
+	SLIBEXT = .lib
+	SLIBPREF =
+	# Linker
+	LD = link
+	LDFLAGS = /nologo /manifest /entry:mainCRTStartup
+	LIBFLAG =
+	LIBSDIRFLAG = /LIBPATH:
+else
+	# Compiler
+	CC = gcc
+	CXX = g++
+	CDBGFLAGS = -g -O0
+	CRELFLAGS = -O2
+	CALLFLAGS = -Wall -Wextra -c
+	COUTFLAG = -o
+	INCFLAG = -I
+	DEFINEFLAG = -D
+	OUTFLAG = -o
+	# Archiver
+	AR = ar
+	ARFLAGS = rcs
+	SLIBEXT = .a
+	SLIBPREF = lib
+	# Linker
+	LD = gcc
+	LDFLAGS = -static -static-libgcc
+	LIBFLAG = -l
+	LIBSDIRFLAG = -L
+endif
+
+# Compiler flags
+CFLAGS = $(strip $(CALLFLAGS) $(if $(filter $(VARIANT), Debug), $(CDBGFLAGS), $(CRELFLAGS)))
+# Preprocessor flags
+CPPFLAGS = $(strip $(foreach define, $(DEFINES), $(DEFINEFLAG)$(define)))
 
 #---------------------------------------------------------------
 # Generated values
 #---------------------------------------------------------------
 # Objects
-OBJ = $(foreach obj, $(SRC:=.o), $(BUILDDIR)/$(VARIANT)/$(obj))
+OBJEXT = .o
+OBJ = $(foreach obj, $(SRC:=$(OBJEXT)), $(BUILDDIR)/$(VARIANT)/$(obj))
 
 # Output
 ifeq ($(PRJTYPE), StaticLib)
@@ -148,8 +183,6 @@ else
 	TARGET = $(TARGETNAME)$(EXECEXT)
 endif
 
-# Compiler flags
-CFLAGS = $(strip $(if $(filter $(VARIANT), Debug), -g -O0, -O2) -Wall -Wextra)
 # Dependencies
 DEPSDIR = deps
 DEPS = $(strip $(sort $(dir $(wildcard $(DEPSDIR)/*/)))) $(MOREDEPS)
@@ -163,7 +196,7 @@ LIBSDIR = $(strip $(foreach libdir,\
 			$(foreach dep, $(DEPS), $(dep)lib) $(ADDLIBDIR),\
 			$(LIBSDIRFLAG)$(libdir)/$(strip $(VARIANT))))
 # Library flags
-LIBFLAGS = $(strip $(foreach lib, $(LIBS), $(LIBFLAG)$(lib)))
+LIBFLAGS = $(strip $(foreach lib, $(LIBS), $(LIBFLAG)$(lib)$(if $(filter $(TOOLCHAIN), MSVC),.lib,)))
 
 # Master output
 ifdef PRJTYPE
@@ -173,10 +206,10 @@ endif
 #---------------------------------------------------------------
 # Command generator functions
 #---------------------------------------------------------------
-ccompile = $(CC) $$(CFLAGS) $$(CPPFLAGS) $$(INCDIR) -c $$< -o $$@
-cxxcompile = $(CXX) $$(CFLAGS) $$(CPPFLAGS) $$(INCDIR) -c $$< -o $$@
-link = $(LD) $(LDFLAGS) $(LIBSDIR) -o $@ $^ $(LIBFLAGS)
-archive = $(AR) $(ARFLAGS) -o $@ $?
+ccompile = $(CC) $$(CFLAGS) $$(CPPFLAGS) $$(INCDIR) $$< $(COUTFLAG) $$@
+cxxcompile = $(CXX) $$(CFLAGS) $$(CPPFLAGS) $$(INCDIR) $$< $(COUTFLAG) $$@
+link = $(LD) $(LDFLAGS) $(LIBSDIR) $(OUTFLAG)$@ $^ $(LIBFLAGS)
+archive = $(AR) $(ARFLAGS) $(OUTFLAG) $@ $?
 
 #---------------------------------------------------------------
 # Rules
@@ -224,7 +257,7 @@ showvars: variables
 # Compile rules
 #
 define compile-rule
-$(BUILDDIR)/$(VARIANT)/%.$(strip $(1)).o: %.$(strip $(1))
+$(BUILDDIR)/$(VARIANT)/%.$(strip $(1))$(OBJEXT): %.$(strip $(1))
 	@echo [^>] Compiling $$<
 	@$$(call mkdir, $$(@D))
 	@$(2)
