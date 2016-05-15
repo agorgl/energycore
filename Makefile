@@ -41,7 +41,7 @@ export MKLOC
 #---------------------------------------------------------------
 # Variant = (Debug|Release)
 VARIANT ?= Debug
-QUIET ?= 0
+SILENT ?=
 TOOLCHAIN ?= GCC
 
 #---------------------------------------------------------------
@@ -110,7 +110,7 @@ lc = $(subst A,a,$(subst B,b,$(subst C,c,$(subst D,d,$(subst E,e,$(subst F,f,$(s
 	$(subst V,v,$(subst W,w,$(subst X,x,$(subst Y,y,$(subst Z,z,$1))))))))))))))))))))))))))
 
 # Quiet execution of command
-quiet = $(1) $(suppress_out)
+quiet = $(if $(SILENT), $(suppress_out),)
 
 # Os executable extension
 ifeq ($(OS), Windows_NT)
@@ -260,7 +260,7 @@ define compile-rule
 $(BUILDDIR)/$(VARIANT)/%.$(strip $(1))$(OBJEXT): %.$(strip $(1))
 	@echo [^>] Compiling $$<
 	@$$(call mkdir, $$(@D))
-	@$(2)
+	@$(2) $(quiet)
 endef
 # Generate compile rules
 $(eval $(call compile-rule, c, $(ccompile)))
