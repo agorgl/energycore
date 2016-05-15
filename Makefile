@@ -130,17 +130,18 @@ ifeq ($(TOOLCHAIN), MSVC)
 	COUTFLAG = /Fo:
 	INCFLAG = /I
 	DEFINEFLAG = /D
-	OUTFLAG = /OUT:
 	# Archiver
 	AR = lib
 	ARFLAGS = /nologo
 	SLIBEXT = .lib
 	SLIBPREF =
+	AROUTFLAG = /OUT:
 	# Linker
 	LD = link
 	LDFLAGS = /nologo /manifest /entry:mainCRTStartup
 	LIBFLAG =
 	LIBSDIRFLAG = /LIBPATH:
+	LOUTFLAG = /OUT:
 else
 	# Compiler
 	CC = gcc
@@ -151,17 +152,18 @@ else
 	COUTFLAG = -o
 	INCFLAG = -I
 	DEFINEFLAG = -D
-	OUTFLAG = -o
 	# Archiver
 	AR = ar
 	ARFLAGS = rcs
 	SLIBEXT = .a
 	SLIBPREF = lib
+	AROUTFLAG =
 	# Linker
 	LD = gcc
 	LDFLAGS = -static -static-libgcc
 	LIBFLAG = -l
 	LIBSDIRFLAG = -L
+	LOUTFLAG = -o
 endif
 
 # Compiler flags
@@ -183,14 +185,21 @@ else
 	TARGET = $(TARGETNAME)$(EXECEXT)
 endif
 
+# Master output
+ifdef PRJTYPE
+	MASTEROUT = $(TARGETDIR)/$(VARIANT)/$(TARGET)
+endif
+
 # Dependencies
 DEPSDIR = deps
 DEPS = $(strip $(sort $(dir $(wildcard $(DEPSDIR)/*/)))) $(MOREDEPS)
 DEPNAMES = $(strip $(foreach d, $(DEPS), $(lastword $(subst /, , $d))))
+
 # Include directories (implicit)
 INCDIR = $(strip $(INCFLAG)include $(foreach dep, $(DEPS), $(INCFLAG)$(dep)include))
 # Include directories (explicit)
 INCDIR += $(strip $(foreach addinc, $(ADDINCS), $(INCFLAG)$(addinc)))
+
 # Library search directories
 LIBSDIR = $(strip $(foreach libdir,\
 			$(foreach dep, $(DEPS), $(dep)lib) $(ADDLIBDIR),\
@@ -198,18 +207,13 @@ LIBSDIR = $(strip $(foreach libdir,\
 # Library flags
 LIBFLAGS = $(strip $(foreach lib, $(LIBS), $(LIBFLAG)$(lib)$(if $(filter $(TOOLCHAIN), MSVC),.lib,)))
 
-# Master output
-ifdef PRJTYPE
-	MASTEROUT = $(TARGETDIR)/$(VARIANT)/$(TARGET)
-endif
-
 #---------------------------------------------------------------
 # Command generator functions
 #---------------------------------------------------------------
 ccompile = $(CC) $$(CFLAGS) $$(CPPFLAGS) $$(INCDIR) $$< $(COUTFLAG) $$@
 cxxcompile = $(CXX) $$(CFLAGS) $$(CPPFLAGS) $$(INCDIR) $$< $(COUTFLAG) $$@
-link = $(LD) $(LDFLAGS) $(LIBSDIR) $(OUTFLAG)$@ $^ $(LIBFLAGS)
-archive = $(AR) $(ARFLAGS) $(OUTFLAG) $@ $?
+link = $(LD) $(LDFLAGS) $(LIBSDIR) $(LOUTFLAG)$@ $^ $(LIBFLAGS)
+archive = $(AR) $(ARFLAGS) $(AROUTFLAG)$@ $?
 
 #---------------------------------------------------------------
 # Rules
