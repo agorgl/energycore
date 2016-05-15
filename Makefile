@@ -124,10 +124,9 @@ ifeq ($(TOOLCHAIN), MSVC)
 	# Compiler
 	CC = cl
 	CXX = cl
-	CDBGFLAGS = /MTd /Zi /Od /FS /Fd:$(BUILDDIR)/$(TARGETNAME).pdb
-	CRELFLAGS = /MT /O2
-	CALLFLAGS = /nologo /EHsc /W4 /c
+	CFLAGS = /nologo /EHsc /W4 /c
 	COUTFLAG = /Fo:
+	# Preprocessor
 	INCFLAG = /I
 	DEFINEFLAG = /D
 	# Archiver
@@ -142,14 +141,21 @@ ifeq ($(TOOLCHAIN), MSVC)
 	LIBFLAG =
 	LIBSDIRFLAG = /LIBPATH:
 	LOUTFLAG = /OUT:
+	# Variant specific flags
+	ifeq ($(VARIANT), Debug)
+		CFLAGS += /MTd /Zi /Od /FS /Fd:$(BUILDDIR)/$(TARGETNAME).pdb
+		LDFLAGS += /debug
+	else
+		CFLAGS += /MT /O2
+		LDFLAGS += /incremental:NO
+	endif
 else
 	# Compiler
 	CC = gcc
 	CXX = g++
-	CDBGFLAGS = -g -O0
-	CRELFLAGS = -O2
-	CALLFLAGS = -Wall -Wextra -c
+	CFLAGS = -Wall -Wextra -c
 	COUTFLAG = -o
+	# Preprocessor
 	INCFLAG = -I
 	DEFINEFLAG = -D
 	# Archiver
@@ -164,10 +170,14 @@ else
 	LIBFLAG = -l
 	LIBSDIRFLAG = -L
 	LOUTFLAG = -o
+	# Variant specific flags
+	ifeq ($(VARIANT), Debug)
+		CFLAGS += -g -O0
+	else
+		CFLAGS += -O2
+	endif
 endif
 
-# Compiler flags
-CFLAGS = $(strip $(CALLFLAGS) $(if $(filter $(VARIANT), Debug), $(CDBGFLAGS), $(CRELFLAGS)))
 # Preprocessor flags
 CPPFLAGS = $(strip $(foreach define, $(DEFINES), $(DEFINEFLAG)$(define)))
 
