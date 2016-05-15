@@ -291,6 +291,7 @@ build-$(strip $(1)):
 	@echo ===================================
 	@echo Building $(strip $(1))
 	@echo ===================================
+	$(eval export SILENT=1)
 	@$(MAKE) -C $(strip $(1)) -f $(MKLOC) all
 endef
 
