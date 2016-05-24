@@ -96,11 +96,19 @@ else
 endif
 
 # Makedir command
-MKDIR_CMD = mkdir
+ifeq ($(OS), Windows_NT)
+	MKDIR_CMD = mkdir
+else
+	MKDIR_CMD = mkdir -p
+endif
 mkdir = -$(if $(wildcard $(1)/.*), , $(MKDIR_CMD) $(call native_path, $(1)) $(suppress_out))
 
 # Rmdir command
-RMDIR_CMD = rmdir /s /q
+ifeq ($(OS), Windows_NT)
+	RMDIR_CMD = rmdir /s /q
+else
+	RMDIR_CMD = rm -rf
+endif
 rmdir = $(if $(wildcard $(1)/.*), $(RMDIR_CMD) $(call native_path, $(1)),)
 
 # Lowercase
@@ -115,6 +123,8 @@ quiet = $(if $(SILENT), $(suppress_out),)
 # Os executable extension
 ifeq ($(OS), Windows_NT)
 	EXECEXT = .exe
+else
+	EXECEXT = .out
 endif
 
 #---------------------------------------------------------------
