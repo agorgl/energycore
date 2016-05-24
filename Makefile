@@ -255,14 +255,14 @@ showvars: variables
 
 # Link rule
 %$(EXECEXT): $(OBJ)
-	@echo [+] Linking $@
+	@$(info [+] Linking $@)
 	@$(call mkdir, $(@D))
 	$(eval lcommand = $(link))
 	@$(lcommand)
 
 # Archive rule
 %$(SLIBEXT): $(OBJ)
-	@echo [+] Archiving $@
+	@$(info [+] Archiving $@)
 	@$(call mkdir, $(@D))
 	$(eval lcommand = $(archive))
 	@$(lcommand)
@@ -272,7 +272,7 @@ showvars: variables
 #
 define compile-rule
 $(BUILDDIR)/$(VARIANT)/%.$(strip $(1))$(OBJEXT): %.$(strip $(1))
-	@echo [^>] Compiling $$<
+	@$$(info [>] Compiling $$<)
 	@$$(call mkdir, $$(@D))
 	@$(2) $(quiet)
 endef
