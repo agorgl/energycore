@@ -473,7 +473,6 @@ void mesh_scale(mesh* m, float scale)
 
 void mesh_transform(mesh* m, mat4 transform)
 {
-
     int i = 0;
     while (i < m->num_triangles * 3) {
         int t_i1 = m->triangles[i];
@@ -504,9 +503,8 @@ sphere mesh_bounding_sphere(mesh* m)
 
 void model_print(model* m)
 {
-    for (int i = 0; i < m->num_meshes; i++) {
+    for (int i = 0; i < m->num_meshes; i++)
         mesh_print(m->meshes[i]);
-    }
 }
 
 model* model_new()
