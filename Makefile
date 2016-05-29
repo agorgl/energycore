@@ -200,6 +200,9 @@ CPPFLAGS = $(strip $(foreach define, $(DEFINES), $(DEFINEFLAG)$(define)))
 # Objects
 OBJEXT = .o
 OBJ = $(foreach obj, $(SRC:=$(OBJEXT)), $(BUILDDIR)/$(VARIANT)/$(obj))
+# Header dependencies
+HDEPEXT = .d
+HDEPS = $(OBJ:$(OBJEXT)=$(HDEPEXT))
 
 # Output
 ifeq ($(PRJTYPE), StaticLib)
@@ -265,6 +268,7 @@ showvars: variables
 	@echo DEPNAMES: $(DEPNAMES)
 	@echo CFLAGS: $(CFLAGS)
 	@echo LIBDIR: $(LIBDIR)
+	@echo HDEPS: $(HDEPS)
 
 # Link rule
 %$(EXECEXT): $(OBJ)
@@ -324,6 +328,18 @@ endef
 $(foreach dep, $(DEPS), $(eval $(call clean-rule, $(dep))))
 # Depencencies clean rule
 depsclean: $(foreach dep, $(DEPS), clean-$(dep))
+
+# Don't create dependencies when we're cleaning
+NOHDEPSGEN = clean $(foreach dep, $(DEPNAMES), clean-$(dep))
+ifeq (0, $(words $(findstring $(MAKECMDGOALS), $(NOHDEPSGEN))))
+	# GNU Make attempts to (re)build the file it includes
+	-include $(HDEPS)
+endif
+
+# Header dependency generation rule
+$(BUILDDIR)/$(VARIANT)/%$(HDEPEXT): %
+	@$(call mkdir, $(@D))
+	@gcc $(INCDIR) $(CPPFLAGS) -MM -MT $(basename $@)$(OBJEXT) -MF $@ $<
 
 # Non file targets
 .PHONY: all \
