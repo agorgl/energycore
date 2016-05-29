@@ -176,7 +176,10 @@ else
 	AROUTFLAG =
 	# Linker
 	LD = gcc
-	LDFLAGS = -static -static-libgcc
+	LDFLAGS =
+	ifeq ($(OS), Windows_NT)
+		LDFLAGS += -static -static-libgcc
+	endif
 	LIBFLAG = -l
 	LIBSDIRFLAG = -L
 	LOUTFLAG = -o
