@@ -59,7 +59,7 @@ TOOLCHAIN ?= GCC
 # - DEFINES variable (list defines in form of PROPERTY || PROPERTY=VALUE)
 # - ADDINCS variable (list with additional include dirs)
 # - MOREDEPS variable (list with additional dep dirs)
--include Makefile.conf
+-include config.mk
 
 # Defaults
 TARGETNAME ?= $(notdir $(CURDIR))
