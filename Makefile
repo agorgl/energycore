@@ -89,6 +89,12 @@ lc = $(subst A,a,$(subst B,b,$(subst C,c,$(subst D,d,$(subst E,e,$(subst F,f,$(s
 # Quiet execution of command
 quiet = $(if $(SILENT), $(suppress_out),)
 
+# Newline macro
+define \n
+
+
+endef
+
 # Os executable extension
 ifeq ($(OS), Windows_NT)
 	EXECEXT = .exe
@@ -315,32 +321,17 @@ $(foreach ext, cpp cxx cc, $(eval $(call compile-rule, $(ext), $(cxxcompile))))
 
 # Cleanup rule
 clean:
-	@echo Cleaning...
+	@echo Cleaning $(TARGETNAME)...
 	@$(call rmdir, $(BUILDDIR))
 
-# Build rule template (1=Name, 2=Dir)
-define build-rule
-build-$(strip $(1)):
-	$(eval export SILENT=1)
-	@$(MAKE) -C $(strip $(1)) -f $(MKLOC) all
-endef
-
-# Generate dependency build rules
-$(foreach dep, $(DEPS), $(eval $(call build-rule, $(dep))))
 # Dependencies build rule
-deps: $(foreach dep, $(DEPS), build-$(dep))
+deps:
+	$(eval export SILENT=1)
+	$(foreach dep, $(DEPS), @$(MAKE) -C $(dep) -f $(MKLOC) all${\n})
 
-# Clean rule template (1=Name, 2=Dir)
-define clean-rule
-clean-$(strip $(1)):
-	@echo Cleaning $(strip $(1))
-	@$(MAKE) -C $(strip $(1)) -f $(MKLOC) clean
-endef
-
-# Generate dependency clean rules
-$(foreach dep, $(DEPS), $(eval $(call clean-rule, $(dep))))
 # Depencencies clean rule
-depsclean: $(foreach dep, $(DEPS), clean-$(dep))
+depsclean:
+	$(foreach dep, $(DEPS), @$(MAKE) -C $(dep) -f $(MKLOC) clean${\n})
 
 # Don't create dependencies when we're cleaning
 NOHDEPSGEN = clean $(foreach dep, $(DEPNAMES), clean-$(dep))
@@ -362,5 +353,4 @@ $(BUILDDIR)/$(VARIANT)/%$(HDEPEXT): %
 		showvars \
 		clean \
 		depsclean \
-		deps \
-		$(foreach dep, $(DEPNAMES), build-$(dep) clean-$(dep)) \
+		deps
