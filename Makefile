@@ -242,6 +242,21 @@ link = $(LD) $(LDFLAGS) $(LIBSDIR) $(LOUTFLAG)$@ $^ $(LIBFLAGS)
 archive = $(AR) $(ARFLAGS) $(AROUTFLAG)$@ $?
 
 #---------------------------------------------------------------
+# Colors
+#---------------------------------------------------------------
+ifneq ($(OS), Windows_NT)
+	ESC = $(echo -e -n \x1b)
+endif
+NO_COLOR=$(ESC)[0m
+LGREEN_COLOR=$(ESC)[92;m
+LYELLOW_COLOR=$(ESC)[93;m
+LMAGENTA_COLOR=$(ESC)[95;m
+LRED_COLOR=$(ESC)[91;m
+DGREEN_COLOR=$(ESC)[32;m
+DYELLOW_COLOR=$(ESC)[33;m
+DCYAN_COLOR=$(ESC)[36;m
+
+#---------------------------------------------------------------
 # Rules
 #---------------------------------------------------------------
 # Disable builtin rules
@@ -261,6 +276,7 @@ run: build
 
 # Set variables for current build execution
 variables:
+	$(info $(LRED_COLOR)[o] Building$(NO_COLOR) $(LMAGENTA_COLOR)$(TARGETNAME)$(NO_COLOR))
 
 # Print build debug info
 showvars: variables
@@ -272,14 +288,14 @@ showvars: variables
 
 # Link rule
 %$(EXECEXT): $(OBJ)
-	@$(info [+] Linking $@)
+	@$(info $(DGREEN_COLOR)[+] Linking$(NO_COLOR) $(DYELLOW_COLOR)$@$(NO_COLOR))
 	@$(call mkdir, $(@D))
 	$(eval lcommand = $(link))
 	@$(lcommand)
 
 # Archive rule
 %$(SLIBEXT): $(OBJ)
-	@$(info [+] Archiving $@)
+	@$(info $(DCYAN_COLOR)[+] Archiving$(NO_COLOR) $(DYELLOW_COLOR)$@$(NO_COLOR))
 	@$(call mkdir, $(@D))
 	$(eval lcommand = $(archive))
 	@$(lcommand)
@@ -289,7 +305,7 @@ showvars: variables
 #
 define compile-rule
 $(BUILDDIR)/$(VARIANT)/%.$(strip $(1))$(OBJEXT): %.$(strip $(1))
-	@$$(info [>] Compiling $$<)
+	@$$(info $(LGREEN_COLOR)[>] Compiling$(NO_COLOR) $(LYELLOW_COLOR)$$<$(NO_COLOR))
 	@$$(call mkdir, $$(@D))
 	@$(2) $(quiet)
 endef
@@ -305,9 +321,6 @@ clean:
 # Build rule template (1=Name, 2=Dir)
 define build-rule
 build-$(strip $(1)):
-	@echo ===================================
-	@echo Building $(strip $(1))
-	@echo ===================================
 	$(eval export SILENT=1)
 	@$(MAKE) -C $(strip $(1)) -f $(MKLOC) all
 endef
