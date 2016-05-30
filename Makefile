@@ -141,6 +141,7 @@ ifeq ($(TOOLCHAIN), MSVC)
 	CC = cl
 	CXX = cl
 	CFLAGS = /nologo /EHsc /W4 /c
+	CXXFLAGS =
 	COUTFLAG = /Fo:
 	# Preprocessor
 	INCFLAG = /I
@@ -170,6 +171,7 @@ else
 	CC = gcc
 	CXX = g++
 	CFLAGS = -Wall -Wextra -c
+	CXXFLAGS = -std=c++14
 	COUTFLAG = -o
 	# Preprocessor
 	INCFLAG = -I
@@ -181,10 +183,10 @@ else
 	SLIBPREF = lib
 	AROUTFLAG =
 	# Linker
-	LD = gcc
+	LD = g++
 	LDFLAGS =
 	ifeq ($(OS), Windows_NT)
-		LDFLAGS += -static -static-libgcc
+		LDFLAGS += -static -static-libgcc -static-libstdc++
 	endif
 	LIBFLAG = -l
 	LIBSDIRFLAG = -L
@@ -243,7 +245,7 @@ LIBFLAGS = $(strip $(foreach lib, $(LIBS), $(LIBFLAG)$(lib)$(if $(filter $(TOOLC
 # Command generator functions
 #---------------------------------------------------------------
 ccompile = $(CC) $$(CFLAGS) $$(CPPFLAGS) $$(INCDIR) $$< $(COUTFLAG) $$@
-cxxcompile = $(CXX) $$(CFLAGS) $$(CPPFLAGS) $$(INCDIR) $$< $(COUTFLAG) $$@
+cxxcompile = $(CXX) $$(CFLAGS) $$(CXXFLAGS) $$(CPPFLAGS) $$(INCDIR) $$< $(COUTFLAG) $$@
 link = $(LD) $(LDFLAGS) $(LIBSDIR) $(LOUTFLAG)$@ $^ $(LIBFLAGS)
 archive = $(AR) $(ARFLAGS) $(AROUTFLAG)$@ $?
 
@@ -343,7 +345,9 @@ endif
 # Header dependency generation rule
 $(BUILDDIR)/$(VARIANT)/%$(HDEPEXT): %
 	@$(call mkdir, $(@D))
-	@gcc $(INCDIR) $(CPPFLAGS) -MM -MT $(basename $@)$(OBJEXT) -MF $@ $<
+	@g++ $(INCDIR) $(CPPFLAGS) \
+		$(if $(filter $(suffix $<), .cpp .cc .cxx), $(CXXFLAGS),) \
+		-MM -MT $(basename $@)$(OBJEXT) -MF $@ $<
 
 # Non file targets
 .PHONY: all \
