@@ -45,37 +45,6 @@ SILENT ?=
 TOOLCHAIN ?= GCC
 
 #---------------------------------------------------------------
-# Per project configuration
-#---------------------------------------------------------------
-# Should at least define:
-# - PRJTYPE variable (Executable|StaticLib|DynLib)
-# - LIBS variable (optional, Executable type only)
-# Can optionally define:
-# - TARGETNAME variable (project name, defaults to name of the root folder)
-# - SRCDIR variable (source directory)
-# - BUILDDIR variable (intermediate build directory)
-# - SRC variable (list of the source files, defaults to every code file in SRCDIR)
-# - SRCEXT variable (list of extensions used to match source files)
-# - DEFINES variable (list defines in form of PROPERTY || PROPERTY=VALUE)
-# - ADDINCS variable (list with additional include dirs)
-# - MOREDEPS variable (list with additional dep dirs)
--include config.mk
-
-# Defaults
-TARGETNAME ?= $(notdir $(CURDIR))
-SRCDIR ?= src
-BUILDDIR ?= tmp
-SRCEXT = *.c *.cpp *.cc *.cxx
-SRC ?= $(call rwildcard, $(SRCDIR), $(SRCEXT))
-
-# Target directory
-ifeq ($(PRJTYPE), StaticLib)
-	TARGETDIR = lib
-else
-	TARGETDIR = bin
-endif
-
-#---------------------------------------------------------------
 # Helpers
 #---------------------------------------------------------------
 # Recursive wildcard func
@@ -85,7 +54,7 @@ rwildcard = $(foreach d, $(wildcard $1*), $(call rwildcard, $d/, $2) $(filter $(
 ifeq ($(OS), Windows_NT)
 	suppress_out = > nul 2>&1 || (exit 0)
 else
-	suppress_out => /dev/null 2>&1 || true
+	suppress_out = > /dev/null 2>&1 || true
 endif
 
 # Native paths
@@ -125,6 +94,37 @@ ifeq ($(OS), Windows_NT)
 	EXECEXT = .exe
 else
 	EXECEXT = .out
+endif
+
+#---------------------------------------------------------------
+# Per project configuration
+#---------------------------------------------------------------
+# Should at least define:
+# - PRJTYPE variable (Executable|StaticLib|DynLib)
+# - LIBS variable (optional, Executable type only)
+# Can optionally define:
+# - TARGETNAME variable (project name, defaults to name of the root folder)
+# - SRCDIR variable (source directory)
+# - BUILDDIR variable (intermediate build directory)
+# - SRC variable (list of the source files, defaults to every code file in SRCDIR)
+# - SRCEXT variable (list of extensions used to match source files)
+# - DEFINES variable (list defines in form of PROPERTY || PROPERTY=VALUE)
+# - ADDINCS variable (list with additional include dirs)
+# - MOREDEPS variable (list with additional dep dirs)
+-include config.mk
+
+# Defaults
+TARGETNAME ?= $(notdir $(CURDIR))
+SRCDIR ?= src
+BUILDDIR ?= tmp
+SRCEXT = *.c *.cpp *.cc *.cxx
+SRC ?= $(call rwildcard, $(SRCDIR), $(SRCEXT))
+
+# Target directory
+ifeq ($(PRJTYPE), StaticLib)
+	TARGETDIR = lib
+else
+	TARGETDIR = bin
 endif
 
 #---------------------------------------------------------------
