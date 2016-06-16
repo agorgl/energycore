@@ -226,17 +226,18 @@ endif
 
 # Dependencies
 DEPSDIR = deps
-DEPS = $(strip $(sort $(dir $(wildcard $(DEPSDIR)/*/)))) $(MOREDEPS)
+depsgather = $(foreach d, $(wildcard $1/*), $d $(call depsgather, $d/$(strip $2), $2))
+DEPS = $(strip $(sort $(call depsgather, $(DEPSDIR), $(DEPSDIR)))) $(MOREDEPS)
 DEPNAMES = $(strip $(foreach d, $(DEPS), $(lastword $(subst /, , $d))))
 
 # Include directories (implicit)
-INCDIR = $(strip $(INCFLAG)include $(foreach dep, $(DEPS), $(INCFLAG)$(dep)include))
+INCDIR = $(strip $(INCFLAG)include $(foreach dep, $(DEPS), $(INCFLAG)$(dep)/include))
 # Include directories (explicit)
 INCDIR += $(strip $(foreach addinc, $(ADDINCS), $(INCFLAG)$(addinc)))
 
 # Library search directories
 LIBSDIR = $(strip $(foreach libdir,\
-			$(foreach dep, $(DEPS), $(dep)lib) $(ADDLIBDIR),\
+			$(foreach dep, $(DEPS), $(dep)/lib) $(ADDLIBDIR),\
 			$(LIBSDIRFLAG)$(libdir)/$(strip $(VARIANT))))
 # Library flags
 LIBFLAGS = $(strip $(foreach lib, $(LIBS), $(LIBFLAG)$(lib)$(if $(filter $(TOOLCHAIN), MSVC),.lib,)))
