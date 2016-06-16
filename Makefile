@@ -253,16 +253,16 @@ archive = $(AR) $(ARFLAGS) $(AROUTFLAG)$@ $?
 # Colors
 #---------------------------------------------------------------
 ifneq ($(OS), Windows_NT)
-	ESC = $(echo -e -n \x1b)
+	ESC = $(shell echo -e -n '\x1b')
 endif
 NO_COLOR=$(ESC)[0m
-LGREEN_COLOR=$(ESC)[92;m
-LYELLOW_COLOR=$(ESC)[93;m
-LMAGENTA_COLOR=$(ESC)[95;m
-LRED_COLOR=$(ESC)[91;m
-DGREEN_COLOR=$(ESC)[32;m
-DYELLOW_COLOR=$(ESC)[33;m
-DCYAN_COLOR=$(ESC)[36;m
+LGREEN_COLOR=$(ESC)[92m
+LYELLOW_COLOR=$(ESC)[93m
+LMAGENTA_COLOR=$(ESC)[95m
+LRED_COLOR=$(ESC)[91m
+DGREEN_COLOR=$(ESC)[32m
+DYELLOW_COLOR=$(ESC)[33m
+DCYAN_COLOR=$(ESC)[36m
 
 #---------------------------------------------------------------
 # Rules
