@@ -1,4 +1,5 @@
 #include "game.h"
+#include <string.h>
 #include "window.h"
 
 static void on_key(struct window* wnd, int key, int scancode, int action, int mods)
@@ -20,7 +21,8 @@ void init(struct game_context* ctx)
     set_userdata(ctx->wnd, ctx);
 
     /* Set event callbacks */
-    struct window_callbacks wnd_callbacks = {};
+    struct window_callbacks wnd_callbacks;
+    memset(&wnd_callbacks, 0, sizeof(struct window_callbacks));
     wnd_callbacks.key_cb = on_key;
     set_callbacks(ctx->wnd, &wnd_callbacks);
 }
