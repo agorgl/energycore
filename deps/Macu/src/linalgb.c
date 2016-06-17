@@ -6,6 +6,11 @@
 #include <string.h>
 #include <float.h>
 
+#ifdef M_PI
+#undef M_PI
+#endif
+#define M_PI 3.14159265358979323846f
+
 static int rawcast(float x)
 {
     union {
@@ -29,6 +34,26 @@ float min(float x, float y)
     return x < y ? x : y;
 }
 #endif
+
+/* Use floating point math functions to avoid conversion warnings */
+#define pow powf
+#define fabs fabsf
+#define floor floorf
+#define fmod fmodf
+#define sqrt sqrtf
+#define cos cosf
+#define sin sinf
+#define atan2 atan2f
+
+#ifdef max
+#undef max
+#endif
+#define max fmaxf
+
+#ifdef min
+#undef min
+#endif
+#define min fminf
 
 float clamp(float x, float bottom, float top)
 {
@@ -332,9 +357,9 @@ vec2 vec2_reflect(vec2 v1, vec2 v2)
 vec2 vec2_from_string(char* s)
 {
     char* pEnd;
-    double d1, d2;
-    d1 = strtod(s, &pEnd);
-    d2 = strtod(pEnd, NULL);
+    float d1, d2;
+    d1 = (float)strtod(s, &pEnd);
+    d2 = (float)strtod(pEnd, NULL);
 
     vec2 v;
     v.x = d1;
@@ -649,10 +674,10 @@ vec3 vec3_project(vec3 v1, vec3 v2)
 vec3 vec3_from_string(char* s)
 {
     char* pEnd;
-    double d1, d2, d3;
-    d1 = strtod(s, &pEnd);
-    d2 = strtod(pEnd, &pEnd);
-    d3 = strtod(pEnd, NULL);
+    float d1, d2, d3;
+    d1 = (float)strtod(s, &pEnd);
+    d2 = (float)strtod(pEnd, &pEnd);
+    d3 = (float)strtod(pEnd, NULL);
 
     vec3 v;
     v.x = d1;
@@ -954,11 +979,11 @@ vec4 vec4_reflect(vec4 v1, vec4 v2)
 vec4 vec4_from_string(char* s)
 {
     char* end;
-    double d1, d2, d3, d4;
-    d1 = strtod(s, &end);
-    d2 = strtod(end, &end);
-    d3 = strtod(end, &end);
-    d4 = strtod(end, NULL);
+    float d1, d2, d3, d4;
+    d1 = (float)strtod(s, &end);
+    d2 = (float)strtod(end, &end);
+    d3 = (float)strtod(end, &end);
+    d4 = (float)strtod(end, NULL);
 
     vec4 v;
     v.x = d1;
@@ -1311,7 +1336,7 @@ vec3 quat_log(quat q)
 
 static quat quat_get_value(float t, vec3 axis)
 {
-    return quat_exp(vec3_mul(axis, t / 2.0));
+    return quat_exp(vec3_mul(axis, t / 2.0f));
 }
 
 quat quat_constrain(quat q, vec3 axis)
@@ -1404,10 +1429,10 @@ quat_dual quat_dual_transform(quat q, vec3 t)
     quat_dual qd;
     qd.real = q;
     qd.dual = quat_new(
-        0.5 * (t.x * q.w + t.y * q.z - t.z * q.y),
-        0.5 * (-t.x * q.z + t.y * q.w + t.z * q.x),
-        0.5 * (t.x * q.y - t.y * q.x + t.z * q.w),
-        -0.5 * (t.x * q.x + t.y * q.y + t.z * q.z));
+        0.5f * (t.x * q.w + t.y * q.z - t.z * q.y),
+        0.5f * (-t.x * q.z + t.y * q.w + t.z * q.x),
+        0.5f * (t.x * q.y - t.y * q.x + t.z * q.w),
+       -0.5f * (t.x * q.x + t.y * q.y + t.z * q.z));
     return qd;
 }
 
@@ -1422,8 +1447,8 @@ quat_dual quat_dual_mul(quat_dual q0, quat_dual q1)
 quat_dual quat_dual_normalize(quat_dual q)
 {
     float l = quat_length(q.real);
-    quat real = vec4_mul(q.real, 1.0 / l);
-    quat dual = vec4_mul(q.dual, 1.0 / l);
+    quat real = vec4_mul(q.real, 1.0f / l);
+    quat dual = vec4_mul(q.dual, 1.0f / l);
     return quat_dual_new(real, vec4_sub(dual, vec4_mul(real, quat_dot(real, dual))));
 }
 
@@ -1519,7 +1544,7 @@ float mat2_det(mat2 m)
 mat2 mat2_inverse(mat2 m)
 {
     float det = mat2_det(m);
-    float fac = 1.0 / det;
+    float fac = 1.0f / det;
 
     mat2 ret;
     ret.xx = fac * m.yy;
@@ -1669,7 +1694,7 @@ float mat3_det(mat3 m)
 mat3 mat3_inverse(mat3 m)
 {
     float det = mat3_det(m);
-    float fac = 1.0 / det;
+    float fac = 1.0f / det;
 
     mat3 ret;
     ret.xx = fac * mat2_det(mat2_new(m.yy, m.yz, m.zy, m.zz));
@@ -2036,7 +2061,7 @@ float mat4_det(mat4 m)
 mat4 mat4_inverse(mat4 m)
 {
     float det = mat4_det(m);
-    float fac = 1.0 / det;
+    float fac = 1.0f / det;
 
     mat4 ret;
     ret.xx = fac * mat3_det(mat3_new(m.yy, m.yz, m.yw, m.zy, m.zz, m.zw, m.wy, m.wz, m.ww));
@@ -2151,13 +2176,13 @@ mat4 mat4_perspective(float fov, float near_clip, float far_clip, float ratio)
     bottom = -top;
 
     mat4 proj_matrix = mat4_zero();
-    proj_matrix.xx = (2.0 * near_clip) / (right - left);
-    proj_matrix.yy = (2.0 * near_clip) / (top - bottom);
+    proj_matrix.xx = (2.0f * near_clip) / (right - left);
+    proj_matrix.yy = (2.0f * near_clip) / (top - bottom);
     proj_matrix.xz = (right + left) / (right - left);
     proj_matrix.yz = (top + bottom) / (top - bottom);
     proj_matrix.zz = (-far_clip - near_clip) / (far_clip - near_clip);
-    proj_matrix.wz = -1.0;
-    proj_matrix.zw = (-(2.0 * near_clip) * far_clip) / (far_clip - near_clip);
+    proj_matrix.wz = -1.0f;
+    proj_matrix.zw = (-(2.0f * near_clip) * far_clip) / (far_clip - near_clip);
 
     return proj_matrix;
 }
@@ -3061,7 +3086,7 @@ static bool quadratic(float a, float b, float c, float* t0, float* t1)
     } else {
 
         float d = sqrtf(descrim);
-        float q = (b < 0) ? (-b - d) / 2.0 : (-b + d) / 2.0;
+        float q = (b < 0) ? (-b - d) / 2.0f : (-b + d) / 2.0f;
 
         *t0 = q / a;
         *t1 = c / q;
@@ -3206,9 +3231,9 @@ ellipsoid ellipsoid_transform(ellipsoid e, mat4 m)
 mat3 ellipsoid_space(ellipsoid e)
 {
     return mat3_new(
-        1.0 / e.radiuses.x, 0, 0,
-        0, 1.0 / e.radiuses.y, 0,
-        0, 0, 1.0 / e.radiuses.z);
+        1.f / e.radiuses.x, 0, 0,
+        0, 1.f / e.radiuses.y, 0,
+        0, 0, 1.f / e.radiuses.z);
 }
 
 mat3 ellipsoid_inv_space(ellipsoid e)
