@@ -309,6 +309,30 @@ showvars: variables
 	$(eval lcommand = $(archive))
 	@$(lcommand)
 
+# Command chunks that help generate dependency files in each toolchain
+sed-escape = $(subst /,\/,$(subst \,\\,$(1)))
+msvc-dep-gen = $(1) /showIncludes >$(basename $@)$(HDEPEXT) & \
+	$(if $(SILENT),,sed -e "/^Note: including file:/d" $(basename $@)$(HDEPEXT) &&) \
+	sed -i \
+		-e "/: error /q1" \
+		-e "/^Note: including file:/!d" \
+		-e "s/^Note: including file:\s*\(.*\)$$/\1/" \
+		-e "s/\\/\//g" \
+		-e "s/ /\\ /g" \
+		-e "s/^\(.*\)$$/\t\1 \\/" \
+		-e "2 s/^.*$$/$(call sed-escape,$@)\: $(call sed-escape,$<) &/g" \
+		$(basename $@)$(HDEPEXT) || (echo. >$(basename $@)$(HDEPEXT) & exit 1)
+gcc-dep-gen = -MMD -MT $@ -MF $(basename $@)$(HDEPEXT)
+
+# Command wrapper that adds dependency generation functionality to given compile command
+ifndef NO_INC_BUILD
+dep-gen-wrapper = $(if $(filter $(TOOLCHAIN), MSVC), \
+	$(call msvc-dep-gen, $(1)), \
+	$(1) $(gcc-dep-gen))
+else
+dep-gen-wrapper = $(1)
+endif
+
 #
 # Compile rules
 #
@@ -316,8 +340,9 @@ define compile-rule
 $(BUILDDIR)/$(VARIANT)/%.$(strip $(1))$(OBJEXT): %.$(strip $(1))
 	@$$(info $(LGREEN_COLOR)[>] Compiling$(NO_COLOR) $(LYELLOW_COLOR)$$<$(NO_COLOR))
 	@$$(call mkdir, $$(@D))
-	@$(2) $(quiet)
+	@$$(call dep-gen-wrapper, $(2)) $(quiet)
 endef
+
 # Generate compile rules
 $(eval $(call compile-rule, c, $(ccompile)))
 $(foreach ext, cpp cxx cc, $(eval $(call compile-rule, $(ext), $(cxxcompile))))
@@ -342,13 +367,6 @@ ifeq (0, $(words $(findstring $(MAKECMDGOALS), $(NOHDEPSGEN))))
 	# GNU Make attempts to (re)build the file it includes
 	-include $(HDEPS)
 endif
-
-# Header dependency generation rule
-$(BUILDDIR)/$(VARIANT)/%$(HDEPEXT): %
-	@$(call mkdir, $(@D))
-	@g++ $(INCDIR) $(CPPFLAGS) \
-		$(if $(filter $(suffix $<), .cpp .cc .cxx), $(CXXFLAGS),) \
-		-MM -MT $(basename $@)$(OBJEXT) -MF $@ $<
 
 # Non file targets
 .PHONY: all \
