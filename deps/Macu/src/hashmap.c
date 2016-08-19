@@ -76,6 +76,32 @@ static void hashmap_put_internal(struct hashmap* hm, void* key, void* value)
     hm->size++;
 }
 
+static void hashmap_remove_internal(struct hashmap* hm, void* key)
+{
+    /* Get index from the given key's hash */
+    size_t index = hm->hashfn(key) % hm->capacity;
+    struct hashmap_node** cur_node = &hm->buckets[index];
+    if (*cur_node != 0) {
+        struct hashmap_node* n = 0;
+        struct hashmap_node* pn = 0;
+        for (n = *cur_node; n != 0; n = n->next) {
+            if (hm->eqlfn(key, n->data.key)) {
+                /* Key exists, delete pair */
+                if (pn == 0) { /* Head of the list */
+                    *cur_node = n->next;
+                } else {
+                    pn->next = n->next;
+                }
+                free(n);
+                n = 0;
+                hm->size--;
+                return;
+            }
+            pn = n;
+        }
+    }
+}
+
 static void hashmap_resize(struct hashmap* hm)
 {
     /* Increase the capacity by doubling it */
@@ -86,6 +112,8 @@ static void hashmap_resize(struct hashmap* hm)
     /* Allocate new bucket array */
     hm->buckets = malloc(sizeof(struct hashmap_node*) * hm->capacity);
     memset(hm->buckets, 0, sizeof(struct hashmap_node*) * hm->capacity);
+    /* Reset size before re-arranging elements */
+    hm->size = 0;
     /* Copy the pairs from the old bucket array to the new one */
     for (size_t i = 0; i < ocap; ++i) {
         struct hashmap_node* n = old_buckets[i];
@@ -106,6 +134,12 @@ void hashmap_put(struct hashmap* hm, void* key, void* value)
 
     /* Actual put */
     hashmap_put_internal(hm, key, value);
+}
+
+void hashmap_remove(struct hashmap* hm, void* key)
+{
+    /* Actual remove */
+    hashmap_remove_internal(hm, key);
 }
 
 void* hashmap_get(struct hashmap* hm, void* key)

@@ -84,6 +84,9 @@ void hashmap_iter(struct hashmap* hm, hm_iter_fn iter_cb);
  */
 void hashmap_put(struct hashmap* hm, void* key, void* value);
 
+/* Remove the pair for the specified key in hashmap */
+void hashmap_remove(struct hashmap* hm, void* key);
+
 /* Retrieves ptr to the value assosiated with the specified key or 0 if it does not exist */
 void* hashmap_get(struct hashmap* hm, void* key);
 

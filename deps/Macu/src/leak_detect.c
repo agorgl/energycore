@@ -5,11 +5,22 @@
 #include "leak_detect.h"
 #include <string.h>
 #include <stdio.h>
+#include <assert.h>
+#include <limits.h>
+#include "tinycthread.h"
+
+#ifdef _MSC_VER
+#define PATH_LIM _MAX_PATH
+#else
+#define PATH_LIM PATH_MAX
+#endif
 
 #undef malloc
 #undef calloc
 #undef realloc
 #undef free
+
+#include "hashmap.h"
 
 #define PRINT_LEAK_STR "\
 -----------------------------\n\
@@ -21,165 +32,134 @@ Size: %u bytes\n\
 Address: %#x\n\
 -----------------------------\n"
 
-struct ld_mem_info {
-    void* addr;
+/* Allocation entry */
+struct ld_alloc_info {
     size_t size;
-    char filename[_MAX_PATH];
+    char filename[PATH_LIM];
     unsigned int line;
 };
 
-struct leak_list {
-    struct ld_mem_info* info;
-    struct leak_list* next;
+/* Allocation database */
+struct ld_alloc_db {
+    struct hashmap allocations;
 };
 
-struct leak_detector {
-    struct leak_list* leak_list;
-    size_t size;
-};
+/* Allocation database instance */
+static struct ld_alloc_db alloc_db;
+static mtx_t lock;
 
-/* Leak detection context data */
-static struct leak_detector detector;
-
-void ldinit()
+static size_t hash_fn(void* key)
 {
-    detector.leak_list = 0;
-    detector.size = 0;
+    long h = (long) key;
+    return (13 * h) ^ (h >> 15);
 }
 
-void ldshutdown()
+static int hm_eql(void* k1, void* k2)
 {
-    struct leak_list* temp = detector.leak_list, *temp2;
+    return k1 == k2;
+}
 
-    /* Free allocated memory */
-    while(temp != 0) {
-        /* Save the next node for next loop */
-        temp2 = temp->next;
+void ld_init()
+{
+    mtx_init(&lock, mtx_plain);
+    hashmap_init(&alloc_db.allocations, hash_fn, hm_eql);
+}
 
-        free(temp->info->addr);
-        free(temp->info);
-        free(temp);
-        (detector.size)--;
+static void allocations_free_iter(void* key, void* value)
+{
+    struct ld_alloc_info* ai = (struct ld_alloc_info*) value;
+    free(key);
+    free(ai);
+}
 
-        temp = temp2;
+void ld_shutdown()
+{
+    hashmap_iter(&alloc_db.allocations, allocations_free_iter);
+    hashmap_destroy(&alloc_db.allocations);
+    mtx_destroy(&lock);
+}
+
+static void add_leak(struct ld_alloc_db* db, void* ptr, struct ld_alloc_info* info)
+{
+    mtx_lock(&lock);
+    hashmap_put(&db->allocations, ptr, info);
+    mtx_unlock(&lock);
+}
+
+static struct ld_alloc_info* get_leak(struct ld_alloc_db* db, void* ptr)
+{
+    struct ld_alloc_info** ai = hashmap_get(&db->allocations, ptr);
+    return *ai;
+}
+
+static void remove_leak(struct ld_alloc_db* db, void* ptr)
+{
+    mtx_lock(&lock);
+    struct ld_alloc_info* alloc_info = get_leak(db, ptr);
+    hashmap_remove(&db->allocations, ptr);
+    free(alloc_info);
+    mtx_unlock(&lock);
+}
+
+void* ld_malloc(size_t size, const char* file, unsigned int line)
+{
+    struct ld_alloc_info* alloc_info = malloc(sizeof(struct ld_alloc_info));
+    void* memptr = malloc(size);
+    alloc_info->size = size;
+    strcpy(alloc_info->filename, file);
+    alloc_info->line = line;
+    add_leak(&alloc_db, memptr, alloc_info);
+    return memptr;
+}
+
+void* ld_calloc(size_t num, size_t size, const char* file, unsigned int line)
+{
+    struct ld_alloc_info* alloc_info = malloc(sizeof(struct ld_alloc_info));
+    void* memptr = calloc(num, size);
+    alloc_info->size = num * size;
+    strcpy(alloc_info->filename, file);
+    alloc_info->line = line;
+    add_leak(&alloc_db, memptr, alloc_info);
+    return memptr;
+}
+
+void* ld_realloc(void* ptr, size_t size, const char* file, unsigned int line)
+{
+    struct ld_alloc_info* ai = get_leak(&alloc_db, ptr);
+    /* Allocation exists */
+    if (ai) {
+        void* newmptr = realloc(ptr, size);
+        assert(newmptr == ptr);
+        ai->size = size;
+        ai->line = line;
+        strcpy(ai->filename, file);
+        return newmptr;
+    } else if (ptr == 0) {
+        /* Behave like malloc */
+        return ld_malloc(size, file, line);
     }
+    /* Probably some error in case we get here */
+    assert(0 && "realloc with missing allocation info!");
+    return 0;
 }
 
-void add_leak(const struct ld_mem_info* info)
+void ld_free(void* addr)
 {
-    struct ld_mem_info *info_to_add = malloc(sizeof(struct ld_mem_info));
-    struct leak_list *leak_to_add = malloc(sizeof(struct leak_list));
-    struct leak_list *temp;
-
-    /* Config info */
-    info_to_add->addr = info->addr;
-    info_to_add->size = info->size;
-    strcpy(info_to_add->filename, info->filename);
-    info_to_add->line = info->line;
-
-    /* Config leak */
-    leak_to_add->info = info_to_add;
-    leak_to_add->next = 0;
-
-    /* List is empty */
-    if(detector.leak_list == 0)
-        detector.leak_list = leak_to_add;
-    else {
-        /* Skip everything and go to last element of list */
-        for(temp = detector.leak_list; temp != 0; temp = temp->next)
-            if(temp->next == 0)
-                break;
-
-        temp->next = leak_to_add;
-    }
-
-    (detector.size)++;
+    remove_leak(&alloc_db, addr);
+    free(addr);
 }
 
-void* ldmalloc(size_t size, const char * file, unsigned int line)
+static void allocations_print_iter(void* key, void* value)
 {
-    struct ld_mem_info mem_info;
-    mem_info.addr = malloc(size);
-    mem_info.size = size;
-    strcpy(mem_info.filename, file);
-    mem_info.line = line;
-    add_leak(&mem_info);
-    return mem_info.addr;
+    struct ld_alloc_info* ai = (struct ld_alloc_info*) value;
+    printf(PRINT_LEAK_STR,
+           ai->filename,
+           ai->line,
+           ai->size,
+           (unsigned int)key);
 }
 
-void* ldcalloc(size_t num, size_t size, const char* file, unsigned int line)
+void ld_print_leaks()
 {
-    struct ld_mem_info mem_info;
-    mem_info.addr = calloc(num, size);
-    mem_info.size = num * size;
-    strcpy(mem_info.filename, file);
-    mem_info.line = line;
-    add_leak(&mem_info);
-    return mem_info.addr;
-}
-
-void* ldrealloc(void* ptr, size_t size, const char* file, unsigned int line)
-{
-    struct leak_list *cur = detector.leak_list;
-    while(cur != 0) {
-        /* Found a match! */
-        if(cur->info->addr == ptr) {
-            cur->info->addr = realloc(ptr, size);
-            cur->info->size = size;
-            strcpy(cur->info->filename, file);
-            cur->info->line = line;
-            break;
-        }
-        cur = cur->next;
-    }
-    return (cur == 0) ? 0 : cur->info->addr;
-}
-
-void ldfree(void* addr)
-{
-    struct leak_list *cur, *prev, *temp;
-
-    /* Check if the first element is the one we need */
-    if(detector.leak_list->info->addr == addr) {
-        temp = detector.leak_list->next;
-        free(detector.leak_list->info->addr);
-        free(detector.leak_list->info);
-        free(detector.leak_list);
-        detector.leak_list = temp;
-    }
-    else {
-        /* Find the right leak in the list to remove */
-        cur = detector.leak_list;
-        prev = cur;
-        while(cur != 0) {
-            /* Found a match! */
-            if(cur->info->addr == addr) {
-                prev->next = cur->next;
-                free(cur->info->addr);
-                free(cur->info);
-                free(cur);
-                cur = 0;
-                break;
-            }
-
-            prev = cur;
-            cur = cur->next;
-        }
-    }
-
-    (detector.size)--;
-}
-
-void print_leaks()
-{
-    struct leak_list* temp = detector.leak_list;
-    while(temp != 0) {
-        printf(PRINT_LEAK_STR,
-               temp->info->filename,
-               temp->info->line,
-               temp->info->size,
-               (unsigned int)temp->info->addr);
-
-        temp = temp->next;
-    }
+    hashmap_iter(&alloc_db.allocations, allocations_print_iter);
 }

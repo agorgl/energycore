@@ -28,25 +28,60 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _LEAK_DETECT_H_
-#define _LEAK_DETECT_H_
+#ifndef _PLAT_H_
+#define _PLAT_H_
 
-#include <stdlib.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#define malloc(size) ld_malloc(size, __FILE__, __LINE__)
-#define calloc(num, size) ld_calloc(num, size, __FILE__, __LINE__)
-#define realloc(ptr, size) ld_realloc(ptr, size, __FILE__, __LINE__)
-#define free(addr) ld_free(addr)
 
-/* Public interface */
-void ld_init();
-void ld_print_leaks();
-void ld_shutdown();
+/* Platform detection */
+#ifdef _WIN32
+    /* Windows (32-bit and 64-bit, common define) */
+    #define OS_WINDOWS
+    #if defined(_WIN32) && !defined(_WIN64)
+        /* Windows (32-bit only) */
+        #define OS_WIN32
+    #endif
+    #ifdef _WIN64
+        /* Windows (64-bit only) */
+        #define OS_WIN64
+    #endif
+#elif __APPLE__
+    #include "TargetConditionals.h"
+    #if defined(TARGET_IPHONE_SIMULATOR) || defined(TARGET_OS_IPHONE)
+        #define OS_IOS
+        #if TARGET_IPHONE_SIMULATOR
+            /* iOS Simulator */
+            #define OS_IOS_SIMUL
+        #elif TARGET_OS_IPHONE
+            /* iOS Device */
+            #define OS_IOS_PHONE
+        #endif
+    #elif TARGET_OS_MAC
+        /* Mac OSX */
+        #define OS_OSX
+    #endif
+#elif __ANDROID__
+    /* Android */
+    #define OS_ANDROID
+#elif __linux__
+    /* Linux */
+    #define OS_LINUX
+#elif __unix__ /* All unixes not caught above */
+    /* Unix */
+    #define OS_UNIX
+#elif defined(_POSIX_VERSION)
+    /* POSIX */
+#else
+    /* Unknown OS */
+    #define OS_UNKNOWN
+#endif
 
-/* Injected functions */
-void* ld_malloc(size_t size, const char* file, unsigned int line);
-void* ld_calloc(size_t num, size_t size, const char* file, unsigned int line);
-void* ld_realloc(void* ptr, size_t size, const char* file, unsigned int line);
-void ld_free(void* addr);
 
-#endif /* ! _LEAK_DETECT_H_ */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* ! _PLAT_H_ */

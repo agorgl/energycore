@@ -28,25 +28,55 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _LEAK_DETECT_H_
-#define _LEAK_DETECT_H_
+#ifndef _SOCK_H_
+#define _SOCK_H_
 
-#include <stdlib.h>
+#include "plat.h"
 
-#define malloc(size) ld_malloc(size, __FILE__, __LINE__)
-#define calloc(num, size) ld_calloc(num, size, __FILE__, __LINE__)
-#define realloc(ptr, size) ld_realloc(ptr, size, __FILE__, __LINE__)
-#define free(addr) ld_free(addr)
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-/* Public interface */
-void ld_init();
-void ld_print_leaks();
-void ld_shutdown();
+#ifdef OS_WINDOWS
+    #ifdef _WIN32_WINNT
+        #undef _WIN32_WINNT
+    #endif
+    #define _WIN32_WINNT 0x0601
+    #include <winsock2.h>
+    #include <Ws2tcpip.h>
+#else
+  /* Assume that any non-Windows platform uses POSIX-style sockets instead. */
+  #include <sys/socket.h>
+  #include <arpa/inet.h>
+  #include <netdb.h>  /* Needed for getaddrinfo() and freeaddrinfo() */
+  #include <unistd.h> /* Needed for close() */
+#endif
 
-/* Injected functions */
-void* ld_malloc(size_t size, const char* file, unsigned int line);
-void* ld_calloc(size_t num, size_t size, const char* file, unsigned int line);
-void* ld_realloc(void* ptr, size_t size, const char* file, unsigned int line);
-void ld_free(void* addr);
+/* Socket type */
+#ifdef OS_WINDOWS
+typedef SOCKET sock_t;
+#else
+typedef int sock_t;
+#endif
 
-#endif /* ! _LEAK_DETECT_H_ */
+/* Socket valid check */
+#ifdef OS_WINDOWS
+#define sock_valid(s) (s != INVALID_SOCKET)
+#else
+#define sock_valid(s) (s >= 0)
+#endif
+
+/* Initialize socket interface */
+int sock_init();
+/* De-initialize socket interface */
+int sock_destroy();
+/* Helper function for sending a full buffer using repeating send calls */
+int sendall(int s, char* buf, int* len);
+/* Close socket */
+int sock_close(sock_t sock);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* ! _SOCK_H_ */
