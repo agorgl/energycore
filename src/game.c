@@ -11,7 +11,7 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         *(ctx->should_terminate) = 1;
 }
 
-void init(struct game_context* ctx)
+void game_init(struct game_context* ctx)
 {
     /* Create window */
     const char* title = "EnergyCore";
@@ -28,7 +28,7 @@ void init(struct game_context* ctx)
     window_set_callbacks(ctx->wnd, &wnd_callbacks);
 }
 
-void update(void* userdata, float dt)
+void game_update(void* userdata, float dt)
 {
     (void) dt;
     struct game_context* ctx = userdata;
@@ -36,7 +36,7 @@ void update(void* userdata, float dt)
     window_poll_events(ctx->wnd);
 }
 
-void render(void* userdata, float interpolation)
+void game_render(void* userdata, float interpolation)
 {
     (void) interpolation;
     struct game_context* ctx = userdata;
@@ -44,7 +44,7 @@ void render(void* userdata, float interpolation)
     window_swap_buffers(ctx->wnd);
 }
 
-void shutdown(struct game_context* ctx)
+void game_shutdown(struct game_context* ctx)
 {
     /* Close window */
     window_destroy(ctx->wnd);

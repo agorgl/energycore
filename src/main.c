@@ -40,15 +40,15 @@ int main(int argc, char* argv[])
     /* Initialize */
     struct game_context ctx;
     memset(&ctx, 0, sizeof(struct game_context));
-    init(&ctx);
+    game_init(&ctx);
 
     /* Setup mainloop parameters */
     struct mainloop_data mld;
     memset(&mld, 0, sizeof(struct mainloop_data));
     mld.max_frameskip = 5;
     mld.updates_per_second = 60;
-    mld.update_callback = update;
-    mld.render_callback = render;
+    mld.update_callback = game_update;
+    mld.render_callback = game_render;
     mld.userdata = &ctx;
     ctx.should_terminate = &mld.should_terminate;
 
@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
     mainloop(&mld);
 
     /* De-initialize */
-    shutdown(&ctx);
+    game_shutdown(&ctx);
 
     return 0;
 }

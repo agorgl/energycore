@@ -40,12 +40,12 @@ struct game_context
 };
 
 /* Initializes the game instance */
-void init(struct game_context* ctx);
+void game_init(struct game_context* ctx);
 /* Update callback used by the main loop */
-void update(void* userdata, float dt);
+void game_update(void* userdata, float dt);
 /* Render callback used by the main loop */
-void render(void* userdata, float interpolation);
+void game_render(void* userdata, float interpolation);
 /* De-initializes the game instance */
-void shutdown(struct game_context* ctx);
+void game_shutdown(struct game_context* ctx);
 
 #endif /* ! _GAME_H_ */
