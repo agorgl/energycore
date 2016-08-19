@@ -13,7 +13,7 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
 void init(struct game_context* ctx)
 {
     /* Create window */
-    const char* title = "Crazy cows flying all over the space";
+    const char* title = "EnergyCore";
     int width = 800, height = 600, mode = 0;
     ctx->wnd = create_window(title, width, height, mode);
 
