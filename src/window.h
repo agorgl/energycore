@@ -56,24 +56,24 @@ struct window_callbacks
 };
 
 /* Creates new window */
-struct window* create_window();
+struct window* window_create();
 
 /* Closes given window */
-void destroy_window(struct window*);
+void window_destroy(struct window*);
 
 /* Registers given callback functions */
-void set_callbacks(struct window*, struct window_callbacks*);
+void window_set_callbacks(struct window*, struct window_callbacks*);
 
 /* Polls for stored events and calls the registered callbacks */
-void poll_events(struct window*);
+void window_poll_events(struct window*);
 
 /* Swaps backbuffer with front buffer */
-void swap_buffers(struct window* wnd);
+void window_swap_buffers(struct window* wnd);
 
 /* Sets userdata pointer to be assosiated with given window */
-void set_userdata(struct window* wnd, void* userdata);
+void window_set_userdata(struct window* wnd, void* userdata);
 
 /* Retrieves userdata pointer assisiated with given window */
-void* get_userdata(struct window* wnd);
+void* window_get_userdata(struct window* wnd);
 
 #endif /* ! _WINDOW_H_ */

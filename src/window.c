@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include "input.h"
 
 struct window
 {
@@ -51,13 +52,13 @@ static void glfw_key_cb(GLFWwindow* wnd_handle, int key, int scancode, int actio
     int act = -1;
     switch (action) {
         case GLFW_PRESS:
-            act = 0;
+            act = KEY_ACTION_PRESS;
             break;
         case GLFW_RELEASE:
-            act = 1;
+            act = KEY_ACTION_RELEASE;
             break;
         case GLFW_REPEAT:
-            act = 2;
+            act = KEY_ACTION_REPEAT;
             break;
     }
     if (wnd->callbacks.key_cb)
@@ -78,7 +79,7 @@ static void glfw_char_mods_cb(GLFWwindow* wnd_handle, unsigned int codepoint, in
         wnd->callbacks.char_mods_cb(wnd, codepoint, mods);
 }
 
-struct window* create_window(const char* title, int width, int height, int mode)
+struct window* window_create(const char* title, int width, int height, int mode)
 {
     /* Initialize glfw context */
     glfwInit();
@@ -88,8 +89,9 @@ struct window* create_window(const char* title, int width, int height, int mode)
 
     /* Open GL version hints */
     glfwWindowHint(GLFW_SAMPLES, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
@@ -147,7 +149,7 @@ struct window* create_window(const char* title, int width, int height, int mode)
     return wnd;
 }
 
-void destroy_window(struct window* wnd)
+void window_destroy(struct window* wnd)
 {
     glfwDestroyWindow(wnd->wnd_handle);
     free(wnd);
@@ -156,28 +158,28 @@ void destroy_window(struct window* wnd)
     glfwTerminate();
 }
 
-void set_callbacks(struct window* wnd, struct window_callbacks* callbacks)
+void window_set_callbacks(struct window* wnd, struct window_callbacks* callbacks)
 {
     wnd->callbacks = *callbacks;
 }
 
-void poll_events(struct window* wnd)
+void window_poll_events(struct window* wnd)
 {
     (void)wnd;
     glfwPollEvents();
 }
 
-void swap_buffers(struct window* wnd)
+void window_swap_buffers(struct window* wnd)
 {
     glfwSwapBuffers(wnd->wnd_handle);
 }
 
-void set_userdata(struct window* wnd, void* userdata)
+void window_set_userdata(struct window* wnd, void* userdata)
 {
     wnd->userdata = userdata;
 }
 
-void* get_userdata(struct window* wnd)
+void* window_get_userdata(struct window* wnd)
 {
     return wnd->userdata;
 }
