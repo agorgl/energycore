@@ -3,7 +3,7 @@ EnergyCore
 
 Introduction
 ------------
-A small and fast game engine
+A small realtime renderer that implements various lighting techniques
 
 Building
 --------
@@ -13,7 +13,7 @@ Building
     make VARIANT=<VARIANT> TOOLCHAIN=<TOOLCHAIN>
     ```  
     where the optional `<VARIANT>` can be either Release|Debug and optional `<TOOLCHAIN>` can be either MSVC|GCC|LLVM.
- 3. Built binaries will reside in the `bin/<VARIANT>` and archives in the `lib/<VARIANT>` directory.
+ 3. Built executables will reside in the `bin/<VARIANT>` and libraries in the `lib/<VARIANT>` directory.
 
 ChangeLog
 ---------
@@ -30,7 +30,7 @@ Written and maintained by:
 
 Licensing
 ---------
-Read [LICENSE](LICENSE.md)  
+Read [LICENSE](LICENSE)  
 
 Copyright (C) 2016 Agorgianitis Loukas <agorglouk@gmail.com>  
 All rights reserved.
