@@ -3,8 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <glad/glad.h>
-#include "window.h"
-#include "input.h"
+#include <gfxwnd/window.h>
 
 static void gl_debug_proc(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* user_param)
 {
@@ -53,7 +52,7 @@ void game_update(void* userdata, float dt)
     (void) dt;
     struct game_context* ctx = userdata;
     /* Process input events */
-    window_poll_events(ctx->wnd);
+    window_update(ctx->wnd);
 }
 
 void game_render(void* userdata, float interpolation)
