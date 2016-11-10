@@ -46,6 +46,8 @@ SILENT ?=
 VERBOSE ?=
 # Default target OS is host if not provided
 TARGET_OS ?= $(OS)
+# Install location
+LOCAL_REPO ?= $(HOME)/.local
 
 #---------------------------------------------------------------
 # Helpers
@@ -90,6 +92,13 @@ else
 endif
 rmdir = $(if $(wildcard $(1)/.*), $(RMDIR_CMD) $(call native_path, $(1)),)
 
+# Copy command
+ifeq ($(OS), Windows_NT)
+	copy = robocopy $(call native_path, $(1)) $(call native_path, $(2)) /s /e
+else
+	copy = cp -r $(call native_path, $(1)) $(call native_path, $(2))
+endif
+
 # Path separator
 pathsep = $(strip $(if $(filter $(OS), Windows_NT), ;, :))
 
@@ -130,6 +139,15 @@ gatherprojs = $(strip $(patsubst ./%, %, $(patsubst %/config.mk, %, $(sort $(cal
 
 # Search for library in given paths
 searchlibrary = $(foreach sd, $2, $(call findfile, $(sd), $1))
+# Parse libraryname::version pairs
+lib-from-extlib-pair = $(firstword $(subst ::, , $(1)))
+ver-from-extlib-pair = $(strip $(or $(lastword $(subst ::, , $(1))), dev))
+# Construct base path to repo dependency
+extdep-pair = $(strip $(call lc,$(1)))::$(strip $(2))
+extdep-path = $(LOCAL_REPO)/builds/$(subst ::,/,$(call extdep-pair, $(1), $(2)))
+extdep-conf = $(call extdep-path, \
+					$(call lib-from-extlib-pair, $(1)), \
+					$(call ver-from-extlib-pair, $(1)))/pkg.mk
 
 #---------------------------------------------------------------
 # Global constants
@@ -287,6 +305,14 @@ $(BUILDDIR)/$(VARIANT)/$(strip $(3))%.$(strip $(1))$(OBJEXT): $(strip $(3))%.$(s
 endef
 
 #---------------------------------------------------------------
+# External dependency resolution
+#---------------------------------------------------------------
+define read-ext
+-include $$(call extdep-conf, $(1))
+PKGS += $$(PKGDEPS)
+endef
+
+#---------------------------------------------------------------
 # Per project configuration
 #---------------------------------------------------------------
 # Should at least define:
@@ -309,13 +335,14 @@ $(eval D = $(strip $(1)))
 $(eval DP = $(if $(filter $(D),.),,$(D)/))
 
 # Clear previous variables
-$(foreach v, PRJTYPE LIBS SRCDIR SRC DEFINES ADDINCS MOREDEPS, undefine $(v)${\n})
+$(foreach v, PRJTYPE VERSION LIBS SRCDIR SRC DEFINES ADDINCS MOREDEPS EXTDEPS, undefine $(v)${\n})
 
 # Include configuration
 -include $(DP)config.mk
 
 # Gather variables from config
 PRJTYPE_$(D)   := $$(PRJTYPE)
+VERSION_$(D)   := $$(VERSION)
 SRCDIR_$(D)    := $$(foreach d, $$(SRCDIR), $(DP)$$(d))
 SRC_$(D)       := $$(foreach s, $$(SRC), $(DP)$$(s))
 DEFINES_$(D)   := $$(DEFINES)
@@ -323,8 +350,10 @@ ADDINCS_$(D)   := $$(foreach ai, $$(ADDINCS), $(DP)$$(ai))
 ADDLIBDIR_$(D) := $$(foreach ald, $$(ADDLIBDIR), $(DP)$$(ald))
 LIBS_$(D)      := $$(foreach l, $$(LIBS), $$(l))
 MOREDEPS_$(D)  := $$(MOREDEPS)
+EXTDEPS_$(D)   := $$(EXTDEPS)
 
 # Set defaults on unset variables
+VERSION_$(D)    := $$(strip $$(or $$(VERSION_$(D)), dev))
 TARGETNAME_$(D) := $$(or $$(TARGETNAME_$(D)), $$(notdir $$(if $$(filter $(D),.), $$(CURDIR), $(D))))
 SRCDIR_$(D)     := $$(or $$(SRCDIR_$(D)), $(DP)src)
 SRCEXT_$(D)     := *.c *.cpp *.cc *.cxx
@@ -359,6 +388,11 @@ ifdef PRJTYPE_$(D)
 	MASTEROUT_$(D) := $$(TARGETDIR_$(D))/$(VARIANT)/$$(TARGET_$(D))
 endif
 
+# Install location
+INSTALL_PREFIX_$(D) := $$(call extdep-path, $$(TARGETNAME_$(D)), $$(VERSION_$(D)))
+# Install pair
+INSTALL_PAIR_$(D) := $$(call extdep-pair, $$(TARGETNAME_$(D)), $$(VERSION_$(D)))
+
 # Implicit dependencies directory
 DEPSDIR_$(D) := $(DP)deps
 # Implicit dependencies
@@ -369,21 +403,33 @@ DEPS_$(D) += $$(foreach md, $$(MOREDEPS_$(D)), $$(or $$(call canonical_path_cur,
 # Preprocessor flags
 CPPFLAGS_$(D) := $$(strip $$(foreach define, $$(DEFINES_$(D)), $(DEFINEFLAG)$$(define)))
 
-# Include directories (implicit)
-INCDIR_$(D) := $$(strip $(INCFLAG)$(DP)include \
+# Append dependency pairs from local dependencies
+undefine PKGS
+PKGS :=
+$$(foreach dep, $$(EXTDEPS_$(D)), $$(eval $$(call read-ext, $$(dep))))
+EXTDEPS_$(D) += $$(PKGS)
+
+# External (repo installed) dependency directories
+EXTDEPPATHS_$(D) := $$(foreach ed, $$(EXTDEPS_$(D)), $$(call extdep-path, \
+						$$(call lib-from-extlib-pair, $$(ed)), \
+						$$(call ver-from-extlib-pair, $$(ed))))
+
+# Include search directories
+INCPATHS_$(D) := $$(strip $(DP)include \
 						$$(foreach dep, $$(DEPS_$(D)) \
 										$$(filter-out $$(DEPS_$(D)), $$(wildcard $$(DEPSDIR_$(D))/*)), \
-										$(INCFLAG)$$(dep)/include))
-
-# Include directories (explicit)
-INCDIR_$(D) += $$(strip $$(foreach addinc, $$(ADDINCS_$(D)), $(INCFLAG)$$(addinc)))
+											$$(dep)/include) \
+						$$(ADDINCS_$(D)) \
+						$$(foreach extdep, $$(EXTDEPPATHS_$(D)), $$(extdep)/include))
+# Include path flags
+INCDIR_$(D) := $$(strip $$(foreach inc, $$(INCPATHS_$(D)), $(INCFLAG)$$(inc)))
 
 # Library search paths
 LIBPATHS_$(D) := $$(strip $$(foreach libdir,\
 									$$(foreach dep, $$(DEPS_$(D)), $$(dep)/lib) \
 									$$(ADDLIBDIR_$(D)),\
-								$$(libdir)/$(strip $(VARIANT))))
-
+								$$(libdir)/$(strip $(VARIANT))) \
+								$$(foreach extdep, $$(EXTDEPPATHS_$(D)), $$(extdep)/lib))
 # Library path flags
 LIBSDIR_$(D) := $$(strip $$(foreach lp, $$(LIBPATHS_$(D)), $(LIBSDIRFLAG)$$(lp)))
 
@@ -419,6 +465,11 @@ LIBDEPS_$(D) = $$(foreach dep, $$(DEPS_$(D)), \
 						$$(MASTEROUT_$$(strip $$(dep)))))
 endif
 
+# Install dependencies for static library
+ifeq ($$(PRJTYPE_$(D)), StaticLib)
+INSTDEPS_$(D) := $$(foreach dep, $$(DEPS_$(D)), install_$$(strip $$(dep)))
+endif
+
 #---------------------------------------------------------------
 # Rules
 #---------------------------------------------------------------
@@ -430,6 +481,22 @@ run_$(D): build_$(D)
 	@echo Executing $$(MASTEROUT_$(D)) ...
 	@$$(eval export PATH := $(PATH)$(pathsep)$$(subst $$(space),$(pathsep),$$(addprefix $$(CURDIR)/, $$(LIBPATHS_$(D)))))
 	@cd $(D) && $$(call native_path, $$(call canonical_path, $$(abspath $$(CURDIR)/$(D)), $$(MASTEROUT_$(D))))
+
+ifneq ($$(PRJTYPE_$(D)), Executable)
+# Pkg.mk file contents
+define PCFG_$(D)
+PKGDEPS := $$(strip $$(EXTDEPS_$(D)) $$(foreach dep, $$(DEPS_$(D)), $$(INSTALL_PAIR_$$(dep))))
+endef
+
+# Installs target to repository
+install_$(D): $$(INSTDEPS_$(D)) $$(MASTEROUT_$(D))
+	$$(info $(LGREEN_COLOR)[>] Installing$(NO_COLOR) $(LYELLOW_COLOR)$$(TARGETNAME_$(D)) to $$(INSTALL_PREFIX_$(D))$(NO_COLOR))
+	$(showcmd)$$(call mkdir, $$(INSTALL_PREFIX_$(D))/lib)
+	$(showcmd)$$(call mkdir, $$(INSTALL_PREFIX_$(D))/include)
+	$(showcmd)$$(call copy, $(DP)include/*, $$(INSTALL_PREFIX_$(D))/include)
+	$(showcmd)$$(call copy, $$(MASTEROUT_$(D)), $$(INSTALL_PREFIX_$(D))/lib)
+	$(showcmd)echo "$$(PCFG_$(D))" > $$(call extdep-conf, $$(INSTALL_PAIR_$(D)))
+endif
 
 # Show banner for current build execution
 banner_$(D):
@@ -452,6 +519,9 @@ showvars_$(D): banner_$(D)
 	@echo LIBFLAGS:  $$(LIBFLAGS_$(D))
 	@echo LIBDEPS:   $$(LIBDEPS_$(D))
 	@echo HDEPS:     $$(HDEPS_$(D))
+	@echo INSTALL:   $$(INSTALL_PREFIX_$(D))
+	@echo EXTDEPS:   $$(EXTDEPS_$(D))
+	@echo EXTPATHS:  $$(EXTDEPPATHS_$(D))
 
 $$(MASTEROUT_$(D)): $$(BUILDDEPS_$(D)) banner_$(D) objects_$(D)
 ifneq ($$(PRJTYPE_$(D)), StaticLib)
@@ -496,6 +566,7 @@ $(foreach subproj, $(NONSILENT_SUBPROJS), $(eval $(call gen-build-rules, $(subpr
 # Aliases
 build: build_.
 run: run_.
+install: install_.
 showvars: showvars_.
 showvars_all: $(foreach subproj, $(SUBPROJS), showvars_$(subproj))
 
