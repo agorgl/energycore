@@ -4,6 +4,7 @@
 #include <string.h>
 #include <glad/glad.h>
 #include <gfxwnd/window.h>
+#include <energycore/renderer.h>
 
 static void APIENTRY gl_debug_proc(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* user_param)
 {
@@ -59,6 +60,8 @@ void game_render(void* userdata, float interpolation)
 {
     (void) interpolation;
     struct game_context* ctx = userdata;
+    /* Render */
+    renderer_render();
     /* Show rendered contents from the backbuffer */
     window_swap_buffers(ctx->wnd);
 }
