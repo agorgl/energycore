@@ -553,6 +553,14 @@ showvars_$(D): $$(BANNERFILE_$(D))
 	@echo EXTDEPS:   $$(EXTDEPS_$(D))
 	@echo EXTPATHS:  $$(EXTDEPPATHS_$(D))
 
+# Show include search paths for current subproject
+showincpaths_$(D):
+	$$(info $$(INCPATHS_$(D)))
+
+# Show defines for current subproject
+showdefines_$(D):
+	$$(info $$(DEFINES_$(D)))
+
 $$(MASTEROUT_$(D)): $$(BUILDDEPS_$(D)) $$(OBJ_$(D))
 ifneq ($$(PRJTYPE_$(D)), StaticLib)
 # Link rule
@@ -635,7 +643,7 @@ endif
 .SUFFIXES:
 
 # Non file targets
-PHONYRULETYPES := build run install showvars
+PHONYRULETYPES := build run install showvars showincpaths showdefines
 PHONYPREREQS := $(foreach ruletype, $(PHONYRULETYPES), $(addprefix $(ruletype)_, $(SUBPROJS))) \
 		run \
 		showvars \
