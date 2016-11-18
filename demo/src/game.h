@@ -31,12 +31,25 @@
 #ifndef _GAME_H_
 #define _GAME_H_
 
+#include <vector.h>
+#include <linalgb.h>
+
+struct game_object
+{
+    struct model_hndl* model;
+    mat4 transform;
+};
+
 struct game_context
 {
     /* Window assiciated with the game */
     struct window* wnd;
     /* Master run flag, indicates when the game should exit */
     int* should_terminate;
+    /* Game objects */
+    struct vector gobjects;
+    /* Shader */
+    unsigned int shader;
 };
 
 /* Initializes the game instance */
