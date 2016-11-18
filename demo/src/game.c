@@ -121,29 +121,31 @@ void game_render(void* userdata, float interpolation)
 
     /* Create view and projection matrices */
     mat4 view;
-    const float cam_rot = 0.0f;
-    float cam_pos_x = 2.0 * cosf(cam_rot);
-    float cam_pos_z = 2.0 * sinf(cam_rot);
     view = mat4_view_look_at(
-        vec3_new(cam_pos_x, 0.8f, cam_pos_z),  /* Position */
-        vec3_zero(),                           /* Target */
-        vec3_new(0.0f, 1.0f, 0.0f));           /* Up */
+        vec3_new(0.0f, 0.6f, -2.0f), /* Position */
+        vec3_zero(),                 /* Target */
+        vec3_new(0.0f, 1.0f, 0.0f)); /* Up */
     mat4 proj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, 1.0f / (800.0f / 600.0f));
 
     /* Render */
     glEnable(GL_DEPTH_TEST);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glUseProgram(ctx->shader);
-    GLuint mvp_loc = glGetUniformLocation(ctx->shader, "MVP");
+
+    /* Setup matrices */
+    GLuint proj_mat_loc = glGetUniformLocation(ctx->shader, "proj");
+    GLuint view_mat_loc = glGetUniformLocation(ctx->shader, "view");
+    GLuint modl_mat_loc = glGetUniformLocation(ctx->shader, "model");
+    glUniformMatrix4fv(proj_mat_loc, 1, GL_TRUE, (GLfloat*)&proj);
+    glUniformMatrix4fv(view_mat_loc, 1, GL_TRUE, (GLfloat*)&view);
+
     /* Loop through objects */
     for (unsigned int i = 0; i < ctx->gobjects.size; ++i) {
         /* Setup game object to be rendered */
         struct game_object* gobj = vector_at(&ctx->gobjects, i);
         struct model_hndl* mdlh = gobj->model;
-        /* Upload MVP matrix */
-        mat4 mvp = mat4_mul_mat4(mat4_mul_mat4(proj, view), gobj->transform);
-        mvp = mat4_transpose(mvp);
-        glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, (GLfloat*)&mvp);
+        /* Upload model matrix */
+        glUniformMatrix4fv(modl_mat_loc, 1, GL_TRUE, (GLfloat*)&gobj->transform);
         /* Render mesh by mesh */
         for (unsigned int i = 0; i < mdlh->num_meshes; ++i) {
             struct mesh_hndl* mh = mdlh->meshes + i;
