@@ -4,7 +4,7 @@ in vec3 Normal;
 in vec3 FragPos;
 out vec4 out_color;
 
-const vec3 lightPos = vec3(-0.8, 1.0, -0.8);
+const vec3 lightPos = vec3(0.8, 1.0, 0.8);
 
 void main()
 {

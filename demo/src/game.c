@@ -122,7 +122,7 @@ void game_render(void* userdata, float interpolation)
     /* Create view and projection matrices */
     mat4 view;
     view = mat4_view_look_at(
-        vec3_new(0.0f, 0.6f, -2.0f), /* Position */
+        vec3_new(0.0f, 0.6f, 2.0f),  /* Position */
         vec3_zero(),                 /* Target */
         vec3_new(0.0f, 1.0f, 0.0f)); /* Up */
     mat4 proj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, 1.0f / (800.0f / 600.0f));
