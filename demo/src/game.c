@@ -119,6 +119,10 @@ void game_render(void* userdata, float interpolation)
     (void) interpolation;
     struct game_context* ctx = userdata;
 
+    /* Clear default buffers */
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     /* Create view and projection matrices */
     mat4 view;
     view = mat4_view_look_at(
