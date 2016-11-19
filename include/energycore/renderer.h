@@ -31,6 +31,22 @@
 #ifndef _RENDERER_H_
 #define _RENDERER_H_
 
-void renderer_render();
+struct renderer_state {
+    unsigned int shdr_main;
+};
+
+struct renderer_mesh {
+    unsigned int vao;
+    unsigned int ebo;
+    unsigned int indice_count;
+    float model_mat[16];
+};
+
+struct renderer_input {
+    struct renderer_mesh* meshes;
+    unsigned int num_meshes;
+};
+
+void renderer_render(struct renderer_state* rs, struct renderer_input* ri);
 
 #endif /* ! _RENDERER_H_ */

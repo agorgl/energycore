@@ -103,7 +103,7 @@ void game_init(struct game_context* ctx)
     load_data(ctx);
 
     /* Load shader from files into the GPU */
-    ctx->shader = shader_from_files("ext/shaders/main_vs.glsl", 0, "ext/shaders/main_fs.glsl");
+    ctx->shader = shader_from_files("../ext/shaders/main_vs.glsl", 0, "../ext/shaders/main_fs.glsl");
 }
 
 void game_update(void* userdata, float dt)
@@ -114,53 +114,49 @@ void game_update(void* userdata, float dt)
     window_update(ctx->wnd);
 }
 
+static void prepare_renderer_input(struct game_context* ctx, struct renderer_input* ri)
+{
+    /* Count total meshes */
+    ri->num_meshes = 0;
+    for (unsigned int i = 0; i < ctx->gobjects.size; ++i) {
+        struct game_object* gobj = vector_at(&ctx->gobjects, i);
+        struct model_hndl* mdlh = gobj->model;
+        ri->num_meshes += mdlh->num_meshes;
+    }
+
+    /* Populate renderer mesh inputs */
+    ri->meshes = malloc(ri->num_meshes * sizeof(struct renderer_mesh));
+    memset(ri->meshes, 0, ri->num_meshes * sizeof(struct renderer_mesh));
+    unsigned int cur_mesh = 0;
+    for (unsigned int i = 0; i < ctx->gobjects.size; ++i) {
+        struct game_object* gobj = vector_at(&ctx->gobjects, i);
+        struct model_hndl* mdlh = gobj->model;
+        for (unsigned int j = 0; j < mdlh->num_meshes; ++j) {
+            struct mesh_hndl* mh = mdlh->meshes + j;
+            struct renderer_mesh* rm = ri->meshes + cur_mesh;
+            rm->vao = mh->vao;
+            rm->ebo = mh->ebo;
+            rm->indice_count = mh->indice_count;
+            memcpy(rm->model_mat, &gobj->transform, 16 * sizeof(float));
+            ++cur_mesh;
+        }
+    }
+}
+
 void game_render(void* userdata, float interpolation)
 {
     (void) interpolation;
     struct game_context* ctx = userdata;
 
-    /* Clear default buffers */
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    /* Create view and projection matrices */
-    mat4 view;
-    view = mat4_view_look_at(
-        vec3_new(0.0f, 0.6f, 2.0f),  /* Position */
-        vec3_zero(),                 /* Target */
-        vec3_new(0.0f, 1.0f, 0.0f)); /* Up */
-    mat4 proj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, 1.0f / (800.0f / 600.0f));
+    /* Fill in struct with renderer input */
+    struct renderer_input ri;
+    prepare_renderer_input(ctx, &ri);
 
     /* Render */
-    glEnable(GL_DEPTH_TEST);
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glUseProgram(ctx->shader);
-
-    /* Setup matrices */
-    GLuint proj_mat_loc = glGetUniformLocation(ctx->shader, "proj");
-    GLuint view_mat_loc = glGetUniformLocation(ctx->shader, "view");
-    GLuint modl_mat_loc = glGetUniformLocation(ctx->shader, "model");
-    glUniformMatrix4fv(proj_mat_loc, 1, GL_TRUE, (GLfloat*)&proj);
-    glUniformMatrix4fv(view_mat_loc, 1, GL_TRUE, (GLfloat*)&view);
-
-    /* Loop through objects */
-    for (unsigned int i = 0; i < ctx->gobjects.size; ++i) {
-        /* Setup game object to be rendered */
-        struct game_object* gobj = vector_at(&ctx->gobjects, i);
-        struct model_hndl* mdlh = gobj->model;
-        /* Upload model matrix */
-        glUniformMatrix4fv(modl_mat_loc, 1, GL_TRUE, (GLfloat*)&gobj->transform);
-        /* Render mesh by mesh */
-        for (unsigned int i = 0; i < mdlh->num_meshes; ++i) {
-            struct mesh_hndl* mh = mdlh->meshes + i;
-            glBindVertexArray(mh->vao);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mh->ebo);
-            glDrawElements(GL_TRIANGLES, mh->indice_count, GL_UNSIGNED_INT, (void*)0);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-            glBindVertexArray(0);
-        }
-    }
-    glUseProgram(0);
+    struct renderer_state rs;
+    rs.shdr_main = ctx->shader;
+    renderer_render(&rs, &ri);
+    free(ri.meshes);
 
     /* Show rendered contents from the backbuffer */
     window_swap_buffers(ctx->wnd);
