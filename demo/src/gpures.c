@@ -146,6 +146,66 @@ struct tex_hndl* tex_from_file_to_gpu(const char* filename)
     return th;
 }
 
+static int hcross_face_map[6][2] = {
+    {2, 1}, /* Pos X */
+    {0, 1}, /* Neg X */
+    {1, 0}, /* Pos Y */
+    {1, 2}, /* Neg Y */
+    {1, 1}, /* Pos Z */
+    {3, 1}  /* Neg Z */
+};
+
+/* In pixels */
+static size_t hcross_face_offset(int face, size_t face_size)
+{
+    size_t stride = 4 * face_size;
+    return hcross_face_map[face][1] * face_size * stride + hcross_face_map[face][0] * face_size;
+}
+
+struct tex_hndl* tex_env_to_gpu(struct image* im)
+{
+    GLuint id;
+    glGenTextures(1, &id);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, id);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    /* Set row read stride */
+    unsigned int stride = im->width;
+    unsigned int face_size = im->width / 4;
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, stride);
+
+    /* Upload image data */
+    for (int i = 0; i < 6; ++i) {
+        int target = GL_TEXTURE_CUBE_MAP_POSITIVE_X + i;
+        glTexImage2D(
+            target, 0,
+            im->channels == 4 ? GL_RGBA : GL_RGB,
+            face_size, face_size, 0,
+            im->channels == 4 ? GL_RGBA : GL_RGB,
+            GL_UNSIGNED_BYTE,
+            im->data + hcross_face_offset(i, face_size) * im->channels);
+    }
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+    struct tex_hndl* th = calloc(1, sizeof(struct tex_hndl));
+    th->id = id;
+    return th;
+}
+
+struct tex_hndl* tex_env_from_file_to_gpu(const char* filename)
+{
+    struct image* im = image_from_file(filename);
+    struct tex_hndl* th = tex_env_to_gpu(im);
+    image_delete(im);
+    return th;
+}
+
 void tex_free_from_gpu(struct tex_hndl* th)
 {
     glDeleteTextures(1, &th->id);
