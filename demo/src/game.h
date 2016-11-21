@@ -33,6 +33,7 @@
 
 #include <vector.h>
 #include <linalgb.h>
+#include <energycore/renderer.h>
 #include "camera.h"
 
 struct game_object
@@ -49,10 +50,12 @@ struct game_context
     int* should_terminate;
     /* Game objects */
     struct vector gobjects;
-    /* Shader */
-    unsigned int shader;
     /* Camera */
     struct camera cam;
+    /* Skybox */
+    struct tex_hndl* skybox_tex;
+    /* Renderer */
+    struct renderer_state rndr_state;
 };
 
 /* Initializes the game instance */

@@ -28,32 +28,10 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _RENDERER_H_
-#define _RENDERER_H_
+#ifndef _GLUTILS_H_
+#define _GLUTILS_H_
 
-struct renderer_state {
-    unsigned int shdr_main;
-    struct {
-        unsigned int vao, vbo;
-        unsigned int shdr;
-    } skybox;
-};
+/* Fw declarations */
+unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char* fs_src);
 
-struct renderer_mesh {
-    unsigned int vao;
-    unsigned int ebo;
-    unsigned int indice_count;
-    float model_mat[16];
-};
-
-struct renderer_input {
-    struct renderer_mesh* meshes;
-    unsigned int num_meshes;
-    unsigned int skybox;
-};
-
-void renderer_init(struct renderer_state* rs);
-void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view_mat[16]);
-void renderer_destroy(struct renderer_state* rs);
-
-#endif /* ! _RENDERER_H_ */
+#endif /* ! _GLUTILS_H_ */
