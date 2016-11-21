@@ -31,7 +31,23 @@
 #ifndef _GLUTILS_H_
 #define _GLUTILS_H_
 
-/* Fw declarations */
+#include <stdint.h>
+
+/* Shader utils */
 unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char* fs_src);
+
+/* Geometry utils */
+struct sphere_gdata {
+    struct sphere_vertice {
+        float position[3];
+        float normal[3];
+        float uvs[2];
+    }* vertices;
+    unsigned int num_verts;
+    uint32_t* indices;
+    unsigned int num_indices;
+};
+struct sphere_gdata* uv_sphere_create(float radius, unsigned int rings, unsigned int sectors);
+void uv_sphere_destroy(struct sphere_gdata* vdat);
 
 #endif /* ! _GLUTILS_H_ */
