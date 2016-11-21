@@ -28,40 +28,35 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _GAME_H_
-#define _GAME_H_
+#ifndef _CAMERA_H_
+#define _CAMERA_H_
 
-#include <vector.h>
 #include <linalgb.h>
-#include "camera.h"
 
-struct game_object
-{
-    struct model_hndl* model;
-    mat4 transform;
+struct camera {
+    vec3 pos;
+    vec3 front;
+    vec3 up;
+    float yaw;
+    float pitch;
+    float move_speed;
+    float sensitivity;
+    float pitch_lim;
+    mat4 view_mat;
+    mat4 prev_view_mat;
 };
 
-struct game_context
-{
-    /* Window assiciated with the game */
-    struct window* wnd;
-    /* Master run flag, indicates when the game should exit */
-    int* should_terminate;
-    /* Game objects */
-    struct vector gobjects;
-    /* Shader */
-    unsigned int shader;
-    /* Camera */
-    struct camera cam;
+enum camera_move_dir {
+    cmd_forward  = 1 << 0,
+    cmd_left     = 1 << 1,
+    cmd_backward = 1 << 2,
+    cmd_right    = 1 << 3
 };
 
-/* Initializes the game instance */
-void game_init(struct game_context* ctx);
-/* Update callback used by the main loop */
-void game_update(void* userdata, float dt);
-/* Render callback used by the main loop */
-void game_render(void* userdata, float interpolation);
-/* De-initializes the game instance */
-void game_shutdown(struct game_context* ctx);
+void camera_defaults(struct camera* cam);
+void camera_move(struct camera* cam, int move_directions);
+void camera_look(struct camera* cam, float offx, float offy);
+void camera_update(struct camera* cam);
+mat4 camera_interpolated_view(struct camera* cam, float interpolaton);
 
-#endif /* ! _GAME_H_ */
+#endif /* ! _CAMERA_H_ */

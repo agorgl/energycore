@@ -28,6 +28,16 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
     struct game_context* ctx = window_get_userdata(wnd);
     if (action == 0 && key == KEY_ESCAPE)
         *(ctx->should_terminate) = 1;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_RIGHT_CONTROL)
+        window_grub_cursor(wnd, 0);
+}
+
+static void on_mouse_button(struct window* wnd, int button, int action, int mods)
+{
+    (void) mods;
+    /* struct game_context* ctx = window_get_userdata(wnd); */
+    if (action == KEY_ACTION_RELEASE && button == MOUSE_LEFT)
+        window_grub_cursor(wnd, 1);
 }
 
 static struct {
@@ -94,6 +104,7 @@ void game_init(struct game_context* ctx)
     struct window_callbacks wnd_callbacks;
     memset(&wnd_callbacks, 0, sizeof(struct window_callbacks));
     wnd_callbacks.key_cb = on_key;
+    wnd_callbacks.mouse_button_cb = on_mouse_button;
     window_set_callbacks(ctx->wnd, &wnd_callbacks);
 
     /* Setup OpenGL debug handler */
@@ -101,6 +112,11 @@ void game_init(struct game_context* ctx)
 
     /* Load data from files into the GPU */
     load_data(ctx);
+
+    /* Initialize camera */
+    camera_defaults(&ctx->cam);
+    ctx->cam.pos = vec3_new(0.0, 1.0, 2.0);
+    ctx->cam.front = vec3_normalize(vec3_mul(ctx->cam.pos, -1));
 
     /* Load shader from files into the GPU */
     ctx->shader = shader_from_files("../ext/shaders/main_vs.glsl", 0, "../ext/shaders/main_fs.glsl");
@@ -110,6 +126,24 @@ void game_update(void* userdata, float dt)
 {
     (void) dt;
     struct game_context* ctx = userdata;
+    /* Update camera position */
+    int cam_mov_flags = 0x0;
+    if (window_key_state(ctx->wnd, KEY_W) == KEY_ACTION_PRESS)
+        cam_mov_flags |= cmd_forward;
+    if (window_key_state(ctx->wnd, KEY_A) == KEY_ACTION_PRESS)
+        cam_mov_flags |= cmd_left;
+    if (window_key_state(ctx->wnd, KEY_S) == KEY_ACTION_PRESS)
+        cam_mov_flags |= cmd_backward;
+    if (window_key_state(ctx->wnd, KEY_D) == KEY_ACTION_PRESS)
+        cam_mov_flags |= cmd_right;
+    camera_move(&ctx->cam, cam_mov_flags);
+    /* Update camera look */
+    float cur_diff_x = 0, cur_diff_y = 0;
+    window_get_cursor_diff(ctx->wnd, &cur_diff_x, &cur_diff_y);
+    if (window_is_cursor_grubbed(ctx->wnd))
+        camera_look(&ctx->cam, cur_diff_x, cur_diff_y);
+    /* Update camera matrix */
+    camera_update(&ctx->cam);
     /* Process input events */
     window_update(ctx->wnd);
 }
@@ -153,9 +187,10 @@ void game_render(void* userdata, float interpolation)
     prepare_renderer_input(ctx, &ri);
 
     /* Render */
+    mat4 iview = camera_interpolated_view(&ctx->cam, interpolation);
     struct renderer_state rs;
     rs.shdr_main = ctx->shader;
-    renderer_render(&rs, &ri);
+    renderer_render(&rs, &ri, (float*)&iview);
     free(ri.meshes);
 
     /* Show rendered contents from the backbuffer */

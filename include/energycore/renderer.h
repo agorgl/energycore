@@ -47,6 +47,6 @@ struct renderer_input {
     unsigned int num_meshes;
 };
 
-void renderer_render(struct renderer_state* rs, struct renderer_input* ri);
+void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view_mat[16]);
 
 #endif /* ! _RENDERER_H_ */

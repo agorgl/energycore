@@ -2,18 +2,13 @@
 #include <glad/glad.h>
 #include <linalgb.h>
 
-void renderer_render(struct renderer_state* rs, struct renderer_input* ri)
+void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view[16])
 {
     /* Clear default buffers */
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     /* Create view and projection matrices */
-    mat4 view;
-    view = mat4_view_look_at(
-        vec3_new(0.0f, 0.6f, 2.0f),  /* Position */
-        vec3_zero(),                 /* Target */
-        vec3_new(0.0f, 1.0f, 0.0f)); /* Up */
     mat4 proj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, 1.0f / (800.0f / 600.0f));
 
     /* Render */
@@ -26,7 +21,7 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri)
     GLuint view_mat_loc = glGetUniformLocation(rs->shdr_main, "view");
     GLuint modl_mat_loc = glGetUniformLocation(rs->shdr_main, "model");
     glUniformMatrix4fv(proj_mat_loc, 1, GL_TRUE, (GLfloat*)&proj);
-    glUniformMatrix4fv(view_mat_loc, 1, GL_TRUE, (GLfloat*)&view);
+    glUniformMatrix4fv(view_mat_loc, 1, GL_TRUE, (GLfloat*)view);
 
     /* Loop through meshes */
     for (unsigned int i = 0; i < ri->num_meshes; ++i) {
