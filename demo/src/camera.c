@@ -1,7 +1,6 @@
 #include "camera.h"
 #include <string.h>
 #include <math.h>
-#include <assert.h>
 
 void camera_defaults(struct camera* cam)
 {
@@ -68,7 +67,6 @@ void camera_update(struct camera* cam)
 
 mat4 camera_interpolated_view(struct camera* cam, float interpolation)
 {
-    assert(interpolation <= 1.0f);
     float prev[4][4], new[4][4], out[4][4];
     mat4_to_array_trans(cam->prev_view_mat, (float*)prev);
     mat4_to_array_trans(cam->view_mat, (float*)new);
