@@ -1,7 +1,8 @@
 #include <energycore/renderer.h>
 #include <string.h>
+#include <assert.h>
+#include <math.h>
 #include <glad/glad.h>
-#include <linalgb.h>
 #include "static_data.h"
 #include "glutils.h"
 
@@ -24,6 +25,7 @@ static void skybox_init(struct renderer_state* rs)
 void renderer_init(struct renderer_state* rs)
 {
     memset(rs, 0, sizeof(*rs));
+    rs->proj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, 1.0f / (800.0f / 600.0f));
     skybox_init(rs);
 }
 
@@ -52,7 +54,7 @@ static void render_skybox(struct renderer_state* rs, mat4* view, mat4* proj, uns
     glDepthMask(GL_TRUE);
 }
 
-static void render_probe(struct renderer_state* rs, struct renderer_input* ri)
+static void render_probe(struct renderer_state* rs, GLuint sky, vec3 probe_pos)
 {
     /* Create sphere data */
     struct sphere_gdata* vdat = uv_sphere_create(1.0f, 64, 64);
@@ -82,12 +84,12 @@ static void render_probe(struct renderer_state* rs, struct renderer_input* ri)
     glUniform1i(glGetUniformLocation(rs->shdr_main, "render_mode"), 1);
     float scale = 0.2f;
     mat4 model = mat4_mul_mat4(
-        mat4_scale(vec3_new(scale, scale, scale)),
-        mat4_translation(vec3_new(0.0f, 0.0f, 0.0f)));
+        mat4_translation(probe_pos),
+        mat4_scale(vec3_new(scale, scale, scale)));
     glUniformMatrix4fv(glGetUniformLocation(rs->shdr_main, "model"), 1, GL_TRUE, (GLfloat*)&model);
     /* Render */
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, ri->skybox);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, sky);
     glDrawElements(GL_TRIANGLES, vdat->num_indices, GL_UNSIGNED_INT, (void*)0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
     glUseProgram(0);
@@ -100,14 +102,11 @@ static void render_probe(struct renderer_state* rs, struct renderer_input* ri)
     uv_sphere_destroy(vdat);
 }
 
-void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view[16])
+static void render_scene(struct renderer_state* rs, struct renderer_input* ri, float view[16], float proj[16])
 {
     /* Clear default buffers */
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    /* Create view and projection matrices */
-    mat4 proj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, 1.0f / (800.0f / 600.0f));
 
     /* Render */
     glEnable(GL_DEPTH_TEST);
@@ -119,7 +118,7 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     GLuint proj_mat_loc = glGetUniformLocation(rs->shdr_main, "proj");
     GLuint view_mat_loc = glGetUniformLocation(rs->shdr_main, "view");
     GLuint modl_mat_loc = glGetUniformLocation(rs->shdr_main, "model");
-    glUniformMatrix4fv(proj_mat_loc, 1, GL_TRUE, (GLfloat*)&proj);
+    glUniformMatrix4fv(proj_mat_loc, 1, GL_TRUE, (GLfloat*)proj);
     glUniformMatrix4fv(view_mat_loc, 1, GL_TRUE, (GLfloat*)view);
 
     /* Loop through meshes */
@@ -137,11 +136,108 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     }
     glUseProgram(0);
 
-    /* Render sample probe */
-    render_probe(rs, ri);
-
     /* Render skybox last */
-    render_skybox(rs, (mat4*)view, &proj, ri->skybox);
+    render_skybox(rs, (mat4*)view, (mat4*)proj, ri->skybox);
+}
+
+static unsigned int render_local_cubemap(struct renderer_state* rs, struct renderer_input* ri, vec3 pos)
+{
+    /* Temporary framebuffer */
+    int fbwidth = 128, fbheight = 128;
+    GLuint fb;
+    glGenFramebuffers(1, &fb);
+    glBindFramebuffer(GL_FRAMEBUFFER, fb);
+
+    /* Store previous viewport and set the new one */
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    glViewport(0, 0, fbwidth, fbheight);
+
+    /* Cubemap result */
+    GLuint lcl_cubemap;
+    glGenTextures(1, &lcl_cubemap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, lcl_cubemap);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    for (unsigned int i = 0; i < 6; ++i)
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA8, fbwidth, fbheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+
+    /* Temporary framebuffer's depth attachment */
+    GLuint depth_rb;
+    glGenRenderbuffers(1, &depth_rb);
+    glBindRenderbuffer(GL_RENDERBUFFER, depth_rb);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, fbwidth, fbheight);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth_rb);
+
+    /* Vectors corresponding to cubemap faces */
+    const float view_fronts[6][3] = {
+        { 1.0f,  0.0f,  0.0f },
+        {-1.0f,  0.0f,  0.0f },
+        { 0.0f, -1.0f,  0.0f },
+        { 0.0f,  1.0f,  0.0f },
+        { 0.0f,  0.0f,  1.0f },
+        { 0.0f,  0.0f, -1.0f }
+    };
+    const float view_ups[6][3] = {
+        { 0.0f,  1.0f,  0.0f },
+        { 0.0f,  1.0f,  0.0f },
+        { 0.0f,  0.0f,  1.0f },
+        { 0.0f,  0.0f, -1.0f },
+        { 0.0f,  1.0f,  0.0f },
+        { 0.0f,  1.0f,  0.0f }
+    };
+
+    /* Projection matrix */
+    mat4 fproj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, 1.0f);
+    fproj = mat4_mul_mat4(fproj, mat4_scale(vec3_new(-1, 1, 1)));
+
+    for (unsigned int i = 0; i < 6; ++i) {
+        /* Create and set texture face */
+        glBindTexture(GL_TEXTURE_CUBE_MAP, lcl_cubemap);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, lcl_cubemap, 0);
+        glDrawBuffer(GL_COLOR_ATTACHMENT0);
+        /* Check framebuffer completeness */
+        GLenum fb_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+        assert(fb_status == GL_FRAMEBUFFER_COMPLETE);
+        /* Construct view matrix towards current face */
+        vec3 ffront = vec3_new(view_fronts[i][0], view_fronts[i][1], view_fronts[i][2]);
+        vec3 fup = vec3_new(view_ups[i][0], view_ups[i][1], view_ups[i][2]);
+        mat4 fview = mat4_view_look_at(pos, vec3_add(pos, ffront), fup);
+        /* Render */
+        render_scene(rs, ri, (float*)&fview, (float*)&fproj);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, 0);
+    }
+
+    /* Free temporary resources */
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteRenderbuffers(1, &depth_rb);
+    glDeleteFramebuffers(1, &fb);
+
+    /* Restore viewport */
+    glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+    return lcl_cubemap;
+}
+
+void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view[16])
+{
+    /* Calculate probe position */
+    rs->prob_angle += 0.001f;
+    vec3 probe_pos = vec3_new(cosf(rs->prob_angle), 0.0f, sinf(rs->prob_angle));
+
+    /* Render local skybox */
+    GLuint lcl_sky = render_local_cubemap(rs, ri, probe_pos);
+
+    /* Render from camera view */
+    render_scene(rs, ri, view, (float*)&rs->proj);
+
+    /* Render sample probe */
+    render_probe(rs, lcl_sky, probe_pos);
+    glDeleteTextures(1, &lcl_sky);
 }
 
 static void skybox_destroy(struct renderer_state* rs)

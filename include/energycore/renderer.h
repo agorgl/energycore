@@ -31,12 +31,16 @@
 #ifndef _RENDERER_H_
 #define _RENDERER_H_
 
+#include <linalgb.h>
+
 struct renderer_state {
     unsigned int shdr_main;
+    mat4 proj;
     struct {
         unsigned int vao, vbo;
         unsigned int shdr;
     } skybox;
+    float prob_angle;
 };
 
 struct renderer_mesh {
