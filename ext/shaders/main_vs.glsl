@@ -16,7 +16,7 @@ uniform mat4 proj;
 void main()
 {
     vs_out.uv = uv;
-    vs_out.normal = normalize(mat3(transpose(inverse(model))) * normal);
+    vs_out.normal = mat3(transpose(inverse(model))) * normal;
     vs_out.frag_pos = vec3(model * vec4(position, 1.0));
     gl_Position = proj * view * model * vec4(position, 1.0);
 };
