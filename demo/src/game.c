@@ -114,7 +114,7 @@ void game_init(struct game_context* ctx)
 
     /* Initialize camera */
     camera_defaults(&ctx->cam);
-    ctx->cam.pos = vec3_new(0.0, 0.6, 2.0);
+    ctx->cam.pos = vec3_new(0.0, 1.0, 3.0);
     ctx->cam.front = vec3_normalize(vec3_mul(ctx->cam.pos, -1));
 
     /* Initialize renderer */

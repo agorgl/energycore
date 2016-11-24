@@ -67,11 +67,10 @@ void camera_update(struct camera* cam)
 
 mat4 camera_interpolated_view(struct camera* cam, float interpolation)
 {
-    float prev[4][4], new[4][4], out[4][4];
-    mat4_to_array_trans(cam->prev_view_mat, (float*)prev);
-    mat4_to_array_trans(cam->view_mat, (float*)new);
+    float (*prev)[4] = cam->prev_view_mat.m2, (*new)[4] = cam->view_mat.m2;
+    mat4 out;
     for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 4; ++j)
-            out[i][j] = prev[i][j] + (new[i][j] - prev[i][j]) * interpolation;
-    return *(mat4*)out;
+            out.m2[i][j] = prev[i][j] + (new[i][j] - prev[i][j]) * interpolation;
+    return out;
 }

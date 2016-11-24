@@ -25,7 +25,7 @@ static void skybox_init(struct renderer_state* rs)
 void renderer_init(struct renderer_state* rs)
 {
     memset(rs, 0, sizeof(*rs));
-    rs->proj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, 1.0f / (800.0f / 600.0f));
+    rs->proj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, (800.0f / 600.0f));
     skybox_init(rs);
 }
 
@@ -37,8 +37,8 @@ static void render_skybox(struct renderer_state* rs, mat4* view, mat4* proj, uns
 
     /* Remove any translation component of the view matrix */
     mat4 nt_view = mat3_to_mat4(mat4_to_mat3(*view));
-    glUniformMatrix4fv(glGetUniformLocation(rs->skybox.shdr, "proj"), 1, GL_TRUE, (GLfloat*)proj);
-    glUniformMatrix4fv(glGetUniformLocation(rs->skybox.shdr, "view"), 1, GL_TRUE, (GLfloat*)&nt_view);
+    glUniformMatrix4fv(glGetUniformLocation(rs->skybox.shdr, "proj"), 1, GL_FALSE, proj->m);
+    glUniformMatrix4fv(glGetUniformLocation(rs->skybox.shdr, "view"), 1, GL_FALSE, nt_view.m);
 
     glActiveTexture(GL_TEXTURE0);
     glUniform1i(glGetUniformLocation(rs->skybox.shdr, "skybox"), 0);
@@ -86,7 +86,7 @@ static void render_probe(struct renderer_state* rs, GLuint sky, vec3 probe_pos)
     mat4 model = mat4_mul_mat4(
         mat4_translation(probe_pos),
         mat4_scale(vec3_new(scale, scale, scale)));
-    glUniformMatrix4fv(glGetUniformLocation(rs->shdr_main, "model"), 1, GL_TRUE, (GLfloat*)&model);
+    glUniformMatrix4fv(glGetUniformLocation(rs->shdr_main, "model"), 1, GL_FALSE, model.m);
     /* Render */
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, sky);
@@ -118,15 +118,15 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
     GLuint proj_mat_loc = glGetUniformLocation(rs->shdr_main, "proj");
     GLuint view_mat_loc = glGetUniformLocation(rs->shdr_main, "view");
     GLuint modl_mat_loc = glGetUniformLocation(rs->shdr_main, "model");
-    glUniformMatrix4fv(proj_mat_loc, 1, GL_TRUE, (GLfloat*)proj);
-    glUniformMatrix4fv(view_mat_loc, 1, GL_TRUE, (GLfloat*)view);
+    glUniformMatrix4fv(proj_mat_loc, 1, GL_FALSE, proj);
+    glUniformMatrix4fv(view_mat_loc, 1, GL_FALSE, view);
 
     /* Loop through meshes */
     for (unsigned int i = 0; i < ri->num_meshes; ++i) {
         /* Setup mesh to be rendered */
         struct renderer_mesh* rm = ri->meshes + i;
         /* Upload model matrix */
-        glUniformMatrix4fv(modl_mat_loc, 1, GL_TRUE, (GLfloat*)rm->model_mat);
+        glUniformMatrix4fv(modl_mat_loc, 1, GL_FALSE, rm->model_mat);
         /* Render mesh */
         glBindVertexArray(rm->vao);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rm->ebo);
@@ -191,7 +191,7 @@ static unsigned int render_local_cubemap(struct renderer_state* rs, struct rende
     };
 
     /* Projection matrix */
-    mat4 fproj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, 1.0f);
+    mat4 fproj = mat4_perspective(radians(90.0f), 0.1f, 300.0f, 1.0f);
     fproj = mat4_mul_mat4(fproj, mat4_scale(vec3_new(-1, 1, 1)));
 
     for (unsigned int i = 0; i < 6; ++i) {
