@@ -81,7 +81,7 @@ static void render_probe(struct renderer_state* rs, GLuint sky, vec3 probe_pos)
     /* Render setup */
     glUseProgram(rs->shdr_main);
     glUniform1i(glGetUniformLocation(rs->shdr_main, "sky"), 0);
-    glUniform1i(glGetUniformLocation(rs->shdr_main, "render_mode"), 1);
+    glUniform1i(glGetUniformLocation(rs->shdr_main, "render_mode"), 2);
     float scale = 0.2f;
     mat4 model = mat4_mul_mat4(
         mat4_translation(probe_pos),
@@ -119,7 +119,11 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
     GLuint view_mat_loc = glGetUniformLocation(rs->shdr_main, "view");
     GLuint modl_mat_loc = glGetUniformLocation(rs->shdr_main, "model");
     glUniformMatrix4fv(proj_mat_loc, 1, GL_FALSE, proj);
-    glUniformMatrix4fv(view_mat_loc, 1, GL_FALSE, view);
+    glUniformMatrix4fv(view_mat_loc, 1, GL_FALSE, (GLfloat*)view);
+    /* Misc uniforms */
+    mat4 inverse_view = mat4_inverse(*(mat4*)view);
+    vec3 view_pos = vec3_new(inverse_view.xw, inverse_view.yw, inverse_view.zw);
+    glUniform3f(glGetUniformLocation(rs->shdr_main, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
 
     /* Loop through meshes */
     for (unsigned int i = 0; i < ri->num_meshes; ++i) {
@@ -227,7 +231,7 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
 {
     /* Calculate probe position */
     rs->prob_angle += 0.001f;
-    vec3 probe_pos = vec3_new(cosf(rs->prob_angle), 0.0f, sinf(rs->prob_angle));
+    vec3 probe_pos = vec3_new(cosf(rs->prob_angle), 1.0f, sinf(rs->prob_angle));
 
     /* Render local skybox */
     GLuint lcl_sky = render_local_cubemap(rs, ri, probe_pos);
