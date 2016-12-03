@@ -346,7 +346,7 @@ endef
 define parse-subproject-config
 ${subproj-template-prologue}
 # Clear previous variables
-$(foreach v, PRJTYPE VERSION DEFINES LIBS MOREDEPS EXTDEPS SRCDIR SRC ADDINCS ADDLIBDIR, undefine $(v)${\n})
+$(foreach v, PRJTYPE VERSION DEFINES LIBS MOREDEPS EXTDEPS SRCDIR SRC ADDINCS ADDLIBDIR MCFLAGS MLDFLAGS, undefine $(v)${\n})
 
 # Include configuration
 -include $(DP)config.mk
@@ -358,6 +358,8 @@ DEFINES_$(D)   := $$(DEFINES)
 LIBS_$(D)      := $$(LIBS)
 MOREDEPS_$(D)  := $$(MOREDEPS)
 EXTDEPS_$(D)   := $$(EXTDEPS)
+MCFLAGS_$(D)   := $$(MCFLAGS)
+MLDFLAGS_$(D)  := $$(MLDFLAGS)
 # Variables refering to local project paths,
 # must be prefixed with subproject path
 SRCDIR_$(D)    := $$(addprefix $(DP), $$(SRCDIR))
@@ -566,7 +568,7 @@ ifneq ($$(PRJTYPE_$(D)), StaticLib)
 # Link rule
 	@$$(info $(DGREEN_COLOR)[+] Linking$(NO_COLOR) $(DYELLOW_COLOR)$$@$(NO_COLOR))
 	@$$(call mkdir, $$(@D))
-	$(showcmd)$(LD) $(LDFLAGS) $$(LIBSDIR_$(D)) $(LOUTFLAG)$$@ $$(OBJ_$(D)) $$(LIBFLAGS_$(D)) $$(MORELFLAGS_$(D))
+	$(showcmd)$(LD) $(LDFLAGS) $$(MLDFLAGS_$(D)) $$(LIBSDIR_$(D)) $(LOUTFLAG)$$@ $$(OBJ_$(D)) $$(LIBFLAGS_$(D)) $$(MORELFLAGS_$(D))
 else
 # Archive rule
 	@$$(info $(DCYAN_COLOR)[+] Archiving$(NO_COLOR) $(DYELLOW_COLOR)$$@$(NO_COLOR))
@@ -575,8 +577,8 @@ else
 endif
 
 # Compile commands
-CCOMPILE_$(D)   = $(CC) $(CFLAGS) $$(CPPFLAGS_$(D)) $$(INCDIR_$(D)) $$< $(COUTFLAG) $$@ $$(MORECFLAGS_$(D))
-CXXCOMPILE_$(D) = $(CXX) $(CFLAGS) $(CXXFLAGS) $$(CPPFLAGS_$(D)) $$(INCDIR_$(D)) $$< $(COUTFLAG) $$@ $$(MORECFLAGS_$(D))
+CCOMPILE_$(D)   = $(CC) $(CFLAGS) $$(MCFLAGS_$(D)) $$(CPPFLAGS_$(D)) $$(INCDIR_$(D)) $$< $(COUTFLAG) $$@ $$(MORECFLAGS_$(D))
+CXXCOMPILE_$(D) = $(CXX) $(CFLAGS) $(CXXFLAGS) $$(MCFLAGS_$(D)) $$(CPPFLAGS_$(D)) $$(INCDIR_$(D)) $$< $(COUTFLAG) $$@ $$(MORECFLAGS_$(D))
 
 # Generate compile rules
 $(call compile-rule, c, $$(CCOMPILE_$(D)), $(DP))
