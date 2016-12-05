@@ -2,7 +2,10 @@
 #include <string.h>
 #include <assert.h>
 #include <math.h>
+#include <stdio.h>
 #include <glad/glad.h>
+#include <emproc/sh.h>
+#include <emproc/filter_util.h>
 #include "static_data.h"
 #include "glutils.h"
 
@@ -29,6 +32,10 @@ void renderer_init(struct renderer_state* rs)
     memset(rs, 0, sizeof(*rs));
     rs->proj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, (800.0f / 600.0f));
     skybox_init(rs);
+
+    float* nsa_idx = malloc(normal_solid_angle_index_sz(LCL_CM_SIZE));
+    normal_solid_angle_index_build(nsa_idx, LCL_CM_SIZE, EM_TYPE_VSTRIP);
+    rs->sh.nsa_idx = nsa_idx;
 }
 
 static void render_skybox(struct renderer_state* rs, mat4* view, mat4* proj, unsigned int cubemap)
@@ -83,7 +90,7 @@ static void render_probe(struct renderer_state* rs, GLuint sky, vec3 probe_pos)
     /* Render setup */
     glUseProgram(rs->shdr_main);
     glUniform1i(glGetUniformLocation(rs->shdr_main, "sky"), 0);
-    glUniform1i(glGetUniformLocation(rs->shdr_main, "render_mode"), 2);
+    glUniform1i(glGetUniformLocation(rs->shdr_main, "render_mode"), 3);
     float scale = 0.2f;
     mat4 model = mat4_mul_mat4(
         mat4_translation(probe_pos),
@@ -104,7 +111,7 @@ static void render_probe(struct renderer_state* rs, GLuint sky, vec3 probe_pos)
     uv_sphere_destroy(vdat);
 }
 
-static void render_scene(struct renderer_state* rs, struct renderer_input* ri, float view[16], float proj[16])
+static void render_scene(struct renderer_state* rs, struct renderer_input* ri, float view[16], float proj[16], int render_mode)
 {
     /* Clear default buffers */
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -114,7 +121,7 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
     glEnable(GL_DEPTH_TEST);
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glUseProgram(rs->shdr_main);
-    glUniform1i(glGetUniformLocation(rs->shdr_main, "render_mode"), 0);
+    glUniform1i(glGetUniformLocation(rs->shdr_main, "render_mode"), render_mode);
 
     /* Setup matrices */
     GLuint proj_mat_loc = glGetUniformLocation(rs->shdr_main, "proj");
@@ -212,7 +219,7 @@ static unsigned int render_local_cubemap(struct renderer_state* rs, struct rende
         vec3 fup = vec3_new(view_ups[i][0], view_ups[i][1], view_ups[i][2]);
         mat4 fview = mat4_view_look_at(pos, vec3_add(pos, ffront), fup);
         /* Render */
-        render_scene(rs, ri, (float*)&fview, (float*)&fproj);
+        render_scene(rs, ri, (float*)&fview, (float*)&fproj, 0);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, 0);
     }
 
@@ -228,17 +235,74 @@ static unsigned int render_local_cubemap(struct renderer_state* rs, struct rende
     return lcl_cubemap;
 }
 
+static void sh_coeffs_from_local_cubemap(struct renderer_state* rs, double sh_coef[SH_COEFF_NUM][3], GLuint cm)
+{
+    const int im_size = LCL_CM_SIZE;
+    /* Allocate memory buffer for cubemap pixels */
+    const size_t img_sz = im_size * im_size * 3;
+    uint8_t* cm_buf = malloc(img_sz * 6);
+    memset(cm_buf, 0, sizeof(img_sz * 6));
+
+    /* Fetch cubemap pixel data */
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cm);
+    for (unsigned int i = 0; i < 6; ++i) {
+        GLuint target = GL_TEXTURE_CUBE_MAP_POSITIVE_X + i;
+        /* Read texture back */
+        glGetTexImage(target, 0, GL_RGB, GL_UNSIGNED_BYTE, cm_buf + i * img_sz);
+    }
+
+    /* Calc sh coeffs */
+    struct envmap em;
+    em.width = im_size;
+    em.height = im_size * 6;
+    em.channels = 3;
+    em.data = cm_buf;
+    em.type = EM_TYPE_VSTRIP;
+    sh_coeffs(sh_coef, &em, rs->sh.nsa_idx);
+
+    /* Free temporary pixel buffer */
+    free(cm_buf);
+}
+
+static void upload_sh_coeffs(struct renderer_state* rs, double sh_coef[SH_COEFF_NUM][3])
+{
+    const char* uniform_name = "sh_coeffs";
+    size_t uniform_name_len = strlen(uniform_name);
+    glUseProgram(rs->shdr_main);
+    for (unsigned int i = 0; i < SH_COEFF_NUM; ++i) {
+        /* Construct uniform name ("sh_coeffs" + "[" + i + "]" + '\0') */
+        size_t uname_sz = uniform_name_len + 1 + 2 + 1 + 1;
+        char* uname = calloc(uname_sz, 1);
+        strcat(uname, uniform_name);
+        strcat(uname, "[");
+        snprintf(uname + uniform_name_len + 1, 3, "%u", i);
+        strcat(uname, "]");
+        /* Upload */
+        GLuint uloc = glGetUniformLocation(rs->shdr_main, uname);
+        float c[3] = { (float)sh_coef[i][0], (float)sh_coef[i][1], (float)sh_coef[i][2] };
+        glUniform3f(uloc, c[0], c[1], c[2]);
+        free(uname);
+    }
+}
+
 void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view[16])
 {
     /* Calculate probe position */
-    rs->prob_angle += 0.001f;
+    rs->prob_angle += 0.01f;
     vec3 probe_pos = vec3_new(cosf(rs->prob_angle), 1.0f, sinf(rs->prob_angle));
 
     /* Render local skybox */
     GLuint lcl_sky = render_local_cubemap(rs, ri, probe_pos);
 
+    /* Calculate and upload SH coefficients from captured cubemap */
+    double sh_coeffs[SH_COEFF_NUM][3];
+    sh_coeffs_from_local_cubemap(rs, sh_coeffs, lcl_sky);
+    upload_sh_coeffs(rs, sh_coeffs);
+
     /* Render from camera view */
-    render_scene(rs, ri, view, (float*)&rs->proj);
+    glUseProgram(rs->shdr_main);
+    glUniform3f(glGetUniformLocation(rs->shdr_main, "probe_pos"), probe_pos.x, probe_pos.y, probe_pos.z);
+    render_scene(rs, ri, view, (float*)&rs->proj, 4);
 
     /* Render sample probe */
     render_probe(rs, lcl_sky, probe_pos);
@@ -254,5 +318,6 @@ static void skybox_destroy(struct renderer_state* rs)
 
 void renderer_destroy(struct renderer_state* rs)
 {
+    free(rs->sh.nsa_idx);
     skybox_destroy(rs);
 }

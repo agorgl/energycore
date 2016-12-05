@@ -40,6 +40,9 @@ struct renderer_state {
         unsigned int vao, vbo;
         unsigned int shdr;
     } skybox;
+    struct {
+        float* nsa_idx;
+    } sh;
     float prob_angle;
 };
 
