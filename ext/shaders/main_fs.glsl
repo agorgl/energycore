@@ -28,9 +28,8 @@ void main()
         color = vec4(skycol, 1.0);
     } else if (render_mode == 2) {
         // Probe mode
-        vec3 norm_y_inv = vec3(norm.x, -norm.y, norm.z);
         vec3 view_dir = normalize(fs_in.frag_pos - view_pos);
-        vec3 refl_dir = reflect(view_dir, norm_y_inv).xyz;
+        vec3 refl_dir = reflect(view_dir, norm).xyz;
         vec3 refl_col = texture(sky, refl_dir).xyz;
         color = vec4(refl_col, 1.0);
     }

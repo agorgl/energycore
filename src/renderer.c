@@ -180,23 +180,22 @@ static unsigned int render_local_cubemap(struct renderer_state* rs, struct rende
     const float view_fronts[6][3] = {
         { 1.0f,  0.0f,  0.0f },
         {-1.0f,  0.0f,  0.0f },
-        { 0.0f, -1.0f,  0.0f },
         { 0.0f,  1.0f,  0.0f },
+        { 0.0f, -1.0f,  0.0f },
         { 0.0f,  0.0f,  1.0f },
         { 0.0f,  0.0f, -1.0f }
     };
     const float view_ups[6][3] = {
-        { 0.0f,  1.0f,  0.0f },
-        { 0.0f,  1.0f,  0.0f },
+        { 0.0f, -1.0f,  0.0f },
+        { 0.0f, -1.0f,  0.0f },
         { 0.0f,  0.0f,  1.0f },
         { 0.0f,  0.0f, -1.0f },
-        { 0.0f,  1.0f,  0.0f },
-        { 0.0f,  1.0f,  0.0f }
+        { 0.0f, -1.0f,  0.0f },
+        { 0.0f, -1.0f,  0.0f }
     };
 
     /* Projection matrix */
     mat4 fproj = mat4_perspective(radians(90.0f), 0.1f, 300.0f, 1.0f);
-    fproj = mat4_mul_mat4(fproj, mat4_scale(vec3_new(-1, 1, 1)));
 
     for (unsigned int i = 0; i < 6; ++i) {
         /* Create and set texture face */
