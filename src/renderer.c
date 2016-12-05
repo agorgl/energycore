@@ -6,6 +6,8 @@
 #include "static_data.h"
 #include "glutils.h"
 
+#define LCL_CM_SIZE 128
+
 static void skybox_init(struct renderer_state* rs)
 {
     /* Build shader */
@@ -147,7 +149,7 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
 static unsigned int render_local_cubemap(struct renderer_state* rs, struct renderer_input* ri, vec3 pos)
 {
     /* Temporary framebuffer */
-    int fbwidth = 128, fbheight = 128;
+    int fbwidth = LCL_CM_SIZE, fbheight = LCL_CM_SIZE;
     GLuint fb;
     glGenFramebuffers(1, &fb);
     glBindFramebuffer(GL_FRAMEBUFFER, fb);
