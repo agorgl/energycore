@@ -36,10 +36,7 @@
 struct renderer_state {
     unsigned int shdr_main;
     mat4 proj;
-    struct {
-        unsigned int vao, vbo;
-        unsigned int shdr;
-    } skybox;
+    struct skybox* skybox;
     struct {
         float* nsa_idx;
     } sh;

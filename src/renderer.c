@@ -6,61 +6,21 @@
 #include <glad/glad.h>
 #include <emproc/sh.h>
 #include <emproc/filter_util.h>
-#include "static_data.h"
+#include "skybox.h"
 #include "glutils.h"
 
 #define LCL_CM_SIZE 128
-
-static void skybox_init(struct renderer_state* rs)
-{
-    /* Build shader */
-    rs->skybox.shdr = shader_from_srcs(skybox_vs_src, 0, skybox_fs_src);
-    /* Create cube */
-    glGenVertexArrays(1, &rs->skybox.vao);
-    glBindVertexArray(rs->skybox.vao);
-    glGenBuffers(1, &rs->skybox.vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, rs->skybox.vbo);
-    glBufferData(GL_ARRAY_BUFFER, skybox_vertices_sz, &skybox_vertices, GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-}
 
 void renderer_init(struct renderer_state* rs)
 {
     memset(rs, 0, sizeof(*rs));
     rs->proj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, (800.0f / 600.0f));
-    skybox_init(rs);
+    rs->skybox = malloc(sizeof(struct skybox));
+    skybox_init(rs->skybox);
 
     float* nsa_idx = malloc(normal_solid_angle_index_sz(LCL_CM_SIZE));
     normal_solid_angle_index_build(nsa_idx, LCL_CM_SIZE, EM_TYPE_VSTRIP);
     rs->sh.nsa_idx = nsa_idx;
-}
-
-static void render_skybox(struct renderer_state* rs, mat4* view, mat4* proj, unsigned int cubemap)
-{
-    glDepthMask(GL_FALSE);
-    glDepthFunc(GL_LEQUAL);
-    glUseProgram(rs->skybox.shdr);
-
-    /* Remove any translation component of the view matrix */
-    mat4 nt_view = mat3_to_mat4(mat4_to_mat3(*view));
-    glUniformMatrix4fv(glGetUniformLocation(rs->skybox.shdr, "proj"), 1, GL_FALSE, proj->m);
-    glUniformMatrix4fv(glGetUniformLocation(rs->skybox.shdr, "view"), 1, GL_FALSE, nt_view.m);
-
-    glActiveTexture(GL_TEXTURE0);
-    glUniform1i(glGetUniformLocation(rs->skybox.shdr, "skybox"), 0);
-
-    glBindVertexArray(rs->skybox.vao);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
-    glBindVertexArray(0);
-    glUseProgram(0);
-
-    glDepthFunc(GL_LESS);
-    glDepthMask(GL_TRUE);
 }
 
 static void render_probe(struct renderer_state* rs, GLuint sky, vec3 probe_pos)
@@ -150,7 +110,7 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
     glUseProgram(0);
 
     /* Render skybox last */
-    render_skybox(rs, (mat4*)view, (mat4*)proj, ri->skybox);
+    skybox_render(rs->skybox, (mat4*)view, (mat4*)proj, ri->skybox);
 }
 
 static unsigned int render_local_cubemap(struct renderer_state* rs, struct renderer_input* ri, vec3 pos)
@@ -309,15 +269,9 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     glDeleteTextures(1, &lcl_sky);
 }
 
-static void skybox_destroy(struct renderer_state* rs)
-{
-    glDeleteBuffers(1, &rs->skybox.vbo);
-    glDeleteVertexArrays(1, &rs->skybox.vao);
-    glDeleteProgram(rs->skybox.shdr);
-}
-
 void renderer_destroy(struct renderer_state* rs)
 {
     free(rs->sh.nsa_idx);
-    skybox_destroy(rs);
+    skybox_destroy(rs->skybox);
+    free(rs->skybox);
 }

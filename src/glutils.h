@@ -33,6 +33,9 @@
 
 #include <stdint.h>
 
+/* Convenience macro */
+#define GLSRC(src) "#version 330 core\n" #src
+
 /* Shader utils */
 unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char* fs_src);
 

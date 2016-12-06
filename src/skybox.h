@@ -28,14 +28,18 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _STATIC_DATA_H_
-#define _STATIC_DATA_H_
+#ifndef _SKYBOX_H_
+#define _SKYBOX_H_
 
-#include <stdlib.h>
+#include "linalgb.h"
 
-extern const char* skybox_vs_src;
-extern const char* skybox_fs_src;
-extern const float skybox_vertices[];
-extern const size_t skybox_vertices_sz;
+struct skybox {
+    unsigned int vao, vbo;
+    unsigned int shdr;
+};
 
-#endif /* ! _STATIC_DATA_H_ */
+void skybox_init(struct skybox* sb);
+void skybox_render(struct skybox* sb, mat4* view, mat4* proj, unsigned int cubemap);
+void skybox_destroy(struct skybox* sb);
+
+#endif /* ! _SKYBOX_H_ */
