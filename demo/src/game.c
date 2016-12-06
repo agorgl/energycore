@@ -202,6 +202,14 @@ void game_render(void* userdata, float interpolation)
     window_swap_buffers(ctx->wnd);
 }
 
+void game_perf_update(void* userdata, float msec, float fps)
+{
+    struct game_context* ctx = userdata;
+    char suffix_buf[64];
+    snprintf(suffix_buf, sizeof(suffix_buf), "[Msec: %.2f / Fps: %.2f]", msec, fps);
+    window_set_title_suffix(ctx->wnd, suffix_buf);
+}
+
 void game_shutdown(struct game_context* ctx)
 {
     /* Unbind GPU handles */

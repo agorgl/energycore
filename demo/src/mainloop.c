@@ -1,14 +1,16 @@
 #include "mainloop.h"
-#include <time.h>
+#include <prof.h>
 
-long long clock_msec()
+typedef unsigned long timepoint_type;
+
+timepoint_type clock_msec()
 {
-    return 1000 * clock() / CLOCKS_PER_SEC;
+    return millisecs();
 }
 
 void mainloop(struct mainloop_data* loop_data)
 {
-    long long next_update = clock_msec();
+    timepoint_type next_update = clock_msec();
     const float skip_ticks = 1000 / loop_data->updates_per_second;
 
     int loops;
@@ -22,7 +24,20 @@ void mainloop(struct mainloop_data* loop_data)
             ++loops;
         }
 
-        interpolation = (clock_msec() + skip_ticks - next_update) / skip_ticks;
+        timepoint_type rt = clock_msec();
+        interpolation = (rt + skip_ticks - next_update) / skip_ticks;
         loop_data->render_callback(loop_data->userdata, interpolation);
+
+        if (loop_data->perf_callback) {
+            loop_data->perf_samples[loop_data->perf_cur_sample_cnt++] = clock_msec() - rt;
+            if (loop_data->perf_cur_sample_cnt >= ML_PERF_SAMPLES) {
+                float avgms = 0.0f;
+                for (unsigned int i = 0; i < ML_PERF_SAMPLES; ++i)
+                    avgms += loop_data->perf_samples[i];
+                avgms /= ML_PERF_SAMPLES;
+                loop_data->perf_callback(loop_data->userdata, avgms, 1000.0f / avgms);
+                loop_data->perf_cur_sample_cnt = 0;
+            }
+        }
     }
 }

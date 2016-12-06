@@ -65,6 +65,8 @@ void game_init(struct game_context* ctx);
 void game_update(void* userdata, float dt);
 /* Render callback used by the main loop */
 void game_render(void* userdata, float interpolation);
+/* Performance update callback used by the main loop */
+void game_perf_update(void* userdata, float msec, float fps);
 /* De-initializes the game instance */
 void game_shutdown(struct game_context* ctx);
 
