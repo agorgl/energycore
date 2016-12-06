@@ -28,40 +28,24 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _RENDERER_H_
-#define _RENDERER_H_
+#ifndef _LCL_CUBEMAP_H_
+#define _LCL_CUBEMAP_H_
 
 #include <linalgb.h>
+#include <emproc/sh.h>
 
-struct renderer_params {
-    unsigned int shdr_main;
-    unsigned int shdr_probe_vis;
+/* Shared local cubemap renderer state */
+struct lc_renderer_state {
+    float* nsa_idx;
 };
 
-struct renderer_state {
-    unsigned int shdr_main;
-    mat4 proj;
-    struct skybox* skybox;
-    struct probe_vis* probe_vis;
-    struct lc_renderer_state* lc_rs;
-    float prob_angle;
-};
+/* Callback function called to render the scene for a local cubemap's side */
+typedef void(*render_scene_fn)(mat4* view, mat4* proj, void* userdata);
 
-struct renderer_mesh {
-    unsigned int vao;
-    unsigned int ebo;
-    unsigned int indice_count;
-    float model_mat[16];
-};
+/* Local cubemap renderer interface */
+void lc_renderer_init(struct lc_renderer_state* lcrs);
+unsigned int lc_render(struct lc_renderer_state* lcrs, vec3 pos, render_scene_fn rsf, void* userdata);
+void lc_extract_sh_coeffs(struct lc_renderer_state* lcrs, double sh_coef[SH_COEFF_NUM][3], unsigned int cm);
+void lc_renderer_destroy(struct lc_renderer_state* lcrs);
 
-struct renderer_input {
-    struct renderer_mesh* meshes;
-    unsigned int num_meshes;
-    unsigned int skybox;
-};
-
-void renderer_init(struct renderer_state* rs, struct renderer_params* rp);
-void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view_mat[16]);
-void renderer_destroy(struct renderer_state* rs);
-
-#endif /* ! _RENDERER_H_ */
+#endif /* ! _LCL_CUBEMAP_H_ */
