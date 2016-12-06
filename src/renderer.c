@@ -7,68 +7,29 @@
 #include <emproc/sh.h>
 #include <emproc/filter_util.h>
 #include "skybox.h"
+#include "probe_vis.h"
 #include "glutils.h"
 
 #define LCL_CM_SIZE 128
 
-void renderer_init(struct renderer_state* rs)
+void renderer_init(struct renderer_state* rs, struct renderer_params* rp)
 {
+    /* Populate renderer state according to init params */
     memset(rs, 0, sizeof(*rs));
+    rs->shdr_main = rp->shdr_main;
     rs->proj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, (800.0f / 600.0f));
+
+    /* Initialize internal skybox state */
     rs->skybox = malloc(sizeof(struct skybox));
     skybox_init(rs->skybox);
+
+    /* Initialize internal probe visualization state */
+    rs->probe_vis = malloc(sizeof(struct probe_vis));
+    probe_vis_init(rs->probe_vis, rp->shdr_probe_vis);
 
     float* nsa_idx = malloc(normal_solid_angle_index_sz(LCL_CM_SIZE));
     normal_solid_angle_index_build(nsa_idx, LCL_CM_SIZE, EM_TYPE_VSTRIP);
     rs->sh.nsa_idx = nsa_idx;
-}
-
-static void render_probe(struct renderer_state* rs, GLuint sky, vec3 probe_pos)
-{
-    /* Create sphere data */
-    struct sphere_gdata* vdat = uv_sphere_create(1.0f, 64, 64);
-    /* Create vao */
-    GLuint sph_vao, sph_vbo, sph_ebo;
-    glGenVertexArrays(1, &sph_vao);
-    glBindVertexArray(sph_vao);
-    /* Create vbo */
-    glGenBuffers(1, &sph_vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, sph_vbo);
-    glBufferData(GL_ARRAY_BUFFER, vdat->num_verts * sizeof(struct sphere_vertice), vdat->vertices, GL_STATIC_DRAW);
-    /* Setup vertex inputs */
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(struct sphere_vertice), (GLvoid*)offsetof(struct sphere_vertice, position));
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(struct sphere_vertice), (GLvoid*)offsetof(struct sphere_vertice, uvs));
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(struct sphere_vertice), (GLvoid*)offsetof(struct sphere_vertice, normal));
-    /* Create ebo */
-    glGenBuffers(1, &sph_ebo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sph_ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, vdat->num_indices * sizeof(uint32_t), vdat->indices, GL_STATIC_DRAW);
-
-    /* Render setup */
-    glUseProgram(rs->shdr_main);
-    glUniform1i(glGetUniformLocation(rs->shdr_main, "sky"), 0);
-    glUniform1i(glGetUniformLocation(rs->shdr_main, "render_mode"), 3);
-    float scale = 0.2f;
-    mat4 model = mat4_mul_mat4(
-        mat4_translation(probe_pos),
-        mat4_scale(vec3_new(scale, scale, scale)));
-    glUniformMatrix4fv(glGetUniformLocation(rs->shdr_main, "model"), 1, GL_FALSE, model.m);
-    /* Render */
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, sky);
-    glDrawElements(GL_TRIANGLES, vdat->num_indices, GL_UNSIGNED_INT, (void*)0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
-    glUseProgram(0);
-
-    /* Free */
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-    glDeleteBuffers(1, &sph_vbo);
-    glDeleteVertexArrays(1, &sph_vao);
-    uv_sphere_destroy(vdat);
 }
 
 static void render_scene(struct renderer_state* rs, struct renderer_input* ri, float view[16], float proj[16], int render_mode)
@@ -224,11 +185,11 @@ static void sh_coeffs_from_local_cubemap(struct renderer_state* rs, double sh_co
     free(cm_buf);
 }
 
-static void upload_sh_coeffs(struct renderer_state* rs, double sh_coef[SH_COEFF_NUM][3])
+static void upload_sh_coeffs(GLuint prog, double sh_coef[SH_COEFF_NUM][3])
 {
     const char* uniform_name = "sh_coeffs";
     size_t uniform_name_len = strlen(uniform_name);
-    glUseProgram(rs->shdr_main);
+    glUseProgram(prog);
     for (unsigned int i = 0; i < SH_COEFF_NUM; ++i) {
         /* Construct uniform name ("sh_coeffs" + "[" + i + "]" + '\0') */
         size_t uname_sz = uniform_name_len + 1 + 2 + 1 + 1;
@@ -238,11 +199,12 @@ static void upload_sh_coeffs(struct renderer_state* rs, double sh_coef[SH_COEFF_
         snprintf(uname + uniform_name_len + 1, 3, "%u", i);
         strcat(uname, "]");
         /* Upload */
-        GLuint uloc = glGetUniformLocation(rs->shdr_main, uname);
+        GLuint uloc = glGetUniformLocation(prog, uname);
         float c[3] = { (float)sh_coef[i][0], (float)sh_coef[i][1], (float)sh_coef[i][2] };
         glUniform3f(uloc, c[0], c[1], c[2]);
         free(uname);
     }
+    glUseProgram(0);
 }
 
 void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view[16])
@@ -257,21 +219,24 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     /* Calculate and upload SH coefficients from captured cubemap */
     double sh_coeffs[SH_COEFF_NUM][3];
     sh_coeffs_from_local_cubemap(rs, sh_coeffs, lcl_sky);
-    upload_sh_coeffs(rs, sh_coeffs);
+    upload_sh_coeffs(rs->shdr_main, sh_coeffs);
 
     /* Render from camera view */
     glUseProgram(rs->shdr_main);
     glUniform3f(glGetUniformLocation(rs->shdr_main, "probe_pos"), probe_pos.x, probe_pos.y, probe_pos.z);
-    render_scene(rs, ri, view, (float*)&rs->proj, 4);
+    render_scene(rs, ri, view, (float*)&rs->proj, 1);
 
     /* Render sample probe */
-    render_probe(rs, lcl_sky, probe_pos);
+    upload_sh_coeffs(rs->probe_vis->shdr, sh_coeffs);
+    probe_vis_render(rs->probe_vis, lcl_sky, probe_pos, *(mat4*)view, rs->proj, 1);
     glDeleteTextures(1, &lcl_sky);
 }
 
 void renderer_destroy(struct renderer_state* rs)
 {
     free(rs->sh.nsa_idx);
+    probe_vis_destroy(rs->probe_vis);
+    free(rs->probe_vis);
     skybox_destroy(rs->skybox);
     free(rs->skybox);
 }

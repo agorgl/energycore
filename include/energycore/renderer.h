@@ -33,10 +33,16 @@
 
 #include <linalgb.h>
 
+struct renderer_params {
+    unsigned int shdr_main;
+    unsigned int shdr_probe_vis;
+};
+
 struct renderer_state {
     unsigned int shdr_main;
     mat4 proj;
     struct skybox* skybox;
+    struct probe_vis* probe_vis;
     struct {
         float* nsa_idx;
     } sh;
@@ -56,7 +62,7 @@ struct renderer_input {
     unsigned int skybox;
 };
 
-void renderer_init(struct renderer_state* rs);
+void renderer_init(struct renderer_state* rs, struct renderer_params* rp);
 void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view_mat[16]);
 void renderer_destroy(struct renderer_state* rs);
 

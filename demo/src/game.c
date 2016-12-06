@@ -117,11 +117,12 @@ void game_init(struct game_context* ctx)
     ctx->cam.pos = vec3_new(0.0, 1.0, 3.0);
     ctx->cam.front = vec3_normalize(vec3_mul(ctx->cam.pos, -1));
 
-    /* Initialize renderer */
-    renderer_init(&ctx->rndr_state);
-
     /* Load shader from files into the GPU */
-    ctx->rndr_state.shdr_main = shader_from_files("../ext/shaders/main_vs.glsl", 0, "../ext/shaders/main_fs.glsl");
+    ctx->rndr_params.shdr_main = shader_from_files("../ext/shaders/main_vs.glsl", 0, "../ext/shaders/main_fs.glsl");
+    ctx->rndr_params.shdr_probe_vis = shader_from_files("../ext/shaders/main_vs.glsl", 0, "../ext/shaders/probe_vis_fs.glsl");
+
+    /* Initialize renderer */
+    renderer_init(&ctx->rndr_state, &ctx->rndr_params);
 
     /* Load skybox from file into the GPU */
     ctx->skybox_tex = tex_env_from_file_to_gpu("ext/envmaps/stormydays_large.jpg");
@@ -210,8 +211,9 @@ void game_shutdown(struct game_context* ctx)
     glBindVertexArray(0);
     /* Free skybox */
     tex_free_from_gpu(ctx->skybox_tex);
-    /* Free shader */
-    glDeleteProgram(ctx->rndr_state.shdr_main);
+    /* Free shaders */
+    glDeleteProgram(ctx->rndr_params.shdr_probe_vis);
+    glDeleteProgram(ctx->rndr_params.shdr_main);
     /* Destroy renderer */
     renderer_destroy(&ctx->rndr_state);
     /* Free any loaded resources */

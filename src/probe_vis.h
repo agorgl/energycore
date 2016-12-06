@@ -28,44 +28,19 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _GAME_H_
-#define _GAME_H_
+#ifndef _PROBE_VIS_H_
+#define _PROBE_VIS_H_
 
-#include <vector.h>
 #include <linalgb.h>
-#include <energycore/renderer.h>
-#include "camera.h"
 
-struct game_object
-{
-    struct model_hndl* model;
-    mat4 transform;
+struct probe_vis {
+    unsigned int vao, vbo;
+    unsigned int num_indices;
+    unsigned int shdr;
 };
 
-struct game_context
-{
-    /* Window assiciated with the game */
-    struct window* wnd;
-    /* Master run flag, indicates when the game should exit */
-    int* should_terminate;
-    /* Game objects */
-    struct vector gobjects;
-    /* Camera */
-    struct camera cam;
-    /* Skybox */
-    struct tex_hndl* skybox_tex;
-    /* Renderer */
-    struct renderer_params rndr_params;
-    struct renderer_state rndr_state;
-};
+void probe_vis_init(struct probe_vis* pv, unsigned int shdr);
+void probe_vis_render(struct probe_vis* pv, unsigned int cubemap, vec3 probe_pos, mat4 view, mat4 proj, int mode);
+void probe_vis_destroy(struct probe_vis* pv);
 
-/* Initializes the game instance */
-void game_init(struct game_context* ctx);
-/* Update callback used by the main loop */
-void game_update(void* userdata, float dt);
-/* Render callback used by the main loop */
-void game_render(void* userdata, float interpolation);
-/* De-initializes the game instance */
-void game_shutdown(struct game_context* ctx);
-
-#endif /* ! _GAME_H_ */
+#endif /* ! _PROBE_VIS_H_ */
