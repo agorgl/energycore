@@ -34,7 +34,7 @@
 #include <linalgb.h>
 
 struct probe_vis {
-    unsigned int vao, vbo;
+    unsigned int vao, vbo, ebo;
     unsigned int num_indices;
     unsigned int shdr;
 };

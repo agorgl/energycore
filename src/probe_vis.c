@@ -34,6 +34,7 @@ void probe_vis_init(struct probe_vis* pv, unsigned int shdr)
     pv->shdr = shdr;
     pv->vao = sph_vao;
     pv->vbo = sph_vbo;
+    pv->ebo = sph_ebo;
     pv->num_indices = vdat->num_indices;
     uv_sphere_destroy(vdat);
 }
@@ -68,8 +69,10 @@ void probe_vis_render(struct probe_vis* pv, unsigned int cubemap, vec3 probe_pos
 
 void probe_vis_destroy(struct probe_vis* pv)
 {
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+    glDeleteBuffers(1, &pv->ebo);
     glDeleteBuffers(1, &pv->vbo);
     glDeleteVertexArrays(1, &pv->vao);
 }
