@@ -19,4 +19,4 @@ void main()
     vs_out.normal = mat3(transpose(inverse(model))) * normal;
     vs_out.frag_pos = vec3(model * vec4(position, 1.0));
     gl_Position = proj * view * model * vec4(position, 1.0);
-};
+}
