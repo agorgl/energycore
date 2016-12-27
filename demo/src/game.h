@@ -32,6 +32,7 @@
 #define _GAME_H_
 
 #include <vector.h>
+#include <hashmap.h>
 #include <linalgb.h>
 #include <energycore/renderer.h>
 #include "camera.h"
@@ -48,6 +49,8 @@ struct game_context
     struct window* wnd;
     /* Master run flag, indicates when the game should exit */
     int* should_terminate;
+    /* GPU model resource store */
+    struct hashmap model_store;
     /* Game objects */
     struct vector gobjects;
     /* Camera */

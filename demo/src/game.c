@@ -56,13 +56,25 @@ static struct {
 
 static void load_data(struct game_context* ctx)
 {
+    /* Initialize model store */
+    hashmap_init(&ctx->model_store, hm_str_hash, hm_str_eql);
+
     /* Add all scene objects */
     size_t num_scene_objects = sizeof(scene_objects) / sizeof(scene_objects[0]);
     vector_init(&ctx->gobjects, sizeof(struct game_object));
     for (size_t i = 0; i < num_scene_objects; ++i) {
         struct game_object go;
-        /* Load, parse and upload model */
-        go.model = model_from_file_to_gpu(scene_objects[i].model_loc);
+        /* Check if model exists on the store */
+        const char* mdl_loc = scene_objects[i].model_loc;
+        hm_ptr* p = hashmap_get(&ctx->model_store, hm_cast(mdl_loc));
+        if (p)
+            go.model = hm_pcast(*p);
+        else {
+            /* Load, parse and upload model */
+            go.model = model_from_file_to_gpu(mdl_loc);
+            hashmap_put(&ctx->model_store, hm_cast(mdl_loc), hm_cast(go.model));
+        }
+
         /* Construct model matrix */
         float* pos = scene_objects[i].translation;
         float* rot = scene_objects[i].rotation;
@@ -78,15 +90,21 @@ static void load_data(struct game_context* ctx)
     }
 }
 
+static void model_store_free(hm_ptr k, hm_ptr v)
+{
+    (void) k;
+    struct model_hndl* mh = hm_pcast(v);
+    model_free_from_gpu(mh);
+}
+
 static void free_data(struct game_context* ctx)
 {
-    /* Loop through objects */
-    for (unsigned int i = 0; i < ctx->gobjects.size; ++i) {
-        struct game_object* gobj = vector_at(&ctx->gobjects, i);
-        model_free_from_gpu(gobj->model);
-        gobj->model = 0;
-    }
+    /* Destroy objects vector */
     vector_destroy(&ctx->gobjects);
+    /* Free model store data */
+    hashmap_iter(&ctx->model_store, model_store_free);
+    /* Free model store */
+    hashmap_destroy(&ctx->model_store);
 }
 
 void game_init(struct game_context* ctx)
