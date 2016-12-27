@@ -28,43 +28,29 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _GAME_H_
-#define _GAME_H_
+#ifndef _RENDER_COMPONENT_H_
+#define _RENDER_COMPONENT_H_
 
 #include <vector.h>
-#include <hashmap.h>
-#include <linalgb.h>
-#include <energycore/renderer.h>
-#include "camera.h"
+#include "entity.h"
 
-struct game_context
-{
-    /* Window assiciated with the game */
-    struct window* wnd;
-    /* Master run flag, indicates when the game should exit */
-    int* should_terminate;
-    /* GPU model resource store */
-    struct hashmap model_store;
-    /* World */
-    struct world* world;
-    /* Camera */
-    struct camera cam;
-    /* Skybox */
-    struct tex_hndl* skybox_tex;
-    /* Renderer */
-    struct renderer_params rndr_params;
-    struct renderer_state rndr_state;
+/* Packed render component data */
+struct render_component {
+    struct model_hndl* model;
+    struct mat_hndl* material;
 };
 
-/* Initializes the game instance */
-void game_init(struct game_context* ctx);
-/* Update callback used by the main loop */
-void game_update(void* userdata, float dt);
-/* Render callback used by the main loop */
-void game_render(void* userdata, float interpolation);
-/* Performance update callback used by the main loop */
-void game_perf_update(void* userdata, float msec, float fps);
-/* De-initializes the game instance */
-void game_shutdown(struct game_context* ctx);
+/* SOA containing render component data */
+struct render_comp_data_buffer {
+    /* Parallel component-owner entity arrays */
+    struct vector buffer;
+    struct vector entities;
+};
 
-#endif /* ! _GAME_H_ */
+void render_comp_data_buffer_init(struct render_comp_data_buffer* rcdb);
+void render_comp_data_buffer_destroy(struct render_comp_data_buffer* rcdb);
+struct render_component* render_component_create(struct render_comp_data_buffer* rcdb, entity_t e);
+struct render_component* render_component_lookup(struct render_comp_data_buffer* rcdb, entity_t e);
+void render_component_destroy(struct render_comp_data_buffer* rcdb, entity_t e);
+
+#endif /* ! _RENDER_COMPONENT_H_ */

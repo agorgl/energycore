@@ -28,43 +28,33 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _GAME_H_
-#define _GAME_H_
+#ifndef _ENTITY_H_
+#define _ENTITY_H_
 
+#include <stdint.h>
 #include <vector.h>
-#include <hashmap.h>
-#include <linalgb.h>
-#include <energycore/renderer.h>
-#include "camera.h"
+#include <queue.h>
 
-struct game_context
-{
-    /* Window assiciated with the game */
-    struct window* wnd;
-    /* Master run flag, indicates when the game should exit */
-    int* should_terminate;
-    /* GPU model resource store */
-    struct hashmap model_store;
-    /* World */
-    struct world* world;
-    /* Camera */
-    struct camera cam;
-    /* Skybox */
-    struct tex_hndl* skybox_tex;
-    /* Renderer */
-    struct renderer_params rndr_params;
-    struct renderer_state rndr_state;
+typedef uint64_t entity_t;
+
+#define ENTITY_INDEX_BITS 48
+#define ENTITY_GENERATION_BITS 16
+
+#define entity_index(e) ((e) & ((1L << ENTITY_INDEX_BITS) - 1))
+#define entity_generation(e) (((e) >> ENTITY_INDEX_BITS) & ((1 << ENTITY_GENERATION_BITS) - 1))
+#define entity_make(idx, gen) (((gen) << ENTITY_INDEX_BITS) | (idx))
+
+struct entity_mgr {
+    struct vector generation;
+    struct queue free_indices;
 };
 
-/* Initializes the game instance */
-void game_init(struct game_context* ctx);
-/* Update callback used by the main loop */
-void game_update(void* userdata, float dt);
-/* Render callback used by the main loop */
-void game_render(void* userdata, float interpolation);
-/* Performance update callback used by the main loop */
-void game_perf_update(void* userdata, float msec, float fps);
-/* De-initializes the game instance */
-void game_shutdown(struct game_context* ctx);
+void entity_mgr_init(struct entity_mgr* emgr);
+entity_t entity_create(struct entity_mgr* emgr);
+int entity_alive(struct entity_mgr* emgr, entity_t e);
+void entity_destroy(struct entity_mgr* emgr, entity_t e);
+size_t entity_mgr_size(struct entity_mgr* emgr);
+size_t entity_mgr_at(struct entity_mgr* emgr, size_t idx);
+void entity_mgr_destroy(struct entity_mgr* emgr);
 
-#endif /* ! _GAME_H_ */
+#endif /* ! _ENTITY_H_ */

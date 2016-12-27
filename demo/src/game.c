@@ -6,6 +6,7 @@
 #include <glad/glad.h>
 #include <gfxwnd/window.h>
 #include "gpures.h"
+#include "ecs/world.h"
 
 static void APIENTRY gl_debug_proc(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* user_param)
 {
@@ -53,40 +54,43 @@ static struct {
         .scaling       = 2.0f
     }
 };
+const size_t num_scene_objects = sizeof(scene_objects) / sizeof(scene_objects[0]);
 
 static void load_data(struct game_context* ctx)
 {
     /* Initialize model store */
     hashmap_init(&ctx->model_store, hm_str_hash, hm_str_eql);
+    /* Initialize world */
+    ctx->world = world_create();
 
     /* Add all scene objects */
-    size_t num_scene_objects = sizeof(scene_objects) / sizeof(scene_objects[0]);
-    vector_init(&ctx->gobjects, sizeof(struct game_object));
     for (size_t i = 0; i < num_scene_objects; ++i) {
-        struct game_object go;
+        struct model_hndl* model;
         /* Check if model exists on the store */
         const char* mdl_loc = scene_objects[i].model_loc;
         hm_ptr* p = hashmap_get(&ctx->model_store, hm_cast(mdl_loc));
         if (p)
-            go.model = hm_pcast(*p);
+            model = hm_pcast(*p);
         else {
             /* Load, parse and upload model */
-            go.model = model_from_file_to_gpu(mdl_loc);
-            hashmap_put(&ctx->model_store, hm_cast(mdl_loc), hm_cast(go.model));
+            model = model_from_file_to_gpu(mdl_loc);
+            hashmap_put(&ctx->model_store, hm_cast(mdl_loc), hm_cast(model));
         }
 
-        /* Construct model matrix */
+        /* Create entity */
+        entity_t e = entity_create(&ctx->world->emgr);
+        /* Create and set render component */
+        struct render_component* rendr_c = render_component_create(&ctx->world->render_comp_dbuf, e);
+        rendr_c->model = model;
+        /* Create and set transform component */
         float* pos = scene_objects[i].translation;
         float* rot = scene_objects[i].rotation;
         float scl = scene_objects[i].scaling;
-        go.transform = mat4_mul_mat4(
-            mat4_mul_mat4(
-                mat4_translation(vec3_new(pos[0], pos[1], pos[2])),
-                mat4_rotation_euler(radians(rot[0]), radians(rot[1]), radians(rot[2]))
-            ),
-            mat4_scale(vec3_new(scl, scl, scl))
-        );
-        vector_append(&ctx->gobjects, &go);
+        struct transform_handle th = transform_component_create(&ctx->world->transform_dbuf, e);
+        transform_set_pose_data(&ctx->world->transform_dbuf, th,
+            vec3_new(scl, scl, scl),
+            quat_from_euler(vec3_new(radians(rot[0]), radians(rot[1]), radians(rot[2]))),
+            vec3_new(pos[0], pos[1], pos[2]));
     }
 }
 
@@ -99,8 +103,8 @@ static void model_store_free(hm_ptr k, hm_ptr v)
 
 static void free_data(struct game_context* ctx)
 {
-    /* Destroy objects vector */
-    vector_destroy(&ctx->gobjects);
+    /* Destroy world */
+    world_destroy(ctx->world);
     /* Free model store data */
     hashmap_iter(&ctx->model_store, model_store_free);
     /* Free model store */
@@ -175,27 +179,32 @@ void game_update(void* userdata, float dt)
 static void prepare_renderer_input(struct game_context* ctx, struct renderer_input* ri)
 {
     /* Count total meshes */
+    const size_t num_ents = entity_mgr_size(&ctx->world->emgr);
     ri->num_meshes = 0;
-    for (unsigned int i = 0; i < ctx->gobjects.size; ++i) {
-        struct game_object* gobj = vector_at(&ctx->gobjects, i);
-        struct model_hndl* mdlh = gobj->model;
-        ri->num_meshes += mdlh->num_meshes;
+    for (unsigned int i = 0; i < num_ents; ++i) {
+        entity_t e = entity_mgr_at(&ctx->world->emgr, i);
+        struct render_component* rc = render_component_lookup(&ctx->world->render_comp_dbuf, e);
+        ri->num_meshes += rc->model->num_meshes;
     }
 
     /* Populate renderer mesh inputs */
     ri->meshes = malloc(ri->num_meshes * sizeof(struct renderer_mesh));
     memset(ri->meshes, 0, ri->num_meshes * sizeof(struct renderer_mesh));
     unsigned int cur_mesh = 0;
-    for (unsigned int i = 0; i < ctx->gobjects.size; ++i) {
-        struct game_object* gobj = vector_at(&ctx->gobjects, i);
-        struct model_hndl* mdlh = gobj->model;
+    for (unsigned int i = 0; i < num_ents; ++i) {
+        entity_t e = entity_mgr_at(&ctx->world->emgr, i);
+        struct render_component* rc = render_component_lookup(&ctx->world->render_comp_dbuf, e);
+        mat4* transform = transform_world_mat(
+            &ctx->world->transform_dbuf,
+            transform_component_lookup(&ctx->world->transform_dbuf, e));
+        struct model_hndl* mdlh = rc->model;
         for (unsigned int j = 0; j < mdlh->num_meshes; ++j) {
             struct mesh_hndl* mh = mdlh->meshes + j;
             struct renderer_mesh* rm = ri->meshes + cur_mesh;
             rm->vao = mh->vao;
             rm->ebo = mh->ebo;
             rm->indice_count = mh->indice_count;
-            memcpy(rm->model_mat, &gobj->transform, 16 * sizeof(float));
+            memcpy(rm->model_mat, transform, 16 * sizeof(float));
             ++cur_mesh;
         }
     }
