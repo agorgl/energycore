@@ -74,6 +74,7 @@ struct transform_handle transform_component_create(struct transform_data_buffer*
 /* Transform data interface */
 struct transform_pose* transform_pose_data(struct transform_data_buffer* tdb, struct transform_handle th);
 void transform_set_pose_data(struct transform_data_buffer* tdb, struct transform_handle th, vec3 scale, quat rotation, vec3 translation);
+void transform_set_parent(struct transform_data_buffer* tdb, struct transform_handle th_child, struct transform_handle th_parent);
 mat4* transform_local_mat(struct transform_data_buffer* tdb, struct transform_handle th);
 mat4* transform_world_mat(struct transform_data_buffer* tdb, struct transform_handle th);
 

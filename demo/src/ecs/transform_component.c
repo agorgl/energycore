@@ -109,17 +109,36 @@ struct transform_handle transform_component_create(struct transform_data_buffer*
         transform_data_buffer_allocate(tdb, tdb->size * 3.0f/2.0f + 1);
     struct transform_handle th = { tdb->size++ };
     tdb->entities[th.offs] = e;
+    tdb->parents[th.offs] = invalid_transform_handle;
+    tdb->first_childs[th.offs] = invalid_transform_handle;
+    tdb->next_siblings[th.offs] = invalid_transform_handle;
+    tdb->prev_siblings[th.offs] = invalid_transform_handle;
     return th;
 }
 
 /* Compare transform handles */
 static int cmp_th(struct transform_handle h1, struct transform_handle h2) { return h1.offs == h2.offs; }
+static int is_valid(struct transform_handle th) { return !cmp_th(th, invalid_transform_handle); }
 
 struct transform_pose* transform_pose_data(struct transform_data_buffer* tdb, struct transform_handle th)
 {
     if (cmp_th(th, invalid_transform_handle))
         return 0;
     return tdb->poses + th.offs;
+}
+
+static void transform_update_cached_wrld_mats(struct transform_data_buffer* tdb, struct transform_handle th)
+{
+    /* Iterate through each child */
+    struct transform_handle cth = tdb->first_childs[th.offs];
+    while (is_valid(cth)) {
+        mat4* par = tdb->world_mats + th.offs;
+        mat4* lcl = tdb->local_mats + cth.offs;
+        mat4* wrld = tdb->world_mats + cth.offs;
+        *wrld = mat4_mul_mat4(*par, *lcl);
+        transform_update_cached_wrld_mats(tdb, cth);
+        cth = tdb->next_siblings[cth.offs];
+    }
 }
 
 void transform_set_pose_data(struct transform_data_buffer* tdb, struct transform_handle th, vec3 scale, quat rotation, vec3 translation)
@@ -134,9 +153,31 @@ void transform_set_pose_data(struct transform_data_buffer* tdb, struct transform
     /* Set local matrix */
     mat4* lcl_mat = tdb->local_mats + th.offs;
     *lcl_mat = m;
-    /* TODO: */
     mat4* wrld_mat = tdb->world_mats + th.offs;
     *wrld_mat = m;
+    /* Update world matrix on all childs */
+    transform_update_cached_wrld_mats(tdb, th);
+}
+
+void transform_set_parent(struct transform_data_buffer* tdb, struct transform_handle th_child, struct transform_handle th_parent)
+{
+    if (cmp_th(th_child, invalid_transform_handle) || cmp_th(th_parent, invalid_transform_handle))
+        return;
+    /* Set parent */
+    tdb->parents[th_child.offs] = th_parent;
+    /* Set child relations */
+    struct transform_handle fc_th = tdb->first_childs[th_parent.offs];
+    tdb->next_siblings[th_child.offs] = fc_th;
+    if (is_valid(fc_th))
+        tdb->prev_siblings[fc_th.offs] = th_child;
+    tdb->first_childs[th_parent.offs] = th_child;
+    /* Update self wrld mat */
+    mat4* par_mat = tdb->world_mats + th_parent.offs;
+    mat4* lcl_mat = tdb->local_mats + th_child.offs;
+    mat4* wrld_mat = tdb->world_mats + th_child.offs;
+    *wrld_mat = mat4_mul_mat4(*par_mat, *lcl_mat);
+    /* Update cached child world mats */
+    transform_update_cached_wrld_mats(tdb, th_child);
 }
 
 mat4* transform_local_mat(struct transform_data_buffer* tdb, struct transform_handle th)
