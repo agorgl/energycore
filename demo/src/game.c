@@ -136,10 +136,15 @@ void game_init(struct game_context* ctx)
     /* Setup OpenGL debug handler */
     glDebugMessageCallback(gl_debug_proc, ctx);
 
+    /* Pick scene file, try environment variable first */
+    const char* scene_file = getenv("EC_SCENE");
+    if (!scene_file) /* Fallback to default */
+        scene_file = SCENE_FILE;
+
     /* Load scene file */
     struct scene_object* scene_objects;
     size_t num_scene_objects;
-    load_scene_file(&scene_objects, &num_scene_objects, SCENE_FILE);
+    load_scene_file(&scene_objects, &num_scene_objects, scene_file);
     /* Load data into GPU and construct world entities */
     load_data(ctx, scene_objects, num_scene_objects);
     /* Free scene file data */
