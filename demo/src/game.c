@@ -7,6 +7,9 @@
 #include <gfxwnd/window.h>
 #include "gpures.h"
 #include "ecs/world.h"
+#include "scene_file.h"
+
+#define SCENE_FILE "ext/scenes/sample_scene.json"
 
 static void APIENTRY gl_debug_proc(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* user_param)
 {
@@ -42,23 +45,7 @@ static void on_mouse_button(struct window* wnd, int button, int action, int mods
         window_grub_cursor(wnd, 1);
 }
 
-static struct {
-    const char* model_loc;
-    float translation[3];
-    float rotation[3];
-    float scaling;
-} scene_objects[] = {
-    {
-        /* Gazebo */
-        .model_loc     = "ext/models/gazebo/gazebo.obj",
-        .translation   = {0.0f, -0.6f, 0.0f},
-        .rotation      = {0.0f, 0.0f, 0.0f},
-        .scaling       = 2.0f
-    }
-};
-const size_t num_scene_objects = sizeof(scene_objects) / sizeof(scene_objects[0]);
-
-static void load_data(struct game_context* ctx)
+static void load_data(struct game_context* ctx, struct scene_object* scene_objects, size_t num_scene_objects)
 {
     /* Initialize model store */
     hashmap_init(&ctx->model_store, hm_str_hash, hm_str_eql);
@@ -66,34 +53,50 @@ static void load_data(struct game_context* ctx)
     ctx->world = world_create();
 
     /* Add all scene objects */
+    struct vector transform_handles; /* Used to later populate parent relations */
+    vector_init(&transform_handles, sizeof(struct transform_handle));
     for (size_t i = 0; i < num_scene_objects; ++i) {
-        struct model_hndl* model;
-        /* Check if model exists on the store */
-        const char* mdl_loc = scene_objects[i].model_loc;
-        hm_ptr* p = hashmap_get(&ctx->model_store, hm_cast(mdl_loc));
-        if (p)
-            model = hm_pcast(*p);
-        else {
-            /* Load, parse and upload model */
-            model = model_from_file_to_gpu(mdl_loc);
-            hashmap_put(&ctx->model_store, hm_cast(mdl_loc), hm_cast(model));
-        }
-
         /* Create entity */
         entity_t e = entity_create(&ctx->world->emgr);
-        /* Create and set render component */
-        struct render_component* rendr_c = render_component_create(&ctx->world->render_comp_dbuf, e);
-        rendr_c->model = model;
+        /* Check if model exists on the store */
+        const char* mdl_loc = scene_objects[i].model_loc;
+        if (mdl_loc) {
+            struct model_hndl* model;
+            hm_ptr* p = hashmap_get(&ctx->model_store, hm_cast(mdl_loc));
+            if (p)
+                model = hm_pcast(*p);
+            else {
+                /* Load, parse and upload model */
+                model = model_from_file_to_gpu(mdl_loc);
+                hashmap_put(&ctx->model_store, hm_cast(mdl_loc), hm_cast(model));
+            }
+            /* Create and set render component */
+            struct render_component* rendr_c = render_component_create(&ctx->world->render_comp_dbuf, e);
+            rendr_c->model = model;
+        }
         /* Create and set transform component */
         float* pos = scene_objects[i].translation;
         float* rot = scene_objects[i].rotation;
-        float scl = scene_objects[i].scaling;
+        float* scl = scene_objects[i].scaling;
         struct transform_handle th = transform_component_create(&ctx->world->transform_dbuf, e);
         transform_set_pose_data(&ctx->world->transform_dbuf, th,
-            vec3_new(scl, scl, scl),
-            quat_from_euler(vec3_new(radians(rot[0]), radians(rot[1]), radians(rot[2]))),
+            vec3_new(scl[0], scl[1], scl[2]),
+            quat_new(rot[0], rot[1], rot[2], rot[3]),
             vec3_new(pos[0], pos[1], pos[2]));
+        /* Store transform handle for later parent relations */
+        vector_append(&transform_handles, &th);
     }
+
+    /* Populate parent links */
+    for (size_t i = 0; i < num_scene_objects; ++i) {
+        long par_ofs = scene_objects[i].parent_ofs;
+        if (par_ofs != -1) {
+            struct transform_handle th_child = *(struct transform_handle*)vector_at(&transform_handles, i);
+            struct transform_handle th_parnt = *(struct transform_handle*)vector_at(&transform_handles, par_ofs);
+            transform_set_parent(&ctx->world->transform_dbuf, th_child, th_parnt);
+        }
+    }
+    vector_destroy(&transform_handles);
 }
 
 static void model_store_free(hm_ptr k, hm_ptr v)
@@ -133,8 +136,19 @@ void game_init(struct game_context* ctx)
     /* Setup OpenGL debug handler */
     glDebugMessageCallback(gl_debug_proc, ctx);
 
-    /* Load data from files into the GPU */
-    load_data(ctx);
+    /* Load scene file */
+    struct scene_object* scene_objects;
+    size_t num_scene_objects;
+    load_scene_file(&scene_objects, &num_scene_objects, SCENE_FILE);
+    /* Load data into GPU and construct world entities */
+    load_data(ctx, scene_objects, num_scene_objects);
+    /* Free scene file data */
+    for (size_t i = 0; i < num_scene_objects; ++i) {
+        struct scene_object* so = scene_objects + i;
+        free((void*)so->model_loc);
+        free((void*)so->name);
+    }
+    free(scene_objects);
 
     /* Initialize camera */
     camera_defaults(&ctx->cam);
@@ -195,7 +209,8 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
     for (unsigned int i = 0; i < num_ents; ++i) {
         entity_t e = entity_mgr_at(&ctx->world->emgr, i);
         struct render_component* rc = render_component_lookup(&ctx->world->render_comp_dbuf, e);
-        ri->num_meshes += rc->model->num_meshes;
+        if (rc)
+            ri->num_meshes += rc->model->num_meshes;
     }
 
     /* Populate renderer mesh inputs */
@@ -205,6 +220,8 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
     for (unsigned int i = 0; i < num_ents; ++i) {
         entity_t e = entity_mgr_at(&ctx->world->emgr, i);
         struct render_component* rc = render_component_lookup(&ctx->world->render_comp_dbuf, e);
+        if (!rc)
+            continue;
         mat4* transform = transform_world_mat(
             &ctx->world->transform_dbuf,
             transform_component_lookup(&ctx->world->transform_dbuf, e));
