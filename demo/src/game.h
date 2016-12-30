@@ -49,6 +49,7 @@ struct game_context
     struct world* world;
     /* Camera */
     struct camera cam;
+    int fast_move;
     /* Skybox */
     struct tex_hndl* skybox_tex;
     /* Renderer */

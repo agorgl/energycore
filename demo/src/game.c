@@ -30,6 +30,8 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         *(ctx->should_terminate) = 1;
     else if (action == KEY_ACTION_RELEASE && key == KEY_RIGHT_CONTROL)
         window_grub_cursor(wnd, 0);
+    else if (key == KEY_LEFT_SHIFT)
+        ctx->fast_move = action != KEY_ACTION_RELEASE;
 }
 
 static void on_mouse_button(struct window* wnd, int button, int action, int mods)
@@ -138,6 +140,7 @@ void game_init(struct game_context* ctx)
     camera_defaults(&ctx->cam);
     ctx->cam.pos = vec3_new(0.0, 1.0, 3.0);
     ctx->cam.front = vec3_normalize(vec3_mul(ctx->cam.pos, -1));
+    ctx->fast_move = 0;
 
     /* Load shader from files into the GPU */
     ctx->rndr_params.shdr_main = shader_from_files("../ext/shaders/main_vs.glsl", 0, "../ext/shaders/main_fs.glsl");
@@ -164,7 +167,15 @@ void game_update(void* userdata, float dt)
         cam_mov_flags |= cmd_backward;
     if (window_key_state(ctx->wnd, KEY_D) == KEY_ACTION_PRESS)
         cam_mov_flags |= cmd_right;
-    camera_move(&ctx->cam, cam_mov_flags);
+    if (ctx->fast_move) {
+        float old_move_speed = ctx->cam.move_speed;
+        /* Temporarily increase move speed, make the move and restore it */
+        ctx->cam.move_speed = old_move_speed * 10.0f;
+        camera_move(&ctx->cam, cam_mov_flags);
+        ctx->cam.move_speed = old_move_speed;
+    } else {
+        camera_move(&ctx->cam, cam_mov_flags);
+    }
     /* Update camera look */
     float cur_diff_x = 0, cur_diff_y = 0;
     window_get_cursor_diff(ctx->wnd, &cur_diff_x, &cur_diff_y);
