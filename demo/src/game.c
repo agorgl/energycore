@@ -35,6 +35,8 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         window_grub_cursor(wnd, 0);
     else if (key == KEY_LEFT_SHIFT)
         ctx->fast_move = action != KEY_ACTION_RELEASE;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_N)
+        ctx->visualize_normals = !ctx->visualize_normals;
 }
 
 static void on_mouse_button(struct window* wnd, int button, int action, int mods)
@@ -170,6 +172,10 @@ void game_init(struct game_context* ctx)
 
     /* Load skybox from file into the GPU */
     ctx->skybox_tex = tex_env_from_file_to_gpu("ext/envmaps/stormydays_large.jpg");
+
+    /* Visualizations setup */
+    ctx->visualize_normals = 0;
+    ctx->vis_nm_prog = shader_from_files("ext/shaders/nm_vis_vs.glsl", "ext/shaders/nm_vis_gs.glsl", "ext/shaders/nm_vis_fs.glsl");
 }
 
 void game_update(void* userdata, float dt)
@@ -243,6 +249,39 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
     }
 }
 
+static void visualize_normals(struct game_context* ctx, mat4* view, mat4* proj)
+{
+    const GLuint shdr = ctx->vis_nm_prog;
+    glUseProgram(shdr);
+    GLuint proj_mat_loc = glGetUniformLocation(shdr, "proj");
+    GLuint view_mat_loc = glGetUniformLocation(shdr, "view");
+    GLuint modl_mat_loc = glGetUniformLocation(shdr, "model");
+    glUniformMatrix4fv(proj_mat_loc, 1, GL_FALSE, proj->m);
+    glUniformMatrix4fv(view_mat_loc, 1, GL_FALSE, view->m);
+
+    const size_t num_ents = entity_mgr_size(&ctx->world->emgr);
+    for (unsigned int i = 0; i < num_ents; ++i) {
+        entity_t e = entity_mgr_at(&ctx->world->emgr, i);
+        struct render_component* rc = render_component_lookup(&ctx->world->render_comp_dbuf, e);
+        if (!rc)
+            continue;
+        mat4* transform = transform_world_mat(
+            &ctx->world->transform_dbuf,
+            transform_component_lookup(&ctx->world->transform_dbuf, e));
+        struct model_hndl* mdlh = rc->model;
+        for (unsigned int j = 0; j < mdlh->num_meshes; ++j) {
+            struct mesh_hndl* mh = mdlh->meshes + j;
+            glUniformMatrix4fv(modl_mat_loc, 1, GL_FALSE, transform->m);
+            glBindVertexArray(mh->vao);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mh->ebo);
+            glDrawElements(GL_TRIANGLES, mh->indice_count, GL_UNSIGNED_INT, (void*)0);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+            glBindVertexArray(0);
+        }
+    }
+    glUseProgram(0);
+}
+
 void game_render(void* userdata, float interpolation)
 {
     (void) interpolation;
@@ -257,6 +296,9 @@ void game_render(void* userdata, float interpolation)
     mat4 iview = camera_interpolated_view(&ctx->cam, interpolation);
     renderer_render(&ctx->rndr_state, &ri, (float*)&iview);
     free(ri.meshes);
+
+    if (ctx->visualize_normals)
+        visualize_normals(ctx, &iview, &ctx->rndr_state.proj);
 
     /* Show rendered contents from the backbuffer */
     window_swap_buffers(ctx->wnd);
@@ -280,6 +322,7 @@ void game_shutdown(struct game_context* ctx)
     /* Free skybox */
     tex_free_from_gpu(ctx->skybox_tex);
     /* Free shaders */
+    glDeleteProgram(ctx->vis_nm_prog);
     glDeleteProgram(ctx->rndr_params.shdr_probe_vis);
     glDeleteProgram(ctx->rndr_params.shdr_main);
     /* Destroy renderer */

@@ -55,6 +55,9 @@ struct game_context
     /* Renderer */
     struct renderer_params rndr_params;
     struct renderer_state rndr_state;
+    /* Visualizations */
+    int visualize_normals;
+    int vis_nm_prog;
 };
 
 /* Initializes the game instance */
