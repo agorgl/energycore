@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
+#include <prof.h>
 #include <glad/glad.h>
 #include <assets/assetload.h>
 #include "glutil.h"
@@ -85,11 +85,11 @@ struct model_hndl* model_to_gpu(struct model* m)
 struct model_hndl* model_from_file_to_gpu(const char* filename)
 {
     /* Load and parse model file */
-    printf("Model: %s\n", filename);
-    clock_t t1 = clock();
+    printf("Loading: %-85s", filename);
+    timepoint_t t1 = millisecs();
     struct model* m = model_from_file(filename);
-    clock_t t2 = clock();
-    printf("Load time %lu msec\n", 1000 * (t2 - t1) / CLOCKS_PER_SEC);
+    timepoint_t t2 = millisecs();
+    printf("[ %3lu ms ]\n", (t2 - t1));
     /* Transfer data to gpu */
     struct model_hndl* h = model_to_gpu(m);
     /* Free memory data */
