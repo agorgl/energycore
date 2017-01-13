@@ -43,8 +43,10 @@ struct game_context
     struct window* wnd;
     /* Master run flag, indicates when the game should exit */
     int* should_terminate;
-    /* GPU model resource store */
+    /* GPU resource stores */
     struct hashmap model_store;
+    struct hashmap tex_store;
+    struct hashmap mat_store;
     /* World */
     struct world* world;
     /* Camera */

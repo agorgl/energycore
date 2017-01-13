@@ -54,6 +54,10 @@ struct model_hndl
 
 struct tex_hndl { unsigned int id; };
 
+struct material {
+    struct tex_hndl diff_tex;
+};
+
 /* Geometry gpu data */
 struct model_hndl* model_to_gpu(struct model* model);
 struct model_hndl* model_from_file_to_gpu(const char* filename);

@@ -49,17 +49,19 @@ static void on_mouse_button(struct window* wnd, int button, int action, int mods
 
 static void load_data(struct game_context* ctx, struct scene_object* scene_objects, size_t num_scene_objects)
 {
-    /* Initialize model store */
+    /* Initialize model, texture and material stores */
     hashmap_init(&ctx->model_store, hm_str_hash, hm_str_eql);
+    hashmap_init(&ctx->tex_store, hm_str_hash, hm_str_eql);
+    hashmap_init(&ctx->mat_store, hm_str_hash, hm_str_eql);
     /* Initialize world */
     ctx->world = world_create();
-
     /* Add all scene objects */
     struct vector transform_handles; /* Used to later populate parent relations */
     vector_init(&transform_handles, sizeof(struct transform_handle));
     for (size_t i = 0; i < num_scene_objects; ++i) {
         /* Create entity */
         entity_t e = entity_create(&ctx->world->emgr);
+        struct render_component* rendr_c = 0;
         /* Check if model exists on the store */
         const char* mdl_loc = scene_objects[i].model_loc;
         if (mdl_loc) {
@@ -73,8 +75,38 @@ static void load_data(struct game_context* ctx, struct scene_object* scene_objec
                 hashmap_put(&ctx->model_store, hm_cast(mdl_loc), hm_cast(model));
             }
             /* Create and set render component */
-            struct render_component* rendr_c = render_component_create(&ctx->world->render_comp_dbuf, e);
+            rendr_c = render_component_create(&ctx->world->render_comp_dbuf, e);
             rendr_c->model = model;
+        }
+        /* Check if materials exist on the store */
+        if (rendr_c && scene_objects[i].materials) {
+            for (size_t j = 0; j < scene_objects[i].num_materials; ++j) {
+                struct scene_material* mtrl = scene_objects[i].materials + j;
+                struct material* material;
+                hm_ptr* p = hashmap_get(&ctx->mat_store, hm_cast(mtrl->name));
+                if (p)
+                    material = hm_pcast(*p);
+                else {
+                    /* Create material */
+                    material = calloc(1, sizeof(struct material));
+                    /* Check each texture if on texture map */
+                    const char* tex_loc = mtrl->diff_tex;
+                    if (tex_loc) {
+                        struct tex_hndl* th;
+                        hm_ptr* p = hashmap_get(&ctx->tex_store, hm_cast(tex_loc));
+                        if (p)
+                            th = hm_pcast(*p);
+                        else {
+                            /* Load parse and upload texture */
+                            th = tex_from_file_to_gpu(tex_loc);
+                            hashmap_put(&ctx->tex_store, hm_cast(tex_loc), hm_cast(th));
+                        }
+                        material->diff_tex = *th;
+                    }
+                    hashmap_put(&ctx->mat_store, hm_cast(mtrl->name), hm_cast(material));
+                }
+                rendr_c->materials[j] = material;
+            }
         }
         /* Create and set transform component */
         float* pos = scene_objects[i].translation;
@@ -108,13 +140,32 @@ static void model_store_free(hm_ptr k, hm_ptr v)
     model_free_from_gpu(mh);
 }
 
+static void tex_store_free(hm_ptr k, hm_ptr v)
+{
+    (void) k;
+    struct tex_hndl* th = hm_pcast(v);
+    tex_free_from_gpu(th);
+}
+
+static void mat_store_free(hm_ptr k, hm_ptr v)
+{
+    (void) k;
+    free((void*)v);
+}
+
 static void free_data(struct game_context* ctx)
 {
     /* Destroy world */
     world_destroy(ctx->world);
     /* Free model store data */
     hashmap_iter(&ctx->model_store, model_store_free);
-    /* Free model store */
+    /* Free texture store data */
+    hashmap_iter(&ctx->tex_store, tex_store_free);
+    /* Free material store data */
+    hashmap_iter(&ctx->mat_store, mat_store_free);
+    /* Free model, texture and material store */
+    hashmap_destroy(&ctx->mat_store);
+    hashmap_destroy(&ctx->tex_store);
     hashmap_destroy(&ctx->model_store);
 }
 
@@ -154,6 +205,14 @@ void game_init(struct game_context* ctx)
         struct scene_object* so = scene_objects + i;
         free((void*)so->model_loc);
         free((void*)so->name);
+        if (so->materials) {
+            for (size_t i = 0; i < so->num_materials; ++i) {
+                if (so->materials[i].diff_tex)
+                    free((void*)so->materials[i].diff_tex);
+                free((void*)so->materials->name);
+            }
+            free(so->materials);
+        }
     }
     free(scene_objects);
 
@@ -243,6 +302,14 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
             rm->vao = mh->vao;
             rm->ebo = mh->ebo;
             rm->indice_count = mh->indice_count;
+            if (rc->materials[mh->mat_idx])
+                rm->material.diff_tex = rc->materials[mh->mat_idx]->diff_tex.id;
+            else {
+                /* Default to white color */
+                rm->material.diff_col[0] = 1.0f;
+                rm->material.diff_col[1] = 1.0f;
+                rm->material.diff_col[2] = 1.0f;
+            }
             memcpy(rm->model_mat, transform, 16 * sizeof(float));
             ++cur_mesh;
         }

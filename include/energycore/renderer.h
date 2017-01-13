@@ -47,11 +47,17 @@ struct renderer_state {
     float prob_angle;
 };
 
+struct renderer_material {
+    float diff_col[3];
+    unsigned int diff_tex;
+};
+
 struct renderer_mesh {
     unsigned int vao;
     unsigned int ebo;
     unsigned int indice_count;
     float model_mat[16];
+    struct renderer_material material;
 };
 
 struct renderer_input {

@@ -52,16 +52,25 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
     vec3 view_pos = vec3_new(inverse_view.xw, inverse_view.yw, inverse_view.zw);
     glUniform3f(glGetUniformLocation(rs->shdr_main, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
 
+    /* Set texture locations */
+    glActiveTexture(GL_TEXTURE0);
+    glUniform1i(glGetUniformLocation(rs->shdr_main, "albedo_tex"), 0);
+
     /* Loop through meshes */
     for (unsigned int i = 0; i < ri->num_meshes; ++i) {
         /* Setup mesh to be rendered */
         struct renderer_mesh* rm = ri->meshes + i;
         /* Upload model matrix */
         glUniformMatrix4fv(modl_mat_loc, 1, GL_FALSE, rm->model_mat);
+        /* Set material parameters */
+        glBindTexture(GL_TEXTURE_2D, rm->material.diff_tex);
+        glUniform3fv(glGetUniformLocation(rs->shdr_main, "albedo_col"), 1, rm->material.diff_col);
         /* Render mesh */
         glBindVertexArray(rm->vao);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rm->ebo);
         glDrawElements(GL_TRIANGLES, rm->indice_count, GL_UNSIGNED_INT, (void*)0);
+        /* Reset bindings */
+        glBindTexture(GL_TEXTURE_2D, 0);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
     }

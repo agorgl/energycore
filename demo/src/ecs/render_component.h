@@ -33,11 +33,14 @@
 
 #include <vector.h>
 #include "entity.h"
+#include "../gpures.h"
+
+#define MAX_MATERIALS 16
 
 /* Packed render component data */
 struct render_component {
     struct model_hndl* model;
-    struct mat_hndl* material;
+    struct material* materials[MAX_MATERIALS];
 };
 
 /* SOA containing render component data */

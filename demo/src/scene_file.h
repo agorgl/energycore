@@ -33,6 +33,11 @@
 
 #include <stdlib.h>
 
+struct scene_material {
+    const char* name;
+    const char* diff_tex;
+};
+
 struct scene_object {
     const char* name;
     const char* model_loc;
@@ -40,6 +45,8 @@ struct scene_object {
     float rotation[4];
     float scaling[3];
     long parent_ofs;
+    struct scene_material* materials;
+    size_t num_materials;
 };
 
 void load_scene_file(struct scene_object** scene_objects, size_t* num_scene_objects, const char* filepath);
