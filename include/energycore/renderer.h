@@ -68,6 +68,7 @@ struct renderer_input {
 
 void renderer_init(struct renderer_state* rs, struct renderer_params* rp);
 void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view_mat[16]);
+void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height);
 void renderer_destroy(struct renderer_state* rs);
 
 #endif /* ! _RENDERER_H_ */

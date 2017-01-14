@@ -47,6 +47,12 @@ static void on_mouse_button(struct window* wnd, int button, int action, int mods
         window_grub_cursor(wnd, 1);
 }
 
+static void on_fb_size(struct window* wnd, unsigned int width, unsigned int height)
+{
+    struct game_context* ctx = window_get_userdata(wnd);
+    renderer_resize(&ctx->rndr_state, width, height);
+}
+
 static void load_data(struct game_context* ctx, struct scene_object* scene_objects, size_t num_scene_objects)
 {
     /* Initialize model, texture and material stores */
@@ -184,6 +190,7 @@ void game_init(struct game_context* ctx)
     memset(&wnd_callbacks, 0, sizeof(struct window_callbacks));
     wnd_callbacks.key_cb = on_key;
     wnd_callbacks.mouse_button_cb = on_mouse_button;
+    wnd_callbacks.fb_size_cb = on_fb_size;
     window_set_callbacks(ctx->wnd, &wnd_callbacks);
 
     /* Setup OpenGL debug handler */

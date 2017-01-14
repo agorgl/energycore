@@ -14,7 +14,7 @@ void renderer_init(struct renderer_state* rs, struct renderer_params* rp)
     /* Populate renderer state according to init params */
     memset(rs, 0, sizeof(*rs));
     rs->shdr_main = rp->shdr_main;
-    rs->proj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, (800.0f / 600.0f));
+    renderer_resize(rs, 800, 600);
 
     /* Initialize internal skybox state */
     rs->skybox = malloc(sizeof(struct skybox));
@@ -139,6 +139,12 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     upload_sh_coeffs(rs->probe_vis->shdr, sh_coeffs);
     probe_vis_render(rs->probe_vis, lcl_sky, probe_pos, *(mat4*)view, rs->proj, 1);
     glDeleteTextures(1, &lcl_sky);
+}
+
+void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height)
+{
+    glViewport(0, 0, width, height);
+    rs->proj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, ((float)width / height));
 }
 
 void renderer_destroy(struct renderer_state* rs)
