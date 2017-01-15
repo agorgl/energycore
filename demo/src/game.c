@@ -179,7 +179,7 @@ void game_init(struct game_context* ctx)
 {
     /* Create window */
     const char* title = "EnergyCore";
-    int width = 800, height = 600, mode = 0;
+    int width = 1280, height = 720, mode = 0;
     ctx->wnd = window_create(title, width, height, mode);
 
     /* Assosiate context to be accessed from callback functions */

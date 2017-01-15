@@ -14,7 +14,7 @@ void renderer_init(struct renderer_state* rs, struct renderer_params* rp)
     /* Populate renderer state according to init params */
     memset(rs, 0, sizeof(*rs));
     rs->shdr_main = rp->shdr_main;
-    renderer_resize(rs, 800, 600);
+    renderer_resize(rs, 1280, 720);
 
     /* Initialize internal skybox state */
     rs->skybox = malloc(sizeof(struct skybox));
@@ -144,7 +144,7 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
 void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height)
 {
     glViewport(0, 0, width, height);
-    rs->proj = mat4_perspective(radians(45.0f), 0.1f, 300.0f, ((float)width / height));
+    rs->proj = mat4_perspective(radians(60.0f), 0.1f, 300.0f, ((float)width / height));
 }
 
 void renderer_destroy(struct renderer_state* rs)
