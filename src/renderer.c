@@ -37,6 +37,7 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
 
     /* Render */
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glUseProgram(rs->shdr_main);
     glUniform1i(glGetUniformLocation(rs->shdr_main, "render_mode"), render_mode);
