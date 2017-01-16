@@ -18,7 +18,7 @@ entity_t entity_create(struct entity_mgr* emgr)
         uint16_t val = 0;
         vector_append(&emgr->generation, &val);
         idx = emgr->generation.size - 1;
-        assert(idx < (1L << ENTITY_INDEX_BITS));
+        assert(idx < (1LL << ENTITY_INDEX_BITS));
     }
     uint64_t gen = *(uint16_t*)vector_at(&emgr->generation, idx);
     return entity_make(idx, gen);

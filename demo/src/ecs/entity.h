@@ -40,8 +40,8 @@ typedef uint64_t entity_t;
 #define ENTITY_INDEX_BITS 48
 #define ENTITY_GENERATION_BITS 16
 
-#define entity_index(e) ((e) & ((1L << ENTITY_INDEX_BITS) - 1))
-#define entity_generation(e) (((e) >> ENTITY_INDEX_BITS) & ((1 << ENTITY_GENERATION_BITS) - 1))
+#define entity_index(e) ((e) & ((1LL << ENTITY_INDEX_BITS) - 1))
+#define entity_generation(e) (((e) >> ENTITY_INDEX_BITS) & ((1LL << ENTITY_GENERATION_BITS) - 1))
 #define entity_make(idx, gen) (((gen) << ENTITY_INDEX_BITS) | (idx))
 
 struct entity_mgr {
