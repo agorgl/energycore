@@ -63,6 +63,9 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
         struct renderer_mesh* rm = ri->meshes + i;
         /* Upload model matrix */
         glUniformMatrix4fv(modl_mat_loc, 1, GL_FALSE, rm->model_mat);
+        /* Set font face */
+        float model_det = mat4_det(*(mat4*)rm->model_mat);
+        glFrontFace(model_det < 0 ? GL_CW : GL_CCW);
         /* Set material parameters */
         glBindTexture(GL_TEXTURE_2D, rm->material.diff_tex);
         glUniform3fv(glGetUniformLocation(rs->shdr_main, "albedo_col"), 1, rm->material.diff_col);
@@ -76,6 +79,7 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
         glBindVertexArray(0);
     }
     glUseProgram(0);
+    glFrontFace(GL_CCW);
 
     /* Render skybox last */
     skybox_render(rs->skybox, (mat4*)view, (mat4*)proj, ri->skybox);
