@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <glad/glad.h>
 #include "skybox.h"
+#include "sky_preetham.h"
 #include "probe_vis.h"
 #include "lcl_cubemap.h"
 #include "glutils.h"
@@ -17,8 +18,12 @@ void renderer_init(struct renderer_state* rs, struct renderer_params* rp)
     renderer_resize(rs, 1280, 720);
 
     /* Initialize internal skybox state */
-    rs->skybox = malloc(sizeof(struct skybox));
-    skybox_init(rs->skybox);
+    rs->sky_rs.tex = malloc(sizeof(struct skybox));
+    skybox_init(rs->sky_rs.tex);
+
+    /* Initialize internal preetham sky state */
+    rs->sky_rs.preeth = malloc(sizeof(struct sky_preetham));
+    sky_preetham_init(rs->sky_rs.preeth);
 
     /* Initialize internal probe visualization state */
     rs->probe_vis = malloc(sizeof(struct probe_vis));
@@ -81,8 +86,22 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
     glUseProgram(0);
     glFrontFace(GL_CCW);
 
-    /* Render skybox last */
-    skybox_render(rs->skybox, (mat4*)view, (mat4*)proj, ri->skybox);
+    /* Render sky last */
+    switch (ri->sky_type) {
+        case RST_TEXTURE: {
+            skybox_render(rs->sky_rs.tex, (mat4*)view, (mat4*)proj, ri->skybox);
+            break;
+        }
+        case RST_PREETHAM: {
+            struct sky_preetham_params sp_params;
+            sky_preetham_default_params(&sp_params);
+            sky_preetham_render(rs->sky_rs.preeth, &sp_params, (mat4*)proj, (mat4*)view);
+            break;
+        }
+        case RST_NONE:
+        default:
+            break;
+    }
 }
 
 static void upload_sh_coeffs(GLuint prog, double sh_coef[SH_COEFF_NUM][3])
@@ -158,6 +177,8 @@ void renderer_destroy(struct renderer_state* rs)
     free(rs->lc_rs);
     probe_vis_destroy(rs->probe_vis);
     free(rs->probe_vis);
-    skybox_destroy(rs->skybox);
-    free(rs->skybox);
+    sky_preetham_destroy(rs->sky_rs.preeth);
+    free(rs->sky_rs.preeth);
+    skybox_destroy(rs->sky_rs.tex);
+    free(rs->sky_rs.tex);
 }

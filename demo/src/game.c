@@ -37,6 +37,8 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         ctx->fast_move = action != KEY_ACTION_RELEASE;
     else if (action == KEY_ACTION_RELEASE && key == KEY_N)
         ctx->visualize_normals = !ctx->visualize_normals;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_M)
+        ctx->dynamic_sky = !ctx->dynamic_sky;
 }
 
 static void on_mouse_button(struct window* wnd, int button, int action, int mods)
@@ -238,6 +240,7 @@ void game_init(struct game_context* ctx)
 
     /* Load skybox from file into the GPU */
     ctx->skybox_tex = tex_env_from_file_to_gpu("ext/envmaps/stormydays_large.jpg");
+    ctx->dynamic_sky = 0;
 
     /* Visualizations setup */
     ctx->visualize_normals = 0;
@@ -365,6 +368,7 @@ void game_render(void* userdata, float interpolation)
     struct renderer_input ri;
     prepare_renderer_input(ctx, &ri);
     ri.skybox = ctx->skybox_tex->id;
+    ri.sky_type = ctx->dynamic_sky ? RST_PREETHAM : RST_TEXTURE;
 
     /* Render */
     mat4 iview = camera_interpolated_view(&ctx->cam, interpolation);

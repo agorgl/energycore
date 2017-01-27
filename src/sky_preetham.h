@@ -28,50 +28,29 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _GAME_H_
-#define _GAME_H_
+#ifndef _SKY_PREETHAM_H_
+#define _SKY_PREETHAM_H_
 
-#include <vector.h>
-#include <hashmap.h>
 #include <linalgb.h>
-#include <energycore/renderer.h>
-#include "camera.h"
 
-struct game_context
-{
-    /* Window assiciated with the game */
-    struct window* wnd;
-    /* Master run flag, indicates when the game should exit */
-    int* should_terminate;
-    /* GPU resource stores */
-    struct hashmap model_store;
-    struct hashmap tex_store;
-    struct hashmap mat_store;
-    /* World */
-    struct world* world;
-    int dynamic_sky;
-    /* Camera */
-    struct camera cam;
-    int fast_move;
-    /* Skybox */
-    struct tex_hndl* skybox_tex;
-    /* Renderer */
-    struct renderer_params rndr_params;
-    struct renderer_state rndr_state;
-    /* Visualizations */
-    int visualize_normals;
-    int vis_nm_prog;
+struct sky_preetham {
+    unsigned int vao, vbo;
+    unsigned int shdr;
 };
 
-/* Initializes the game instance */
-void game_init(struct game_context* ctx);
-/* Update callback used by the main loop */
-void game_update(void* userdata, float dt);
-/* Render callback used by the main loop */
-void game_render(void* userdata, float interpolation);
-/* Performance update callback used by the main loop */
-void game_perf_update(void* userdata, float msec, float fps);
-/* De-initializes the game instance */
-void game_shutdown(struct game_context* ctx);
+struct sky_preetham_params {
+    float luminance;   /* [0,   2] */
+    float turbidity;   /* [1,  20] */
+    float rayleigh;    /* [0,   4] */
+    float mie_coef;    /* [0, 0.1] */
+    float mie_dirg;    /* [0,   1] */
+    float inclination; /* [0,   1] */
+    float azimuth;     /* [0,   1] */
+};
 
-#endif /* ! _GAME_H_ */
+void sky_preetham_init(struct sky_preetham* sp);
+void sky_preetham_default_params(struct sky_preetham_params* params);
+void sky_preetham_render(struct sky_preetham* sp, struct sky_preetham_params* params, mat4* proj, mat4* view);
+void sky_preetham_destroy(struct sky_preetham* sp);
+
+#endif /* ! _SKY_PREETHAM_H_ */

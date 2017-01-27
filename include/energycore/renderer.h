@@ -33,15 +33,26 @@
 
 #include <linalgb.h>
 
+enum renderer_sky_type {
+    RST_TEXTURE = 0,
+    RST_PREETHAM,
+    RST_NONE
+};
+
 struct renderer_params {
     unsigned int shdr_main;
     unsigned int shdr_probe_vis;
 };
 
+struct sky_renderer_state {
+    struct skybox* tex;
+    struct sky_preetham* preeth;
+};
+
 struct renderer_state {
     unsigned int shdr_main;
     mat4 proj;
-    struct skybox* skybox;
+    struct sky_renderer_state sky_rs;
     struct probe_vis* probe_vis;
     struct lc_renderer_state* lc_rs;
     float prob_angle;
@@ -64,6 +75,7 @@ struct renderer_input {
     struct renderer_mesh* meshes;
     unsigned int num_meshes;
     unsigned int skybox;
+    enum renderer_sky_type sky_type;
 };
 
 void renderer_init(struct renderer_state* rs, struct renderer_params* rp);
