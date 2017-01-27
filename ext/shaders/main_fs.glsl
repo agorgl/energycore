@@ -21,13 +21,13 @@ void main()
     vec3 norm = normalize(fs_in.normal);
     if (render_mode == 0) {
         // Normal mode
-        vec3 light_dir = normalize(light_pos - fs_in.frag_pos);
+        vec3 light_dir = normalize(light_pos);
         float Kd = max(dot(norm, light_dir), 0.0);
         vec3 result = Kd * diff_col;
         color = vec4(result, 1.0);
     } else if (render_mode == 1) {
         // Direct light
-        vec3 light_dir = normalize(light_pos - fs_in.frag_pos);
+        vec3 light_dir = normalize(light_pos);
         float Kd = max(dot(norm, light_dir), 0.0);
         vec3 dir_col = Kd * diff_col;
         // Indirect light
