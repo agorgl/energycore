@@ -238,8 +238,8 @@ void game_init(struct game_context* ctx)
     /* Initialize renderer */
     renderer_init(&ctx->rndr_state, &ctx->rndr_params);
 
-    /* Load skybox from file into the GPU */
-    ctx->skybox_tex = tex_env_from_file_to_gpu("ext/envmaps/stormydays_large.jpg");
+    /* Load sky texture from file into the GPU */
+    ctx->sky_tex = tex_env_from_file_to_gpu("ext/envmaps/stormydays_large.jpg");
     ctx->dynamic_sky = 0;
 
     /* Visualizations setup */
@@ -367,7 +367,7 @@ void game_render(void* userdata, float interpolation)
     /* Fill in struct with renderer input */
     struct renderer_input ri;
     prepare_renderer_input(ctx, &ri);
-    ri.skybox = ctx->skybox_tex->id;
+    ri.sky_tex = ctx->sky_tex->id;
     ri.sky_type = ctx->dynamic_sky ? RST_PREETHAM : RST_TEXTURE;
 
     /* Render */
@@ -397,8 +397,8 @@ void game_shutdown(struct game_context* ctx)
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
-    /* Free skybox */
-    tex_free_from_gpu(ctx->skybox_tex);
+    /* Free sky texture */
+    tex_free_from_gpu(ctx->sky_tex);
     /* Free shaders */
     glDeleteProgram(ctx->vis_nm_prog);
     glDeleteProgram(ctx->rndr_params.shdr_probe_vis);

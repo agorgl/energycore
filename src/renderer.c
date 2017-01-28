@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <glad/glad.h>
-#include "skybox.h"
+#include "sky_texture.h"
 #include "sky_preetham.h"
 #include "probe_vis.h"
 #include "lcl_cubemap.h"
@@ -17,9 +17,9 @@ void renderer_init(struct renderer_state* rs, struct renderer_params* rp)
     rs->shdr_main = rp->shdr_main;
     renderer_resize(rs, 1280, 720);
 
-    /* Initialize internal skybox state */
-    rs->sky_rs.tex = malloc(sizeof(struct skybox));
-    skybox_init(rs->sky_rs.tex);
+    /* Initialize internal texture sky state */
+    rs->sky_rs.tex = malloc(sizeof(struct sky_texture));
+    sky_texture_init(rs->sky_rs.tex);
 
     /* Initialize internal preetham sky state */
     rs->sky_rs.preeth = malloc(sizeof(struct sky_preetham));
@@ -89,7 +89,7 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
     /* Render sky last */
     switch (ri->sky_type) {
         case RST_TEXTURE: {
-            skybox_render(rs->sky_rs.tex, (mat4*)view, (mat4*)proj, ri->skybox);
+            sky_texture_render(rs->sky_rs.tex, (mat4*)view, (mat4*)proj, ri->sky_tex);
             break;
         }
         case RST_PREETHAM: {
@@ -143,7 +143,7 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     rs->prob_angle += 0.01f;
     vec3 probe_pos = vec3_new(cosf(rs->prob_angle), 1.0f, sinf(rs->prob_angle));
 
-    /* Render local skybox */
+    /* Render local cubemap */
     struct lc_render_scene_params rsp;
     rsp.rs = rs;
     rsp.ri = ri;
@@ -179,6 +179,6 @@ void renderer_destroy(struct renderer_state* rs)
     free(rs->probe_vis);
     sky_preetham_destroy(rs->sky_rs.preeth);
     free(rs->sky_rs.preeth);
-    skybox_destroy(rs->sky_rs.tex);
+    sky_texture_destroy(rs->sky_rs.tex);
     free(rs->sky_rs.tex);
 }

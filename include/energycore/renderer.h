@@ -45,7 +45,7 @@ struct renderer_params {
 };
 
 struct sky_renderer_state {
-    struct skybox* tex;
+    struct sky_texture* tex;
     struct sky_preetham* preeth;
 };
 
@@ -74,7 +74,7 @@ struct renderer_mesh {
 struct renderer_input {
     struct renderer_mesh* meshes;
     unsigned int num_meshes;
-    unsigned int skybox;
+    unsigned int sky_tex;
     enum renderer_sky_type sky_type;
 };
 

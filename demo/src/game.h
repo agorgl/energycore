@@ -49,12 +49,12 @@ struct game_context
     struct hashmap mat_store;
     /* World */
     struct world* world;
-    int dynamic_sky;
     /* Camera */
     struct camera cam;
     int fast_move;
-    /* Skybox */
-    struct tex_hndl* skybox_tex;
+    /* Sky */
+    struct tex_hndl* sky_tex;
+    int dynamic_sky;
     /* Renderer */
     struct renderer_params rndr_params;
     struct renderer_state rndr_state;

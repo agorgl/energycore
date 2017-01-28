@@ -28,18 +28,18 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _SKYBOX_H_
-#define _SKYBOX_H_
+#ifndef _SKY_TEXTURE_H_
+#define _SKY_TEXTURE_H_
 
 #include "linalgb.h"
 
-struct skybox {
+struct sky_texture {
     unsigned int vao, vbo;
     unsigned int shdr;
 };
 
-void skybox_init(struct skybox* sb);
-void skybox_render(struct skybox* sb, mat4* view, mat4* proj, unsigned int cubemap);
-void skybox_destroy(struct skybox* sb);
+void sky_texture_init(struct sky_texture* sb);
+void sky_texture_render(struct sky_texture* sb, mat4* view, mat4* proj, unsigned int cubemap);
+void sky_texture_destroy(struct sky_texture* sb);
 
-#endif /* ! _SKYBOX_H_ */
+#endif /* ! _SKY_TEXTURE_H_ */

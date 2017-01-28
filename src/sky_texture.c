@@ -1,4 +1,4 @@
-#include "skybox.h"
+#include "sky_texture.h"
 #include <glad/glad.h>
 #include "glutils.h"
 
@@ -27,11 +27,11 @@ in VS_OUT {
     vec3 tex_coords;
 } fs_in;
 
-uniform samplerCube skybox;
+uniform samplerCube sky_tex;
 
 void main()
 {
-    color = texture(skybox, fs_in.tex_coords);
+    color = texture(sky_tex, fs_in.tex_coords);
 }
 );
 
@@ -83,15 +83,15 @@ static const float skybox_vertices[] = {
 
 static const size_t skybox_vertices_sz = sizeof(skybox_vertices);
 
-void skybox_init(struct skybox* sb)
+void sky_texture_init(struct sky_texture* st)
 {
     /* Build shader */
-    sb->shdr = shader_from_srcs(skybox_vs_src, 0, skybox_fs_src);
+    st->shdr = shader_from_srcs(skybox_vs_src, 0, skybox_fs_src);
     /* Create cube */
-    glGenVertexArrays(1, &sb->vao);
-    glBindVertexArray(sb->vao);
-    glGenBuffers(1, &sb->vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, sb->vbo);
+    glGenVertexArrays(1, &st->vao);
+    glBindVertexArray(st->vao);
+    glGenBuffers(1, &st->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, st->vbo);
     glBufferData(GL_ARRAY_BUFFER, skybox_vertices_sz, &skybox_vertices, GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0);
@@ -99,21 +99,21 @@ void skybox_init(struct skybox* sb)
     glBindVertexArray(0);
 }
 
-void skybox_render(struct skybox* sb, mat4* view, mat4* proj, unsigned int cubemap)
+void sky_texture_render(struct sky_texture* st, mat4* view, mat4* proj, unsigned int cubemap)
 {
     glDepthMask(GL_FALSE);
     glDepthFunc(GL_LEQUAL);
-    glUseProgram(sb->shdr);
+    glUseProgram(st->shdr);
 
     /* Remove any translation component of the view matrix */
     mat4 nt_view = mat3_to_mat4(mat4_to_mat3(*view));
-    glUniformMatrix4fv(glGetUniformLocation(sb->shdr, "proj"), 1, GL_FALSE, proj->m);
-    glUniformMatrix4fv(glGetUniformLocation(sb->shdr, "view"), 1, GL_FALSE, nt_view.m);
+    glUniformMatrix4fv(glGetUniformLocation(st->shdr, "proj"), 1, GL_FALSE, proj->m);
+    glUniformMatrix4fv(glGetUniformLocation(st->shdr, "view"), 1, GL_FALSE, nt_view.m);
 
     glActiveTexture(GL_TEXTURE0);
-    glUniform1i(glGetUniformLocation(sb->shdr, "skybox"), 0);
+    glUniform1i(glGetUniformLocation(st->shdr, "sky_tex"), 0);
 
-    glBindVertexArray(sb->vao);
+    glBindVertexArray(st->vao);
     glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap);
     glDrawArrays(GL_TRIANGLES, 0, 36);
     glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
@@ -124,9 +124,9 @@ void skybox_render(struct skybox* sb, mat4* view, mat4* proj, unsigned int cubem
     glDepthMask(GL_TRUE);
 }
 
-void skybox_destroy(struct skybox* sb)
+void sky_texture_destroy(struct sky_texture* st)
 {
-    glDeleteBuffers(1, &sb->vbo);
-    glDeleteVertexArrays(1, &sb->vao);
-    glDeleteProgram(sb->shdr);
+    glDeleteBuffers(1, &st->vbo);
+    glDeleteVertexArrays(1, &st->vao);
+    glDeleteProgram(st->shdr);
 }
