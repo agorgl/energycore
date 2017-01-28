@@ -17,6 +17,9 @@ void renderer_init(struct renderer_state* rs, struct renderer_params* rp)
     rs->shdr_main = rp->shdr_main;
     renderer_resize(rs, 1280, 720);
 
+    /* Initialize gl utilities state */
+    glutils_init();
+
     /* Initialize internal texture sky state */
     rs->sky_rs.tex = malloc(sizeof(struct sky_texture));
     sky_texture_init(rs->sky_rs.tex);
@@ -181,4 +184,5 @@ void renderer_destroy(struct renderer_state* rs)
     free(rs->sky_rs.preeth);
     sky_texture_destroy(rs->sky_rs.tex);
     free(rs->sky_rs.tex);
+    glutils_deinit();
 }

@@ -36,6 +36,13 @@
 /* Convenience macro */
 #define GLSRC(src) "#version 330 core\n" #src
 
+/* GL utils state */
+void glutils_init();
+void glutils_deinit();
+
+/* Rendering utils */
+void render_quad();
+
 /* Shader utils */
 unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char* fs_src);
 

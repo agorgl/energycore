@@ -7,6 +7,68 @@
 #include <math.h>
 #define pi M_PI
 
+struct {
+    GLuint quad_vao;
+    GLuint quad_vbo;
+} g_glutils_state;
+
+static void quad_create(GLuint* vao, GLuint *vbo)
+{
+    static const GLfloat quad_vert[] =
+    {
+       -1.0f,  1.0f, 0.0f,
+       -1.0f, -1.0f, 0.0f,
+        1.0f,  1.0f, 0.0f,
+        1.0f, -1.0f, 0.0f
+    };
+
+    GLuint quad_vao;
+    glGenVertexArrays(1, &quad_vao);
+    glBindVertexArray(quad_vao);
+
+    GLuint quad_vbo;
+    glGenBuffers(1, &quad_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, quad_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quad_vert), &quad_vert, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    *vao = quad_vao;
+    *vbo = quad_vbo;
+}
+
+static void quad_destroy(GLuint* vao, GLuint* vbo)
+{
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    glDeleteBuffers(1, vbo);
+    glDeleteVertexArrays(1, vao);
+    *vao = 0;
+    *vbo = 0;
+}
+
+void glutils_init()
+{
+    memset(&g_glutils_state, 0, sizeof(g_glutils_state));
+    quad_create(&g_glutils_state.quad_vao, &g_glutils_state.quad_vbo);
+}
+
+void glutils_deinit()
+{
+    quad_destroy(&g_glutils_state.quad_vao, &g_glutils_state.quad_vbo);
+}
+
+void render_quad()
+{
+    glBindVertexArray(g_glutils_state.quad_vao);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
+}
+
 struct sphere_gdata* uv_sphere_create(float radius, unsigned int rings, unsigned int sectors)
 {
     struct sphere_gdata* vdat = malloc(sizeof(struct sphere_gdata));

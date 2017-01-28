@@ -213,50 +213,17 @@ static const char* fs_src = GLSRC(
     }
 );
 
-static void render_quad()
-{
-    GLfloat quad_vert[] =
-    {
-       -1.0f,  1.0f, 0.0f,
-       -1.0f, -1.0f, 0.0f,
-        1.0f,  1.0f, 0.0f,
-        1.0f, -1.0f, 0.0f
-    };
-
-    GLuint quad_vao;
-    glGenVertexArrays(1, &quad_vao);
-    glBindVertexArray(quad_vao);
-
-    GLuint quad_vbo;
-    glGenBuffers(1, &quad_vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, quad_vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(quad_vert), &quad_vert, GL_STATIC_DRAW);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0);
-
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-    glDeleteBuffers(1, &quad_vbo);
-    glDeleteVertexArrays(1, &quad_vao);
-}
-
 static vec3 view_target(mat4* view)
 {
     vec3 f = vec3_new(-(*view).zx, -(*view).zy, -(*view).zz);
     return f;
 }
 
-unsigned int shader_from_sources(const char* vs_src, const char* gs_src, const char* fs_src);
-
 void sky_preetham_init(struct sky_preetham* sp)
 {
     memset(sp, 0, sizeof(*sp));
     /* Build shader */
-    //GLuint shdr = shader_from_srcs(vs_src, 0, fs_src);
-    sp->shdr = shader_from_sources(vs_src, 0, fs_src);
+    sp->shdr = shader_from_srcs(vs_src, 0, fs_src);
 }
 
 void sky_preetham_default_params(struct sky_preetham_params* params)
