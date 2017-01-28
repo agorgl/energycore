@@ -17,12 +17,12 @@ static const float view_fronts[6][3] = {
 };
 
 static const float view_ups[6][3] = {
-    { 0.0f, -1.0f,  0.0f },
-    { 0.0f, -1.0f,  0.0f },
-    { 0.0f,  0.0f,  1.0f },
+    { 0.0f,  1.0f,  0.0f },
+    { 0.0f,  1.0f,  0.0f },
     { 0.0f,  0.0f, -1.0f },
-    { 0.0f, -1.0f,  0.0f },
-    { 0.0f, -1.0f,  0.0f }
+    { 0.0f,  0.0f,  1.0f },
+    { 0.0f,  1.0f,  0.0f },
+    { 0.0f,  1.0f,  0.0f }
 };
 
 void lc_renderer_init(struct lc_renderer_state* lcrs)
@@ -65,8 +65,9 @@ unsigned int lc_render(struct lc_renderer_state* lcrs, vec3 pos, render_scene_fn
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, fbwidth, fbheight);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth_rb);
 
-    /* Projection matrix */
-    mat4 fproj = mat4_perspective(radians(90.0f), 0.1f, 300.0f, 1.0f);
+    /* Projection matrix
+     * NOTE: Negative FOV is used to let view up vectors be positive while rendering upside down to the cubemap */
+    mat4 fproj = mat4_perspective(-radians(90.0f), 0.1f, 300.0f, 1.0f);
 
     for (unsigned int i = 0; i < 6; ++i) {
         /* Create and set texture face */
