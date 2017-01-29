@@ -33,15 +33,14 @@
 
 #include <linalgb.h>
 
+/* Shader fetch function, used by renderer_shdr_fetch.
+ * Takes as input the name of a shader and returns shader handle */
+typedef unsigned int(*rndr_shdr_fetch_fn)(const char*, void* userdata);
+
 enum renderer_sky_type {
     RST_TEXTURE = 0,
     RST_PREETHAM,
     RST_NONE
-};
-
-struct renderer_params {
-    unsigned int shdr_main;
-    unsigned int shdr_probe_vis;
 };
 
 struct sky_renderer_state {
@@ -50,6 +49,8 @@ struct sky_renderer_state {
 };
 
 struct renderer_state {
+    rndr_shdr_fetch_fn shdr_fetch_cb;
+    void* shdr_fetch_userdata;
     unsigned int shdr_main;
     mat4 proj;
     struct sky_renderer_state sky_rs;
@@ -78,8 +79,9 @@ struct renderer_input {
     enum renderer_sky_type sky_type;
 };
 
-void renderer_init(struct renderer_state* rs, struct renderer_params* rp);
+void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sf_ud);
 void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view_mat[16]);
+void renderer_shdr_fetch(struct renderer_state* rs);
 void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height);
 void renderer_destroy(struct renderer_state* rs);
 

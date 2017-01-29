@@ -39,7 +39,7 @@ struct probe_vis {
     unsigned int shdr;
 };
 
-void probe_vis_init(struct probe_vis* pv, unsigned int shdr);
+void probe_vis_init(struct probe_vis* pv);
 void probe_vis_render(struct probe_vis* pv, unsigned int cubemap, vec3 probe_pos, mat4 view, mat4 proj, int mode);
 void probe_vis_destroy(struct probe_vis* pv);
 

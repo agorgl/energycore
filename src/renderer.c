@@ -10,11 +10,12 @@
 #include "lcl_cubemap.h"
 #include "glutils.h"
 
-void renderer_init(struct renderer_state* rs, struct renderer_params* rp)
+void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_ud)
 {
     /* Populate renderer state according to init params */
     memset(rs, 0, sizeof(*rs));
-    rs->shdr_main = rp->shdr_main;
+    rs->shdr_fetch_cb = sfn;
+    rs->shdr_fetch_userdata = sh_ud;
     renderer_resize(rs, 1280, 720);
 
     /* Initialize gl utilities state */
@@ -30,11 +31,20 @@ void renderer_init(struct renderer_state* rs, struct renderer_params* rp)
 
     /* Initialize internal probe visualization state */
     rs->probe_vis = malloc(sizeof(struct probe_vis));
-    probe_vis_init(rs->probe_vis, rp->shdr_probe_vis);
+    probe_vis_init(rs->probe_vis);
 
     /* Initialize local cubemap renderer state */
     rs->lc_rs = malloc(sizeof(struct lc_renderer_state));
     lc_renderer_init(rs->lc_rs);
+
+    /* Fetch shaders */
+    renderer_shdr_fetch(rs);
+}
+
+void renderer_shdr_fetch(struct renderer_state* rs)
+{
+    rs->shdr_main = rs->shdr_fetch_cb("main", rs->shdr_fetch_userdata);
+    rs->probe_vis->shdr = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
 }
 
 static void render_scene(struct renderer_state* rs, struct renderer_input* ri, float view[16], float proj[16], int render_mode)

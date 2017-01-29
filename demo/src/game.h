@@ -47,6 +47,7 @@ struct game_context
     struct hashmap model_store;
     struct hashmap tex_store;
     struct hashmap mat_store;
+    struct hashmap shdr_store;
     /* World */
     struct world* world;
     /* Camera */
@@ -56,11 +57,9 @@ struct game_context
     struct tex_hndl* sky_tex;
     int dynamic_sky;
     /* Renderer */
-    struct renderer_params rndr_params;
     struct renderer_state rndr_state;
     /* Visualizations */
     int visualize_normals;
-    int vis_nm_prog;
 };
 
 /* Initializes the game instance */

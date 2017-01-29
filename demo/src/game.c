@@ -141,6 +141,44 @@ static void load_data(struct game_context* ctx, struct scene_object* scene_objec
     vector_destroy(&transform_handles);
 }
 
+static const struct shdr_info {
+    const char* name;
+    const char* vs_loc;
+    const char* gs_loc;
+    const char* fs_loc;
+} shdrs [] = {
+    {
+        .name = "main",
+        .vs_loc = "../ext/shaders/main_vs.glsl",
+        .gs_loc = 0,
+        .fs_loc = "../ext/shaders/main_fs.glsl"
+    },
+    {
+        .name = "probe_vis",
+        .vs_loc = "../ext/shaders/main_vs.glsl",
+        .gs_loc = 0,
+        .fs_loc = "../ext/shaders/probe_vis_fs.glsl"
+    },
+    {
+        .name = "norm_vis",
+        .vs_loc = "ext/shaders/nm_vis_vs.glsl",
+        .gs_loc = "ext/shaders/nm_vis_gs.glsl",
+        .fs_loc = "ext/shaders/nm_vis_fs.glsl"
+    }
+};
+
+static void load_shdrs(struct game_context* ctx)
+{
+    hashmap_init(&ctx->shdr_store, hm_str_hash, hm_str_eql);
+    /* Load shader from files into the GPU */
+    for (unsigned int i = 0; i < sizeof(shdrs) / sizeof(struct shdr_info); ++i) {
+        const struct shdr_info* si = shdrs + i;
+        const char* name = si->name;
+        unsigned int shdr = shader_from_files(si->vs_loc, si->gs_loc, si->fs_loc);
+        hashmap_put(&ctx->shdr_store, hm_cast(name), hm_cast(shdr));
+    }
+}
+
 static void model_store_free(hm_ptr k, hm_ptr v)
 {
     (void) k;
@@ -161,6 +199,19 @@ static void mat_store_free(hm_ptr k, hm_ptr v)
     free((void*)v);
 }
 
+static void shdr_store_free(hm_ptr k, hm_ptr v)
+{
+    (void) k;
+    GLuint shdr = v;
+    glDeleteProgram(shdr);
+}
+
+static void free_shdrs(struct game_context* ctx)
+{
+    hashmap_iter(&ctx->shdr_store, shdr_store_free);
+    hashmap_destroy(&ctx->shdr_store);
+}
+
 static void free_data(struct game_context* ctx)
 {
     /* Destroy world */
@@ -175,6 +226,16 @@ static void free_data(struct game_context* ctx)
     hashmap_destroy(&ctx->mat_store);
     hashmap_destroy(&ctx->tex_store);
     hashmap_destroy(&ctx->model_store);
+}
+
+static unsigned int rndr_shdr_fetch(const char* shdr_name, void* userdata)
+{
+    struct game_context* ctx = userdata;
+    hm_ptr* p = hashmap_get(&ctx->shdr_store, hm_cast(shdr_name));
+    unsigned int shdr = 0;
+    if (p)
+        shdr = (unsigned int)(*p);
+    return shdr;
 }
 
 void game_init(struct game_context* ctx)
@@ -225,18 +286,17 @@ void game_init(struct game_context* ctx)
     }
     free(scene_objects);
 
+    /* Load shaders */
+    load_shdrs(ctx);
+
     /* Initialize camera */
     camera_defaults(&ctx->cam);
     ctx->cam.pos = vec3_new(0.0, 1.0, 3.0);
     ctx->cam.front = vec3_normalize(vec3_mul(ctx->cam.pos, -1));
     ctx->fast_move = 0;
 
-    /* Load shader from files into the GPU */
-    ctx->rndr_params.shdr_main = shader_from_files("../ext/shaders/main_vs.glsl", 0, "../ext/shaders/main_fs.glsl");
-    ctx->rndr_params.shdr_probe_vis = shader_from_files("../ext/shaders/main_vs.glsl", 0, "../ext/shaders/probe_vis_fs.glsl");
-
     /* Initialize renderer */
-    renderer_init(&ctx->rndr_state, &ctx->rndr_params);
+    renderer_init(&ctx->rndr_state, rndr_shdr_fetch, ctx);
 
     /* Load sky texture from file into the GPU */
     ctx->sky_tex = tex_env_from_file_to_gpu("ext/envmaps/stormydays_large.jpg");
@@ -244,7 +304,6 @@ void game_init(struct game_context* ctx)
 
     /* Visualizations setup */
     ctx->visualize_normals = 0;
-    ctx->vis_nm_prog = shader_from_files("ext/shaders/nm_vis_vs.glsl", "ext/shaders/nm_vis_gs.glsl", "ext/shaders/nm_vis_fs.glsl");
 }
 
 void game_update(void* userdata, float dt)
@@ -328,7 +387,7 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
 
 static void visualize_normals(struct game_context* ctx, mat4* view, mat4* proj)
 {
-    const GLuint shdr = ctx->vis_nm_prog;
+    const GLuint shdr = *hashmap_get(&ctx->shdr_store, hm_cast("norm_vis"));
     glUseProgram(shdr);
     GLuint proj_mat_loc = glGetUniformLocation(shdr, "proj");
     GLuint view_mat_loc = glGetUniformLocation(shdr, "view");
@@ -399,12 +458,10 @@ void game_shutdown(struct game_context* ctx)
     glBindVertexArray(0);
     /* Free sky texture */
     tex_free_from_gpu(ctx->sky_tex);
-    /* Free shaders */
-    glDeleteProgram(ctx->vis_nm_prog);
-    glDeleteProgram(ctx->rndr_params.shdr_probe_vis);
-    glDeleteProgram(ctx->rndr_params.shdr_main);
     /* Destroy renderer */
     renderer_destroy(&ctx->rndr_state);
+    /* Free shaders */
+    free_shdrs(ctx);
     /* Free any loaded resources */
     free_data(ctx);
     /* Close window */
