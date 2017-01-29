@@ -33,52 +33,69 @@
 
 #include <linalgb.h>
 
-/* Shader fetch function, used by renderer_shdr_fetch.
- * Takes as input the name of a shader and returns shader handle */
-typedef unsigned int(*rndr_shdr_fetch_fn)(const char*, void* userdata);
+/*-----------------------------------------------------------------
+ * Renderer input
+ *-----------------------------------------------------------------*/
+struct renderer_mesh {
+    /* Geometry handles */
+    unsigned int vao;
+    unsigned int ebo;
+    unsigned int indice_count;
+    /* Model matrix */
+    float model_mat[16];
+    /* Material parameters */
+    struct {
+        float diff_col[3];
+        unsigned int diff_tex;
+    } material;
+};
 
 enum renderer_sky_type {
-    RST_TEXTURE = 0,
+    RST_TEXTURE,
     RST_PREETHAM,
     RST_NONE
 };
 
+/* Scene description passed to render function */
+struct renderer_input {
+    /* Meshes to render */
+    struct renderer_mesh* meshes;
+    unsigned int num_meshes;
+    /* Sky type and parameters */
+    enum renderer_sky_type sky_type;
+    unsigned int sky_tex; /* Used if sky_type is RST_TEXTURE */
+};
+
+/*-----------------------------------------------------------------
+ * Renderer state
+ *-----------------------------------------------------------------*/
+/* Shader fetch function, used by renderer_shdr_fetch.
+ * Takes as input the name of a shader and returns shader handle */
+typedef unsigned int(*rndr_shdr_fetch_fn)(const char*, void* userdata);
+
+/* Sky renderers */
 struct sky_renderer_state {
     struct sky_texture* tex;
     struct sky_preetham* preeth;
 };
 
+/* Aggregate state */
 struct renderer_state {
+    /* Shader handle fetching */
     rndr_shdr_fetch_fn shdr_fetch_cb;
     void* shdr_fetch_userdata;
-    unsigned int shdr_main;
-    mat4 proj;
+    /* Internal subrenderers */
     struct sky_renderer_state sky_rs;
     struct probe_vis* probe_vis;
     struct lc_renderer_state* lc_rs;
+    /* Cached values */
+    unsigned int shdr_main;
+    mat4 proj;
+    /* Misc */
     float prob_angle;
 };
 
-struct renderer_material {
-    float diff_col[3];
-    unsigned int diff_tex;
-};
-
-struct renderer_mesh {
-    unsigned int vao;
-    unsigned int ebo;
-    unsigned int indice_count;
-    float model_mat[16];
-    struct renderer_material material;
-};
-
-struct renderer_input {
-    struct renderer_mesh* meshes;
-    unsigned int num_meshes;
-    unsigned int sky_tex;
-    enum renderer_sky_type sky_type;
-};
-
+/* Public interface */
 void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sf_ud);
 void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view_mat[16]);
 void renderer_shdr_fetch(struct renderer_state* rs);
