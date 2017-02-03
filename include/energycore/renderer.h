@@ -81,15 +81,19 @@ struct sky_renderer_state {
 
 /* Aggregate state */
 struct renderer_state {
-    /* Shader handle fetching */
-    rndr_shdr_fetch_fn shdr_fetch_cb;
-    void* shdr_fetch_userdata;
     /* Internal subrenderers */
     struct sky_renderer_state sky_rs;
     struct probe_vis* probe_vis;
     struct lc_renderer_state* lc_rs;
+    /* Shader handle fetching */
+    rndr_shdr_fetch_fn shdr_fetch_cb;
+    void* shdr_fetch_userdata;
+    /* Shaders */
+    struct {
+        unsigned int dir_light;
+        unsigned int env_light;
+    } shdrs;
     /* Cached values */
-    unsigned int shdr_main;
     mat4 proj;
     /* Misc */
     float prob_angle;

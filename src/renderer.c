@@ -10,6 +10,9 @@
 #include "lcl_cubemap.h"
 #include "glutils.h"
 
+/*-----------------------------------------------------------------
+ * Initialization
+ *-----------------------------------------------------------------*/
 void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_ud)
 {
     /* Populate renderer state according to init params */
@@ -43,37 +46,61 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
 
 void renderer_shdr_fetch(struct renderer_state* rs)
 {
-    rs->shdr_main = rs->shdr_fetch_cb("main", rs->shdr_fetch_userdata);
+    rs->shdrs.dir_light = rs->shdr_fetch_cb("dir_light", rs->shdr_fetch_userdata);
+    rs->shdrs.env_light = rs->shdr_fetch_cb("env_light", rs->shdr_fetch_userdata);
     rs->probe_vis->shdr = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
 }
 
-static void render_scene(struct renderer_state* rs, struct renderer_input* ri, float view[16], float proj[16], int render_mode)
-{
-    /* Clear default buffers */
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+/*-----------------------------------------------------------------
+ * Scene rendering
+ *-----------------------------------------------------------------*/
+enum render_pass {
+    RP_DIR_LIGHT,
+    RP_ENV_LIGHT
+};
 
+static GLuint shdr_for_render_mode(struct renderer_state* rs, enum render_pass rndr_pass)
+{
+    switch (rndr_pass) {
+        case RP_DIR_LIGHT:
+            return rs->shdrs.dir_light;
+        case RP_ENV_LIGHT:
+            return rs->shdrs.env_light;
+        default:
+            break;
+    }
+    return 0;
+}
+
+static void render_scene(struct renderer_state* rs, struct renderer_input* ri, float view[16], float proj[16], enum render_pass rndr_pass)
+{
     /* Render */
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glUseProgram(rs->shdr_main);
-    glUniform1i(glGetUniformLocation(rs->shdr_main, "render_mode"), render_mode);
+
+    /* Pick shader for the mode */
+    GLuint shdr = shdr_for_render_mode(rs, rndr_pass);
+    glUseProgram(shdr);
 
     /* Setup matrices */
-    GLuint proj_mat_loc = glGetUniformLocation(rs->shdr_main, "proj");
-    GLuint view_mat_loc = glGetUniformLocation(rs->shdr_main, "view");
-    GLuint modl_mat_loc = glGetUniformLocation(rs->shdr_main, "model");
+    GLuint proj_mat_loc = glGetUniformLocation(shdr, "proj");
+    GLuint view_mat_loc = glGetUniformLocation(shdr, "view");
+    GLuint modl_mat_loc = glGetUniformLocation(shdr, "model");
     glUniformMatrix4fv(proj_mat_loc, 1, GL_FALSE, proj);
     glUniformMatrix4fv(view_mat_loc, 1, GL_FALSE, (GLfloat*)view);
+
     /* Misc uniforms */
+    /*
     mat4 inverse_view = mat4_inverse(*(mat4*)view);
     vec3 view_pos = vec3_new(inverse_view.xw, inverse_view.yw, inverse_view.zw);
-    glUniform3f(glGetUniformLocation(rs->shdr_main, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
+    glUniform3f(glGetUniformLocation(shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
+     */
 
-    /* Set texture locations */
-    glActiveTexture(GL_TEXTURE0);
-    glUniform1i(glGetUniformLocation(rs->shdr_main, "albedo_tex"), 0);
+    if (rndr_pass == RP_DIR_LIGHT) {
+        /* Set texture locations */
+        glActiveTexture(GL_TEXTURE0);
+        glUniform1i(glGetUniformLocation(shdr, "albedo_tex"), 0);
+    }
 
     /* Loop through meshes */
     for (unsigned int i = 0; i < ri->num_meshes; ++i) {
@@ -85,8 +112,10 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
         float model_det = mat4_det(*(mat4*)rm->model_mat);
         glFrontFace(model_det < 0 ? GL_CW : GL_CCW);
         /* Set material parameters */
-        glBindTexture(GL_TEXTURE_2D, rm->material.diff_tex);
-        glUniform3fv(glGetUniformLocation(rs->shdr_main, "albedo_col"), 1, rm->material.diff_col);
+        if (rndr_pass == RP_DIR_LIGHT) {
+            glBindTexture(GL_TEXTURE_2D, rm->material.diff_tex);
+            glUniform3fv(glGetUniformLocation(shdr, "albedo_col"), 1, rm->material.diff_col);
+        }
         /* Render mesh */
         glBindVertexArray(rm->vao);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rm->ebo);
@@ -117,6 +146,30 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
     }
 }
 
+/*-----------------------------------------------------------------
+ * Direct Light Pass
+ *-----------------------------------------------------------------*/
+static void renderer_direct_pass(struct renderer_state* rs, struct renderer_input* ri, float view[16], float proj[16])
+{
+    /* Render directional lights */
+    render_scene(rs, ri, view, proj, RP_DIR_LIGHT);
+}
+
+/*-----------------------------------------------------------------
+ * Environment Light Pass
+ *-----------------------------------------------------------------*/
+struct lc_render_scene_params {
+    struct renderer_state* rs;
+    struct renderer_input* ri;
+};
+
+/* Callback passed to local cubemap renderer, called when rendering each cubemap side */
+static void render_scene_for_lc(mat4* view, mat4* proj, void* userdata)
+{
+    struct lc_render_scene_params* p = userdata;
+    renderer_direct_pass(p->rs, p->ri, view->m, proj->m);
+}
+
 static void upload_sh_coeffs(GLuint prog, double sh_coef[SH_COEFF_NUM][3])
 {
     const char* uniform_name = "sh_coeffs";
@@ -139,18 +192,7 @@ static void upload_sh_coeffs(GLuint prog, double sh_coef[SH_COEFF_NUM][3])
     glUseProgram(0);
 }
 
-struct lc_render_scene_params {
-    struct renderer_state* rs;
-    struct renderer_input* ri;
-};
-
-static void render_scene_for_lc(mat4* view, mat4* proj, void* userdata)
-{
-    struct lc_render_scene_params* p = userdata;
-    render_scene(p->rs, p->ri, (float*)view, (float*)proj, 0);
-}
-
-void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view[16])
+static void renderer_environment_pass(struct renderer_state* rs, struct renderer_input* ri, float view[16])
 {
     /* Calculate probe position */
     rs->prob_angle += 0.01f;
@@ -165,17 +207,30 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     /* Calculate and upload SH coefficients from captured cubemap */
     double sh_coeffs[SH_COEFF_NUM][3];
     lc_extract_sh_coeffs(rs->lc_rs, sh_coeffs, lcl_sky);
-    upload_sh_coeffs(rs->shdr_main, sh_coeffs);
+    upload_sh_coeffs(rs->shdrs.env_light, sh_coeffs);
 
     /* Render from camera view */
-    glUseProgram(rs->shdr_main);
-    glUniform3f(glGetUniformLocation(rs->shdr_main, "probe_pos"), probe_pos.x, probe_pos.y, probe_pos.z);
-    render_scene(rs, ri, view, (float*)&rs->proj, 1);
+    glUseProgram(rs->shdrs.env_light);
+    glUniform3f(glGetUniformLocation(rs->shdrs.env_light, "probe_pos"), probe_pos.x, probe_pos.y, probe_pos.z);
+    render_scene(rs, ri, view, (float*)&rs->proj, RP_ENV_LIGHT);
 
-    /* Render sample probe */
+    /* Visualize sample probe */
     upload_sh_coeffs(rs->probe_vis->shdr, sh_coeffs);
     probe_vis_render(rs->probe_vis, lcl_sky, probe_pos, *(mat4*)view, rs->proj, 1);
     glDeleteTextures(1, &lcl_sky);
+}
+
+/*-----------------------------------------------------------------
+ * Public interface
+ *-----------------------------------------------------------------*/
+void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view[16])
+{
+    /* Clear default buffers */
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    renderer_direct_pass(rs, ri, view, rs->proj.m);
+    renderer_environment_pass(rs, ri, view);
 }
 
 void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height)
@@ -184,6 +239,9 @@ void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int
     rs->proj = mat4_perspective(radians(60.0f), 0.1f, 300.0f, ((float)width / height));
 }
 
+/*-----------------------------------------------------------------
+ * De-initialization
+ *-----------------------------------------------------------------*/
 void renderer_destroy(struct renderer_state* rs)
 {
     lc_renderer_destroy(rs->lc_rs);

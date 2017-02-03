@@ -148,14 +148,20 @@ static const struct shdr_info {
     const char* fs_loc;
 } shdrs [] = {
     {
-        .name = "main",
-        .vs_loc = "../ext/shaders/main_vs.glsl",
+        .name = "dir_light",
+        .vs_loc = "../ext/shaders/static_vs.glsl",
         .gs_loc = 0,
-        .fs_loc = "../ext/shaders/main_fs.glsl"
+        .fs_loc = "../ext/shaders/dir_light_fs.glsl"
+    },
+    {
+        .name = "env_light",
+        .vs_loc = "../ext/shaders/static_vs.glsl",
+        .gs_loc = 0,
+        .fs_loc = "../ext/shaders/env_light_fs.glsl"
     },
     {
         .name = "probe_vis",
-        .vs_loc = "../ext/shaders/main_vs.glsl",
+        .vs_loc = "../ext/shaders/static_vs.glsl",
         .gs_loc = 0,
         .fs_loc = "../ext/shaders/probe_vis_fs.glsl"
     },

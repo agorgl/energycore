@@ -82,6 +82,8 @@ unsigned int lc_render(struct lc_renderer_state* lcrs, vec3 pos, render_scene_fn
         vec3 fup = vec3_new(view_ups[i][0], view_ups[i][1], view_ups[i][2]);
         mat4 fview = mat4_view_look_at(pos, vec3_add(pos, ffront), fup);
         /* Render */
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         rsf(&fview, &fproj, userdata);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, 0);
     }
