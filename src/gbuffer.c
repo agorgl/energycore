@@ -49,13 +49,6 @@ void gbuffer_init(struct gbuffer* gb, int width, int height)
             GL_COLOR_ATTACHMENT2
         },
         {
-            &gb->position_buf,
-            GL_RGB16F,
-            GL_RGB,
-            GL_FLOAT,
-            GL_COLOR_ATTACHMENT3
-        },
-        {
             &gb->depth_stencil_buf,
             GL_DEPTH24_STENCIL8,
             GL_DEPTH_STENCIL,
@@ -90,7 +83,6 @@ void gbuffer_bind_for_geometry_pass(struct gbuffer* gb)
     GLuint attachments[] = {
         GL_COLOR_ATTACHMENT1,
         GL_COLOR_ATTACHMENT2,
-        GL_COLOR_ATTACHMENT3,
     };
     glDrawBuffers(array_length(attachments), attachments);
 }
@@ -104,9 +96,9 @@ void gbuffer_bind_for_light_pass(struct gbuffer* gb)
 
     /* Bind geometry pass textures */
     GLuint geom_tex[] = {
+        gb->depth_stencil_buf,
         gb->normal_buf,
         gb->albedo_buf,
-        gb->position_buf
     };
     for (unsigned int i = 0; i < array_length(geom_tex); ++i) {
         glActiveTexture(GL_TEXTURE0 + i);
@@ -144,7 +136,7 @@ void gbuffer_blit_depth_to_fb(struct gbuffer* gb, unsigned int fb)
 
 void gbuffer_destroy(struct gbuffer* gb)
 {
-    GLuint textures[] = { gb->normal_buf, gb->albedo_buf, gb->position_buf, gb->depth_stencil_buf };
+    GLuint textures[] = { gb->normal_buf, gb->albedo_buf, gb->depth_stencil_buf };
     glDeleteTextures(array_length(textures), textures);
     glDeleteFramebuffers(1, &gb->fbo);
 }

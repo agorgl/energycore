@@ -131,6 +131,7 @@ struct renderer_state {
         struct gbuffer* lcr_gbuf;
     } gi;
     /* Cached values */
+    vec2 viewport;
     mat4 proj;
 };
 

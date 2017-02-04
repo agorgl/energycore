@@ -41,7 +41,6 @@ struct gbuffer {
     unsigned int depth_stencil_buf;
     unsigned int normal_buf;
     unsigned int albedo_buf;
-    unsigned int position_buf;
     /* Dimensions */
     unsigned int width, height;
 };

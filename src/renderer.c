@@ -24,6 +24,7 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
 
     /* Initial dimensions */
     int width = 1280, height = 720;
+    rs->viewport.x = width; rs->viewport.y = height;
 
     /* Initialize gbuffer */
     rs->gbuf = malloc(sizeof(struct gbuffer));
@@ -124,14 +125,16 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-static void bind_gbuffer_textures(struct renderer_state* rs, GLuint shdr)
+static void bind_gbuffer_textures(struct renderer_state* rs, GLuint shdr, mat4* view, mat4* proj)
 {
     gbuffer_bind_for_light_pass(rs->gbuf);
-
     glUseProgram(shdr);
-    glUniform1i(glGetUniformLocation(shdr, "gbuf.normal"), 0);
-    glUniform1i(glGetUniformLocation(shdr, "gbuf.albedo"), 1);
-    glUniform1i(glGetUniformLocation(shdr, "gbuf.position"), 2);
+    glUniform1i(glGetUniformLocation(shdr, "gbuf.depth"), 0);
+    glUniform1i(glGetUniformLocation(shdr, "gbuf.normal"), 1);
+    glUniform1i(glGetUniformLocation(shdr, "gbuf.albedo"), 2);
+    glUniform2fv(glGetUniformLocation(shdr, "u_screen"), 1, rs->viewport.xy);
+    mat4 inv_view_proj = mat4_inverse(mat4_mul_mat4(*proj, *view));
+    glUniformMatrix4fv(glGetUniformLocation(shdr, "u_inv_view_proj"), 1, GL_FALSE, inv_view_proj.m);
     glUseProgram(0);
 }
 
@@ -157,7 +160,7 @@ static void render_sky(struct renderer_state* rs, struct renderer_input* ri, flo
     }
 }
 
-static void light_pass(struct renderer_state* rs, struct renderer_input* ri)
+static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj)
 {
     /* Clear */
     glClear(GL_COLOR_BUFFER_BIT);
@@ -172,7 +175,7 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri)
 
     /* Setup gbuffer input textures */
     GLuint shdr = rs->shdrs.light_pass;
-    bind_gbuffer_textures(rs, shdr);
+    bind_gbuffer_textures(rs, shdr, view, proj);
 
     /* Iterate through lights */
     glUseProgram(shdr);
@@ -222,7 +225,7 @@ static void lc_render_scene(mat4* view, mat4* proj, void* userdata)
 
     geometry_pass(p->rs, p->ri, view->m, proj->m);
     gbuffer_blit_depth_to_fb(p->lcl_gbuf, cur_fb);
-    light_pass(p->rs, p->ri);
+    light_pass(p->rs, p->ri, view, proj);
     render_sky(p->rs, p->ri, view->m, proj->m);
 }
 
@@ -272,7 +275,7 @@ static void update_gi_data(struct renderer_state* rs, struct renderer_input* ri)
     lc_extract_sh_coeffs(rs->lc_rs, rs->gi.probe.sh_coeffs, rs->gi.probe.cm);
 }
 
-static void environment_pass(struct renderer_state* rs)
+static void environment_pass(struct renderer_state* rs, mat4* view)
 {
     /* Disable depth writting */
     glDepthMask(GL_FALSE);
@@ -287,7 +290,7 @@ static void environment_pass(struct renderer_state* rs)
     glUniform3fv(glGetUniformLocation(rs->shdrs.env_pass, "probe_pos"), 1, rs->gi.probe.pos.xyz);
 
     /* Bind gbuffer textures and perform a full ndc quad render */
-    bind_gbuffer_textures(rs, rs->shdrs.env_pass);
+    bind_gbuffer_textures(rs, rs->shdrs.env_pass, view, &rs->proj);
     glUseProgram(rs->shdrs.env_pass);
     render_quad();
     glUseProgram(0);
@@ -311,12 +314,12 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     gbuffer_blit_depth_to_fb(rs->gbuf, 0);
 
     /* Direct Light pass */
-    light_pass(rs, ri);
+    light_pass(rs, ri, (mat4*)view, &rs->proj);
     render_sky(rs, ri, view, rs->proj.m);
 
     /* Indirect lighting */
     update_gi_data(rs, ri);
-    environment_pass(rs);
+    environment_pass(rs, (mat4*)view);
 
     /* Visualize sample probe */
     upload_sh_coeffs(rs->probe_vis->shdr, rs->gi.probe.sh_coeffs);
@@ -326,6 +329,8 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
 void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height)
 {
     glViewport(0, 0, width, height);
+    rs->viewport.x = width;
+    rs->viewport.y = height;
     rs->proj = mat4_perspective(radians(60.0f), 0.1f, 300.0f, ((float)width / height));
     /* GBuf */
     gbuffer_destroy(rs->gbuf);
