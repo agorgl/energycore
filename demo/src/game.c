@@ -352,6 +352,16 @@ void game_update(void* userdata, float dt)
     window_update(ctx->wnd);
 }
 
+static void prepare_renderer_input_lights(struct renderer_input* ri)
+{
+    /* Sample directional light */
+    ri->num_lights = 1;
+    ri->lights = calloc(ri->num_lights, sizeof(struct renderer_light));
+    ri->lights[0].type = LT_DIRECTIONAL;
+    ri->lights[0].color = vec3_new(1, 1, 1);
+    ri->lights[0].type_data.dir.direction = vec3_new(0.8, 1.0, 0.8);
+}
+
 static void prepare_renderer_input(struct game_context* ctx, struct renderer_input* ri)
 {
     /* Count total meshes */
@@ -395,6 +405,7 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
             ++cur_mesh;
         }
     }
+    prepare_renderer_input_lights(ri);
 }
 
 static void visualize_normals(struct game_context* ctx, mat4* view, mat4* proj)
@@ -444,6 +455,7 @@ void game_render(void* userdata, float interpolation)
     /* Render */
     mat4 iview = camera_interpolated_view(&ctx->cam, interpolation);
     renderer_render(&ctx->rndr_state, &ri, (float*)&iview);
+    free(ri.lights);
     free(ri.meshes);
 
     if (ctx->visualize_normals)

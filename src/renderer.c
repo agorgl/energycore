@@ -124,6 +124,18 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+static void bind_gbuffer_textures(struct renderer_state* rs, GLuint shdr)
+{
+    gbuffer_bind_for_light_pass(rs->gbuf);
+    glDepthMask(GL_FALSE);
+
+    glUseProgram(shdr);
+    glUniform1i(glGetUniformLocation(shdr, "gbuf.normal"), 0);
+    glUniform1i(glGetUniformLocation(shdr, "gbuf.albedo"), 1);
+    glUniform1i(glGetUniformLocation(shdr, "gbuf.position"), 2);
+    glUseProgram(0);
+}
+
 /*-----------------------------------------------------------------
  * Light pass
  *-----------------------------------------------------------------*/
@@ -146,25 +158,47 @@ static void render_sky(struct renderer_state* rs, struct renderer_input* ri, flo
     }
 }
 
-static void light_pass(struct renderer_state* rs, GLuint shdr)
+static void light_pass(struct renderer_state* rs, struct renderer_input* ri)
 {
-    gbuffer_bind_for_light_pass(rs->gbuf);
-    glDepthMask(GL_FALSE);
+    /* Clear */
+    glClear(GL_COLOR_BUFFER_BIT);
 
+    /* Enable blend for additive lighting */
+    glEnable(GL_BLEND);
+    glBlendEquation(GL_FUNC_ADD);
+    glBlendFunc(GL_ONE, GL_ONE);
+
+    /* Setup gbuffer input textures */
+    GLuint shdr = rs->shdrs.light_pass;
+    bind_gbuffer_textures(rs, shdr);
+
+    /* Iterate through lights */
     glUseProgram(shdr);
-    glUniform1i(glGetUniformLocation(shdr, "gbuf.normal"), 0);
-    glUniform1i(glGetUniformLocation(shdr, "gbuf.albedo"), 1);
-    glUniform1i(glGetUniformLocation(shdr, "gbuf.position"), 2);
+    for (size_t i = 0; i < ri->num_lights; ++i) {
+        struct renderer_light* light = ri->lights + i;
+        /* Common uniforms */
+        /*
+        mat4 inverse_view = mat4_inverse(*(mat4*)view);
+        vec3 view_pos = vec3_new(inverse_view.xw, inverse_view.yw, inverse_view.zw);
+        glUniform3f(glGetUniformLocation(shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
+         */
+        switch (light->type) {
+            case LT_DIRECTIONAL: {
+                /* Full screen quad for directional light */
+                glUniform3fv(glGetUniformLocation(shdr, "dir_l.direction"), 1, light->type_data.dir.direction.xyz);
+                glUniform3fv(glGetUniformLocation(shdr, "dir_l.color"), 1, light->color.xyz);
+                render_quad();
+                break;
+            }
+            case LT_POINT:
+                /* Unimplemented */
+                break;
+        }
+    }
+    glUseProgram(0);
 
-    /* Misc uniforms */
-    /*
-    mat4 inverse_view = mat4_inverse(*(mat4*)view);
-    vec3 view_pos = vec3_new(inverse_view.xw, inverse_view.yw, inverse_view.zw);
-    glUniform3f(glGetUniformLocation(shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
-     */
-
-    /* Full screen quad for directional light */
-    render_quad();
+    /* Disable blending */
+    glDisable(GL_BLEND);
 }
 
 /*-----------------------------------------------------------------
@@ -185,9 +219,7 @@ static void lc_render_scene(mat4* view, mat4* proj, void* userdata)
 
     geometry_pass(p->rs, p->ri, view->m, proj->m);
     gbuffer_blit_depth_to_fb(p->lcl_gbuf, cur_fb);
-
-    glClear(GL_COLOR_BUFFER_BIT);
-    light_pass(p->rs, p->rs->shdrs.light_pass);
+    light_pass(p->rs, p->ri);
     render_sky(p->rs, p->ri, view->m, proj->m);
 }
 
@@ -239,19 +271,24 @@ static void update_gi_data(struct renderer_state* rs, struct renderer_input* ri)
 
 static void environment_pass(struct renderer_state* rs)
 {
-    /* Render environment light */
-    upload_sh_coeffs(rs->shdrs.env_pass, rs->gi.probe.sh_coeffs);
-    glUseProgram(rs->shdrs.env_pass);
-    glUniform3f(
-        glGetUniformLocation(rs->shdrs.env_pass, "probe_pos"),
-        rs->gi.probe.pos.x, rs->gi.probe.pos.y, rs->gi.probe.pos.z
-    );
+    /* Enable blend for additive lighting */
     glEnable(GL_BLEND);
     glBlendEquation(GL_FUNC_ADD);
     glBlendFunc(GL_ONE, GL_ONE);
-    light_pass(rs, rs->shdrs.env_pass);
-    glDisable(GL_BLEND);
+
+    /* Render environment light */
+    upload_sh_coeffs(rs->shdrs.env_pass, rs->gi.probe.sh_coeffs);
+    glUseProgram(rs->shdrs.env_pass);
+    glUniform3fv(glGetUniformLocation(rs->shdrs.env_pass, "probe_pos"), 1, rs->gi.probe.pos.xyz);
+
+    /* Bind gbuffer textures and perform a full ndc quad render */
+    bind_gbuffer_textures(rs, rs->shdrs.env_pass);
+    glUseProgram(rs->shdrs.env_pass);
+    render_quad();
     glUseProgram(0);
+
+    /* Disable blending */
+    glDisable(GL_BLEND);
 }
 
 /*-----------------------------------------------------------------
@@ -268,8 +305,7 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     gbuffer_blit_depth_to_fb(rs->gbuf, 0);
 
     /* Direct Light pass */
-    glClear(GL_COLOR_BUFFER_BIT);
-    light_pass(rs,rs->shdrs.light_pass);
+    light_pass(rs, ri);
     render_sky(rs, ri, view, rs->proj.m);
 
     /* Indirect lighting */

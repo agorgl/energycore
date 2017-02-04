@@ -56,6 +56,26 @@ enum renderer_sky_type {
     RST_NONE
 };
 
+struct renderer_light {
+    /* Light type */
+    enum renderer_light_type {
+        LT_DIRECTIONAL,
+        LT_POINT
+    } type;
+    /* Common light type data */
+    vec3 color;
+    /* Light type-specific data */
+    union {
+        struct {
+            vec3 direction;
+        } dir;
+        struct {
+            vec3 position;
+            float radius;
+        } pt;
+    } type_data;
+};
+
 /* Scene description passed to render function */
 struct renderer_input {
     /* Meshes to render */
@@ -64,6 +84,9 @@ struct renderer_input {
     /* Sky type and parameters */
     enum renderer_sky_type sky_type;
     unsigned int sky_tex; /* Used if sky_type is RST_TEXTURE */
+    /* Lighting parameters */
+    struct renderer_light* lights;
+    unsigned int num_lights;
 };
 
 /*-----------------------------------------------------------------
