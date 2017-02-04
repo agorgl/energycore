@@ -127,7 +127,6 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
 static void bind_gbuffer_textures(struct renderer_state* rs, GLuint shdr)
 {
     gbuffer_bind_for_light_pass(rs->gbuf);
-    glDepthMask(GL_FALSE);
 
     glUseProgram(shdr);
     glUniform1i(glGetUniformLocation(shdr, "gbuf.normal"), 0);
@@ -163,6 +162,9 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri)
     /* Clear */
     glClear(GL_COLOR_BUFFER_BIT);
 
+    /* Disable writting to depth buffer for screen space renders */
+    glDepthMask(GL_FALSE);
+
     /* Enable blend for additive lighting */
     glEnable(GL_BLEND);
     glBlendEquation(GL_FUNC_ADD);
@@ -197,8 +199,9 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri)
     }
     glUseProgram(0);
 
-    /* Disable blending */
+    /* Restore gl values */
     glDisable(GL_BLEND);
+    glDepthMask(GL_TRUE);
 }
 
 /*-----------------------------------------------------------------
@@ -271,6 +274,8 @@ static void update_gi_data(struct renderer_state* rs, struct renderer_input* ri)
 
 static void environment_pass(struct renderer_state* rs)
 {
+    /* Disable depth writting */
+    glDepthMask(GL_FALSE);
     /* Enable blend for additive lighting */
     glEnable(GL_BLEND);
     glBlendEquation(GL_FUNC_ADD);
@@ -287,8 +292,9 @@ static void environment_pass(struct renderer_state* rs)
     render_quad();
     glUseProgram(0);
 
-    /* Disable blending */
+    /* Restore gl values */
     glDisable(GL_BLEND);
+    glDepthMask(GL_TRUE);
 }
 
 /*-----------------------------------------------------------------
