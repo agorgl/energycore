@@ -4,8 +4,6 @@
 #include <glad/glad.h>
 #include <emproc/filter_util.h>
 
-#define LCL_CM_SIZE 128
-
 /* Vectors corresponding to cubemap faces */
 static const float view_fronts[6][3] = {
     { 1.0f,  0.0f,  0.0f },

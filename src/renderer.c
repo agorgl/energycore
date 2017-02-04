@@ -170,12 +170,19 @@ static void light_pass(struct renderer_state* rs, GLuint shdr)
 struct lc_render_scene_params {
     struct renderer_state* rs;
     struct renderer_input* ri;
+    struct gbuffer* lcl_gbuf;
 };
 
 /* Callback passed to local cubemap renderer, called when rendering each cubemap side */
 static void lc_render_scene(mat4* view, mat4* proj, void* userdata)
 {
     struct lc_render_scene_params* p = userdata;
+    GLint cur_fb;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &cur_fb);
+
+    geometry_pass(p->rs, p->ri, view->m, proj->m);
+    gbuffer_blit_depth_to_fb(p->lcl_gbuf, cur_fb);
+
     glClear(GL_COLOR_BUFFER_BIT);
     light_pass(p->rs, p->rs->shdrs.light_pass);
     render_sky(p->rs, p->ri, view->m, proj->m);
@@ -209,11 +216,24 @@ static void environment_pass(struct renderer_state* rs, struct renderer_input* r
     rs->prob_angle += 0.01f;
     vec3 probe_pos = vec3_new(cosf(rs->prob_angle), 1.0f, sinf(rs->prob_angle));
 
+    /* Create mini gbuffer */
+    struct gbuffer gb;
+    gbuffer_init(&gb, LCL_CM_SIZE, LCL_CM_SIZE);
+
+    /* HACK: Temporarily replace gbuffer reference in renderer state */
+    struct gbuffer* old_gbuf = rs->gbuf;
+    rs->gbuf = &gb;
+
     /* Render local cubemap */
     struct lc_render_scene_params rsp;
     rsp.rs = rs;
     rsp.ri = ri;
+    rsp.lcl_gbuf = &gb;
     GLuint lcl_sky = lc_render(rs->lc_rs, probe_pos, lc_render_scene, &rsp);
+
+    /* Destroy mini gbuffer and restore original gbuffer reference */
+    gbuffer_destroy(&gb);
+    rs->gbuf = old_gbuf;
 
     /* Calculate and upload SH coefficients from captured cubemap */
     double sh_coeffs[SH_COEFF_NUM][3];

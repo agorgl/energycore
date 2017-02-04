@@ -34,6 +34,9 @@
 #include <linalgb.h>
 #include <emproc/sh.h>
 
+/* Local cubemap side dimension */
+#define LCL_CM_SIZE 128
+
 /* Shared local cubemap renderer state */
 struct lc_renderer_state {
     float* nsa_idx;
