@@ -1,5 +1,5 @@
 #version 330 core
-#include "deferred.glsl"
+#include "inc/deferred.glsl"
 out vec4 color;
 
 const vec3 light_pos = vec3(0.8, 1.0, 0.8);

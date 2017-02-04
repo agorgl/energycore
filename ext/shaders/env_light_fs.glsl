@@ -1,6 +1,6 @@
 #version 330 core
-#include "sh.glsl"
-#include "deferred.glsl"
+#include "inc/sh.glsl"
+#include "inc/deferred.glsl"
 
 out vec4 color;
 
