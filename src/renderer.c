@@ -8,7 +8,9 @@
 #include "sky_preetham.h"
 #include "probe_vis.h"
 #include "lcl_cubemap.h"
+#include "gbuffer.h"
 #include "glutils.h"
+#include <assert.h>
 
 /*-----------------------------------------------------------------
  * Initialization
@@ -19,7 +21,16 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     memset(rs, 0, sizeof(*rs));
     rs->shdr_fetch_cb = sfn;
     rs->shdr_fetch_userdata = sh_ud;
-    renderer_resize(rs, 1280, 720);
+
+    /* Initial dimensions */
+    int width = 1280, height = 720;
+
+    /* Initialize gbuffer */
+    rs->gbuf = malloc(sizeof(struct gbuffer));
+    gbuffer_init(rs->gbuf, width, height);
+
+    /* Initial resize */
+    renderer_resize(rs, width, height);
 
     /* Initialize gl utilities state */
     glutils_init();
@@ -46,40 +57,31 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
 
 void renderer_shdr_fetch(struct renderer_state* rs)
 {
-    rs->shdrs.dir_light = rs->shdr_fetch_cb("dir_light", rs->shdr_fetch_userdata);
-    rs->shdrs.env_light = rs->shdr_fetch_cb("env_light", rs->shdr_fetch_userdata);
-    rs->probe_vis->shdr = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
+    rs->shdrs.geom_pass  = rs->shdr_fetch_cb("geom_pass", rs->shdr_fetch_userdata);
+    rs->shdrs.light_pass = rs->shdr_fetch_cb("light_pass", rs->shdr_fetch_userdata);
+    rs->shdrs.env_pass   = rs->shdr_fetch_cb("env_pass", rs->shdr_fetch_userdata);
+    rs->probe_vis->shdr  = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
 }
 
 /*-----------------------------------------------------------------
- * Scene rendering
+ * Geometry pass
  *-----------------------------------------------------------------*/
-enum render_pass {
-    RP_DIR_LIGHT,
-    RP_ENV_LIGHT
-};
-
-static GLuint shdr_for_render_mode(struct renderer_state* rs, enum render_pass rndr_pass)
+static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, float view[16], float proj[16])
 {
-    switch (rndr_pass) {
-        case RP_DIR_LIGHT:
-            return rs->shdrs.dir_light;
-        case RP_ENV_LIGHT:
-            return rs->shdrs.env_light;
-        default:
-            break;
-    }
-    return 0;
-}
+    /* Bind gbuf */
+    gbuffer_bind_for_geometry_pass(rs->gbuf);
 
-static void render_scene(struct renderer_state* rs, struct renderer_input* ri, float view[16], float proj[16], enum render_pass rndr_pass)
-{
-    /* Render */
+    /* Enable depth and culling */
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
+    glDepthMask(GL_TRUE);
+
+    /* Clear */
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     /* Pick shader for the mode */
-    GLuint shdr = shdr_for_render_mode(rs, rndr_pass);
+    GLuint shdr = rs->shdrs.geom_pass;
     glUseProgram(shdr);
 
     /* Setup matrices */
@@ -89,18 +91,8 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
     glUniformMatrix4fv(proj_mat_loc, 1, GL_FALSE, proj);
     glUniformMatrix4fv(view_mat_loc, 1, GL_FALSE, (GLfloat*)view);
 
-    /* Misc uniforms */
-    /*
-    mat4 inverse_view = mat4_inverse(*(mat4*)view);
-    vec3 view_pos = vec3_new(inverse_view.xw, inverse_view.yw, inverse_view.zw);
-    glUniform3f(glGetUniformLocation(shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
-     */
-
-    if (rndr_pass == RP_DIR_LIGHT) {
-        /* Set texture locations */
-        glActiveTexture(GL_TEXTURE0);
-        glUniform1i(glGetUniformLocation(shdr, "albedo_tex"), 0);
-    }
+    /* Set texture locations */
+    glUniform1i(glGetUniformLocation(shdr, "mat.albedo_tex"), 0);
 
     /* Loop through meshes */
     for (unsigned int i = 0; i < ri->num_meshes; ++i) {
@@ -112,10 +104,9 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
         float model_det = mat4_det(*(mat4*)rm->model_mat);
         glFrontFace(model_det < 0 ? GL_CW : GL_CCW);
         /* Set material parameters */
-        if (rndr_pass == RP_DIR_LIGHT) {
-            glBindTexture(GL_TEXTURE_2D, rm->material.diff_tex);
-            glUniform3fv(glGetUniformLocation(shdr, "albedo_col"), 1, rm->material.diff_col);
-        }
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, rm->material.diff_tex);
+        glUniform3fv(glGetUniformLocation(shdr, "mat.albedo_col"), 1, rm->material.diff_col);
         /* Render mesh */
         glBindVertexArray(rm->vao);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rm->ebo);
@@ -127,8 +118,14 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
     }
     glUseProgram(0);
     glFrontFace(GL_CCW);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
 
-    /* Render sky last */
+/*-----------------------------------------------------------------
+ * Light pass
+ *-----------------------------------------------------------------*/
+static void render_sky(struct renderer_state* rs, struct renderer_input* ri, float* view, float* proj)
+{
     switch (ri->sky_type) {
         case RST_TEXTURE: {
             sky_texture_render(rs->sky_rs.tex, (mat4*)view, (mat4*)proj, ri->sky_tex);
@@ -146,13 +143,25 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, f
     }
 }
 
-/*-----------------------------------------------------------------
- * Direct Light Pass
- *-----------------------------------------------------------------*/
-static void renderer_direct_pass(struct renderer_state* rs, struct renderer_input* ri, float view[16], float proj[16])
+static void light_pass(struct renderer_state* rs, GLuint shdr)
 {
-    /* Render directional lights */
-    render_scene(rs, ri, view, proj, RP_DIR_LIGHT);
+    gbuffer_bind_for_light_pass(rs->gbuf);
+    glDepthMask(GL_FALSE);
+
+    glUseProgram(shdr);
+    glUniform1i(glGetUniformLocation(shdr, "gbuf.normal"), 0);
+    glUniform1i(glGetUniformLocation(shdr, "gbuf.albedo"), 1);
+    glUniform1i(glGetUniformLocation(shdr, "gbuf.position"), 2);
+
+    /* Misc uniforms */
+    /*
+    mat4 inverse_view = mat4_inverse(*(mat4*)view);
+    vec3 view_pos = vec3_new(inverse_view.xw, inverse_view.yw, inverse_view.zw);
+    glUniform3f(glGetUniformLocation(shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
+     */
+
+    /* Full screen quad for directional light */
+    render_quad();
 }
 
 /*-----------------------------------------------------------------
@@ -164,10 +173,12 @@ struct lc_render_scene_params {
 };
 
 /* Callback passed to local cubemap renderer, called when rendering each cubemap side */
-static void render_scene_for_lc(mat4* view, mat4* proj, void* userdata)
+static void lc_render_scene(mat4* view, mat4* proj, void* userdata)
 {
     struct lc_render_scene_params* p = userdata;
-    renderer_direct_pass(p->rs, p->ri, view->m, proj->m);
+    glClear(GL_COLOR_BUFFER_BIT);
+    light_pass(p->rs, p->rs->shdrs.light_pass);
+    render_sky(p->rs, p->ri, view->m, proj->m);
 }
 
 static void upload_sh_coeffs(GLuint prog, double sh_coef[SH_COEFF_NUM][3])
@@ -192,7 +203,7 @@ static void upload_sh_coeffs(GLuint prog, double sh_coef[SH_COEFF_NUM][3])
     glUseProgram(0);
 }
 
-static void renderer_environment_pass(struct renderer_state* rs, struct renderer_input* ri, float view[16])
+static void environment_pass(struct renderer_state* rs, struct renderer_input* ri, float view[16])
 {
     /* Calculate probe position */
     rs->prob_angle += 0.01f;
@@ -202,17 +213,21 @@ static void renderer_environment_pass(struct renderer_state* rs, struct renderer
     struct lc_render_scene_params rsp;
     rsp.rs = rs;
     rsp.ri = ri;
-    GLuint lcl_sky = lc_render(rs->lc_rs, probe_pos, render_scene_for_lc, &rsp);
+    GLuint lcl_sky = lc_render(rs->lc_rs, probe_pos, lc_render_scene, &rsp);
 
     /* Calculate and upload SH coefficients from captured cubemap */
     double sh_coeffs[SH_COEFF_NUM][3];
     lc_extract_sh_coeffs(rs->lc_rs, sh_coeffs, lcl_sky);
-    upload_sh_coeffs(rs->shdrs.env_light, sh_coeffs);
+    upload_sh_coeffs(rs->shdrs.env_pass, sh_coeffs);
 
     /* Render from camera view */
-    glUseProgram(rs->shdrs.env_light);
-    glUniform3f(glGetUniformLocation(rs->shdrs.env_light, "probe_pos"), probe_pos.x, probe_pos.y, probe_pos.z);
-    render_scene(rs, ri, view, (float*)&rs->proj, RP_ENV_LIGHT);
+    glUseProgram(rs->shdrs.env_pass);
+    glUniform3f(glGetUniformLocation(rs->shdrs.env_pass, "probe_pos"), probe_pos.x, probe_pos.y, probe_pos.z);
+    glEnable(GL_BLEND);
+    glBlendEquation(GL_FUNC_ADD);
+    glBlendFunc(GL_ONE, GL_ONE);
+    light_pass(rs, rs->shdrs.env_pass);
+    glDisable(GL_BLEND);
 
     /* Visualize sample probe */
     upload_sh_coeffs(rs->probe_vis->shdr, sh_coeffs);
@@ -229,14 +244,27 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    renderer_direct_pass(rs, ri, view, rs->proj.m);
-    renderer_environment_pass(rs, ri, view);
+    /* Geometry pass */
+    geometry_pass(rs, ri, view, rs->proj.m);
+    gbuffer_blit_depth_to_fb(rs->gbuf, 0);
+
+    /* Direct Light pass */
+    glClear(GL_COLOR_BUFFER_BIT);
+    light_pass(rs,rs->shdrs.light_pass);
+    render_sky(rs, ri, view, rs->proj.m);
+
+    /* Indirect lighting */
+    environment_pass(rs, ri, view);
 }
 
 void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height)
 {
     glViewport(0, 0, width, height);
     rs->proj = mat4_perspective(radians(60.0f), 0.1f, 300.0f, ((float)width / height));
+    /* GBuf */
+    gbuffer_destroy(rs->gbuf);
+    memset(rs->gbuf, 0, sizeof(struct gbuffer));
+    gbuffer_init(rs->gbuf, width, height);
 }
 
 /*-----------------------------------------------------------------
@@ -253,4 +281,6 @@ void renderer_destroy(struct renderer_state* rs)
     sky_texture_destroy(rs->sky_rs.tex);
     free(rs->sky_rs.tex);
     glutils_deinit();
+    gbuffer_destroy(rs->gbuf);
+    free(rs->gbuf);
 }

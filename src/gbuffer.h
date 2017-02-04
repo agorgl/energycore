@@ -28,85 +28,31 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _RENDERER_H_
-#define _RENDERER_H_
+#ifndef _GBUFFER_H_
+#define _GBUFFER_H_
 
-#include <linalgb.h>
-
-/*-----------------------------------------------------------------
- * Renderer input
- *-----------------------------------------------------------------*/
-struct renderer_mesh {
-    /* Geometry handles */
-    unsigned int vao;
-    unsigned int ebo;
-    unsigned int indice_count;
-    /* Model matrix */
-    float model_mat[16];
-    /* Material parameters */
-    struct {
-        float diff_col[3];
-        unsigned int diff_tex;
-    } material;
+struct gbuffer {
+    /* Framebuffer object */
+    unsigned int fbo;
+    /* Texture attachments */
+#ifdef WITH_ACCUM_BUF
+    unsigned int accum_buf;
+#endif
+    unsigned int depth_stencil_buf;
+    unsigned int normal_buf;
+    unsigned int albedo_buf;
+    unsigned int position_buf;
+    /* Dimensions */
+    unsigned int width, height;
 };
 
-enum renderer_sky_type {
-    RST_TEXTURE,
-    RST_PREETHAM,
-    RST_NONE
-};
+void gbuffer_init(struct gbuffer* gb, int width, int height);
+void gbuffer_bind_for_geometry_pass(struct gbuffer* gb);
+void gbuffer_bind_for_light_pass(struct gbuffer* gb);
+#ifdef WITH_ACCUM_BUF
+void gbuffer_blit_accum_to_fb(struct gbuffer* gb, unsigned int fb);
+#endif
+void gbuffer_blit_depth_to_fb(struct gbuffer* gb, unsigned int fb);
+void gbuffer_destroy(struct gbuffer* gb);
 
-/* Scene description passed to render function */
-struct renderer_input {
-    /* Meshes to render */
-    struct renderer_mesh* meshes;
-    unsigned int num_meshes;
-    /* Sky type and parameters */
-    enum renderer_sky_type sky_type;
-    unsigned int sky_tex; /* Used if sky_type is RST_TEXTURE */
-};
-
-/*-----------------------------------------------------------------
- * Renderer state
- *-----------------------------------------------------------------*/
-/* Shader fetch function, used by renderer_shdr_fetch.
- * Takes as input the name of a shader and returns shader handle */
-typedef unsigned int(*rndr_shdr_fetch_fn)(const char*, void* userdata);
-
-/* Sky renderers */
-struct sky_renderer_state {
-    struct sky_texture* tex;
-    struct sky_preetham* preeth;
-};
-
-/* Aggregate state */
-struct renderer_state {
-    /* Internal subrenderers */
-    struct sky_renderer_state sky_rs;
-    struct probe_vis* probe_vis;
-    struct lc_renderer_state* lc_rs;
-    /* Shader handle fetching */
-    rndr_shdr_fetch_fn shdr_fetch_cb;
-    void* shdr_fetch_userdata;
-    /* Shaders */
-    struct {
-        unsigned int geom_pass;
-        unsigned int light_pass;
-        unsigned int env_pass;
-    } shdrs;
-    /* GBuffer */
-    struct gbuffer* gbuf;
-    /* Cached values */
-    mat4 proj;
-    /* Misc */
-    float prob_angle;
-};
-
-/* Public interface */
-void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sf_ud);
-void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view_mat[16]);
-void renderer_shdr_fetch(struct renderer_state* rs);
-void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height);
-void renderer_destroy(struct renderer_state* rs);
-
-#endif /* ! _RENDERER_H_ */
+#endif /* ! _GBUFFER_H_ */

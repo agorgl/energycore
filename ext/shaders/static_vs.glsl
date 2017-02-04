@@ -4,9 +4,9 @@ layout (location = 1) in vec2 uv;
 layout (location = 2) in vec3 normal;
 
 out VS_OUT {
-    out vec2 uv;
-    out vec3 normal;
-    out vec3 frag_pos;
+    vec2 uv;
+    vec3 normal;
+    vec3 frag_pos;
 } vs_out;
 
 uniform mat4 model;
