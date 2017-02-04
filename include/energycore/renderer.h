@@ -96,10 +96,19 @@ struct renderer_state {
     } shdrs;
     /* GBuffer */
     struct gbuffer* gbuf;
+    /* Global illumination state */
+    struct {
+        float angle; /* Time varying variable for debuging purposes */
+        struct {
+            vec3 pos;
+            double sh_coeffs[25][3];
+            unsigned int cm;
+        } probe;
+        /* Local cubemap renderer gbuffer */
+        struct gbuffer* lcr_gbuf;
+    } gi;
     /* Cached values */
     mat4 proj;
-    /* Misc */
-    float prob_angle;
 };
 
 /* Public interface */

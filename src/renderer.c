@@ -50,6 +50,9 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     /* Initialize local cubemap renderer state */
     rs->lc_rs = malloc(sizeof(struct lc_renderer_state));
     lc_renderer_init(rs->lc_rs);
+    rs->gi.probe.cm = lc_create_cm(rs->lc_rs);
+    rs->gi.lcr_gbuf = malloc(sizeof(struct gbuffer));
+    gbuffer_init(rs->gi.lcr_gbuf, LCL_CM_SIZE, LCL_CM_SIZE);
 
     /* Fetch shaders */
     renderer_shdr_fetch(rs);
@@ -210,49 +213,45 @@ static void upload_sh_coeffs(GLuint prog, double sh_coef[SH_COEFF_NUM][3])
     glUseProgram(0);
 }
 
-static void environment_pass(struct renderer_state* rs, struct renderer_input* ri, float view[16])
+static void update_gi_data(struct renderer_state* rs, struct renderer_input* ri)
 {
     /* Calculate probe position */
-    rs->prob_angle += 0.01f;
-    vec3 probe_pos = vec3_new(cosf(rs->prob_angle), 1.0f, sinf(rs->prob_angle));
-
-    /* Create mini gbuffer */
-    struct gbuffer gb;
-    gbuffer_init(&gb, LCL_CM_SIZE, LCL_CM_SIZE);
+    rs->gi.angle += 0.01f;
+    rs->gi.probe.pos = vec3_new(cosf(rs->gi.angle), 1.0f, sinf(rs->gi.angle));
 
     /* HACK: Temporarily replace gbuffer reference in renderer state */
     struct gbuffer* old_gbuf = rs->gbuf;
-    rs->gbuf = &gb;
+    rs->gbuf = rs->gi.lcr_gbuf;
 
     /* Render local cubemap */
     struct lc_render_scene_params rsp;
     rsp.rs = rs;
     rsp.ri = ri;
-    rsp.lcl_gbuf = &gb;
-    GLuint lcl_sky = lc_render(rs->lc_rs, probe_pos, lc_render_scene, &rsp);
+    rsp.lcl_gbuf = rs->gi.lcr_gbuf;
+    lc_render(rs->lc_rs, rs->gi.probe.cm, rs->gi.probe.pos, lc_render_scene, &rsp);
 
-    /* Destroy mini gbuffer and restore original gbuffer reference */
-    gbuffer_destroy(&gb);
+    /* Restore original gbuffer reference */
     rs->gbuf = old_gbuf;
 
-    /* Calculate and upload SH coefficients from captured cubemap */
-    double sh_coeffs[SH_COEFF_NUM][3];
-    lc_extract_sh_coeffs(rs->lc_rs, sh_coeffs, lcl_sky);
-    upload_sh_coeffs(rs->shdrs.env_pass, sh_coeffs);
+    /* Calculate SH coefficients from captured cubemap */
+    lc_extract_sh_coeffs(rs->lc_rs, rs->gi.probe.sh_coeffs, rs->gi.probe.cm);
+}
 
-    /* Render from camera view */
+static void environment_pass(struct renderer_state* rs)
+{
+    /* Render environment light */
+    upload_sh_coeffs(rs->shdrs.env_pass, rs->gi.probe.sh_coeffs);
     glUseProgram(rs->shdrs.env_pass);
-    glUniform3f(glGetUniformLocation(rs->shdrs.env_pass, "probe_pos"), probe_pos.x, probe_pos.y, probe_pos.z);
+    glUniform3f(
+        glGetUniformLocation(rs->shdrs.env_pass, "probe_pos"),
+        rs->gi.probe.pos.x, rs->gi.probe.pos.y, rs->gi.probe.pos.z
+    );
     glEnable(GL_BLEND);
     glBlendEquation(GL_FUNC_ADD);
     glBlendFunc(GL_ONE, GL_ONE);
     light_pass(rs, rs->shdrs.env_pass);
     glDisable(GL_BLEND);
-
-    /* Visualize sample probe */
-    upload_sh_coeffs(rs->probe_vis->shdr, sh_coeffs);
-    probe_vis_render(rs->probe_vis, lcl_sky, probe_pos, *(mat4*)view, rs->proj, 1);
-    glDeleteTextures(1, &lcl_sky);
+    glUseProgram(0);
 }
 
 /*-----------------------------------------------------------------
@@ -274,7 +273,12 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     render_sky(rs, ri, view, rs->proj.m);
 
     /* Indirect lighting */
-    environment_pass(rs, ri, view);
+    update_gi_data(rs, ri);
+    environment_pass(rs);
+
+    /* Visualize sample probe */
+    upload_sh_coeffs(rs->probe_vis->shdr, rs->gi.probe.sh_coeffs);
+    probe_vis_render(rs->probe_vis, rs->gi.probe.cm, rs->gi.probe.pos, *(mat4*)view, rs->proj, 1);
 }
 
 void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height)
@@ -292,6 +296,9 @@ void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int
  *-----------------------------------------------------------------*/
 void renderer_destroy(struct renderer_state* rs)
 {
+    gbuffer_destroy(rs->gi.lcr_gbuf);
+    free(rs->gi.lcr_gbuf);
+    glDeleteTextures(1, &rs->gi.probe.cm);
     lc_renderer_destroy(rs->lc_rs);
     free(rs->lc_rs);
     probe_vis_destroy(rs->probe_vis);

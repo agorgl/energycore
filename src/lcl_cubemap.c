@@ -25,26 +25,35 @@ static const float view_ups[6][3] = {
 
 void lc_renderer_init(struct lc_renderer_state* lcrs)
 {
+    /* Build normal/solid angle index */
     float* nsa_idx = malloc(normal_solid_angle_index_sz(LCL_CM_SIZE));
     normal_solid_angle_index_build(nsa_idx, LCL_CM_SIZE, EM_TYPE_VSTRIP);
     lcrs->nsa_idx = nsa_idx;
-}
-
-unsigned int lc_render(struct lc_renderer_state* lcrs, vec3 pos, render_scene_fn rsf, void* userdata)
-{
-    (void) lcrs;
-    /* Temporary framebuffer */
-    int fbwidth = LCL_CM_SIZE, fbheight = LCL_CM_SIZE;
+    /* Projection matrix
+     * NOTE: Negative FOV is used to let view up vectors be positive while rendering upside down to the cubemap */
+    lcrs->fproj = mat4_perspective(-radians(90.0f), 0.1f, 300.0f, 1.0f);
+    /* Create fb */
     GLuint fb;
     glGenFramebuffers(1, &fb);
     glBindFramebuffer(GL_FRAMEBUFFER, fb);
+    /* Renderer's framebuffer's depth attachment */
+    int side = LCL_CM_SIZE;
+    GLuint depth_rb;
+    glGenRenderbuffers(1, &depth_rb);
+    glBindRenderbuffer(GL_RENDERBUFFER, depth_rb);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, side, side);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth_rb);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    /* Save handles */
+    lcrs->fb = fb;
+    lcrs->depth_rb = depth_rb;
+}
 
-    /* Store previous viewport and set the new one */
-    GLint viewport[4];
-    glGetIntegerv(GL_VIEWPORT, viewport);
-    glViewport(0, 0, fbwidth, fbheight);
-
-    /* Cubemap result */
+unsigned int lc_create_cm(struct lc_renderer_state* lcrs)
+{
+    (void) lcrs;
+    unsigned int side = LCL_CM_SIZE;
     GLuint lcl_cubemap;
     glGenTextures(1, &lcl_cubemap);
     glBindTexture(GL_TEXTURE_CUBE_MAP, lcl_cubemap);
@@ -54,18 +63,18 @@ unsigned int lc_render(struct lc_renderer_state* lcrs, vec3 pos, render_scene_fn
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     for (unsigned int i = 0; i < 6; ++i)
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA8, fbwidth, fbheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA8, side, side, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    return lcl_cubemap;
+}
 
-    /* Temporary framebuffer's depth attachment */
-    GLuint depth_rb;
-    glGenRenderbuffers(1, &depth_rb);
-    glBindRenderbuffer(GL_RENDERBUFFER, depth_rb);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, fbwidth, fbheight);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth_rb);
-
-    /* Projection matrix
-     * NOTE: Negative FOV is used to let view up vectors be positive while rendering upside down to the cubemap */
-    mat4 fproj = mat4_perspective(-radians(90.0f), 0.1f, 300.0f, 1.0f);
+void lc_render(struct lc_renderer_state* lcrs, unsigned int lcl_cubemap, vec3 pos, render_scene_fn rsf, void* userdata)
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, lcrs->fb);
+    /* Store previous viewport and set the new one */
+    int fbwidth = LCL_CM_SIZE, fbheight = LCL_CM_SIZE;
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    glViewport(0, 0, fbwidth, fbheight);
 
     for (unsigned int i = 0; i < 6; ++i) {
         /* Create and set texture face */
@@ -82,20 +91,13 @@ unsigned int lc_render(struct lc_renderer_state* lcrs, vec3 pos, render_scene_fn
         /* Render */
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        rsf(&fview, &fproj, userdata);
+        rsf(&fview, &lcrs->fproj, userdata);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, 0);
     }
 
-    /* Free temporary resources */
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
-    glBindRenderbuffer(GL_RENDERBUFFER, 0);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glDeleteRenderbuffers(1, &depth_rb);
-    glDeleteFramebuffers(1, &fb);
-
     /* Restore viewport */
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-    return lcl_cubemap;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void lc_extract_sh_coeffs(struct lc_renderer_state* lcrs, double sh_coef[25][3], unsigned int cm)
@@ -129,5 +131,13 @@ void lc_extract_sh_coeffs(struct lc_renderer_state* lcrs, double sh_coef[25][3],
 
 void lc_renderer_destroy(struct lc_renderer_state* lcrs)
 {
+    /* Free renderer gpu resources */
+    glBindFramebuffer(GL_FRAMEBUFFER, lcrs->fb);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteRenderbuffers(1, &lcrs->depth_rb);
+    glDeleteFramebuffers(1, &lcrs->fb);
+    /* Free normal/sa index */
     free(lcrs->nsa_idx);
 }
