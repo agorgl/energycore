@@ -28,7 +28,7 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
 
     /* Initialize gbuffer */
     rs->gbuf = malloc(sizeof(struct gbuffer));
-    gbuffer_init(rs->gbuf, width, height);
+    gbuffer_init(rs->gbuf, width, height, 1);
 
     /* Initial resize */
     renderer_resize(rs, width, height);
@@ -226,18 +226,19 @@ struct sh_gi_render_scene_userdata {
 /* Callback passed to local cubemap renderer, called when rendering each cubemap side */
 static void sh_gi_render_lcm_side(mat4* view, mat4* proj, void* userdata)
 {
+    /* Temporarily disable multisample */
+    glDisable(GL_MULTISAMPLE);
     /* Cast userdata */
     struct sh_gi_render_scene_userdata* ud = userdata;
-
     /* HACK: Temporarily replace gbuffer reference in renderer state */
     struct gbuffer* old_gbuf = ud->rs->gbuf;
     ud->rs->gbuf = ud->rs->sh_gi_rs->lcr_gbuf;
-
     /* Render scene */
     render_scene(ud->rs, ud->ri, view, proj);
-
     /* Restore original gbuffer reference */
     ud->rs->gbuf = old_gbuf;
+    /* Re-enable multisample */
+    glEnable(GL_MULTISAMPLE);
 }
 
 /* Callback passed to sh gi renderer, called when making the full screen pass render */
@@ -273,7 +274,7 @@ void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int
     /* GBuf */
     gbuffer_destroy(rs->gbuf);
     memset(rs->gbuf, 0, sizeof(struct gbuffer));
-    gbuffer_init(rs->gbuf, width, height);
+    gbuffer_init(rs->gbuf, width, height, 1);
 }
 
 /*-----------------------------------------------------------------

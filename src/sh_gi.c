@@ -19,7 +19,7 @@ void sh_gi_init(struct sh_gi_renderer* rs)
     lc_renderer_init(rs->lc_rs);
     rs->probe.cm = lc_create_cm(rs->lc_rs);
     rs->lcr_gbuf = malloc(sizeof(struct gbuffer));
-    gbuffer_init(rs->lcr_gbuf, LCL_CM_SIZE, LCL_CM_SIZE);
+    gbuffer_init(rs->lcr_gbuf, LCL_CM_SIZE, LCL_CM_SIZE, 1);
 
     /* Initialize internal probe visualization state */
     rs->probe_vis = malloc(sizeof(struct probe_vis));
