@@ -7,7 +7,7 @@
 #include "sky_texture.h"
 #include "sky_preetham.h"
 #include "probe_vis.h"
-#include "lcl_cubemap.h"
+#include "sh_gi.h"
 #include "gbuffer.h"
 #include "glutils.h"
 #include <assert.h>
@@ -44,16 +44,9 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     rs->sky_rs.preeth = malloc(sizeof(struct sky_preetham));
     sky_preetham_init(rs->sky_rs.preeth);
 
-    /* Initialize internal probe visualization state */
-    rs->probe_vis = malloc(sizeof(struct probe_vis));
-    probe_vis_init(rs->probe_vis);
-
-    /* Initialize local cubemap renderer state */
-    rs->lc_rs = malloc(sizeof(struct lc_renderer_state));
-    lc_renderer_init(rs->lc_rs);
-    rs->gi.probe.cm = lc_create_cm(rs->lc_rs);
-    rs->gi.lcr_gbuf = malloc(sizeof(struct gbuffer));
-    gbuffer_init(rs->gi.lcr_gbuf, LCL_CM_SIZE, LCL_CM_SIZE);
+    /* Initialize internal sh_gi renderer state */
+    rs->sh_gi_rs = malloc(sizeof(struct sh_gi_renderer));
+    sh_gi_init(rs->sh_gi_rs);
 
     /* Fetch shaders */
     renderer_shdr_fetch(rs);
@@ -63,8 +56,8 @@ void renderer_shdr_fetch(struct renderer_state* rs)
 {
     rs->shdrs.geom_pass  = rs->shdr_fetch_cb("geom_pass", rs->shdr_fetch_userdata);
     rs->shdrs.light_pass = rs->shdr_fetch_cb("light_pass", rs->shdr_fetch_userdata);
-    rs->shdrs.env_pass   = rs->shdr_fetch_cb("env_pass", rs->shdr_fetch_userdata);
-    rs->probe_vis->shdr  = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
+    rs->sh_gi_rs->shdr   = rs->shdr_fetch_cb("env_pass", rs->shdr_fetch_userdata);
+    rs->sh_gi_rs->probe_vis->shdr = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
 }
 
 /*-----------------------------------------------------------------
@@ -207,97 +200,51 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     glDepthMask(GL_TRUE);
 }
 
-/*-----------------------------------------------------------------
- * Environment Light Pass
- *-----------------------------------------------------------------*/
-struct lc_render_scene_params {
+static void render_scene(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj)
+{
+    /* Clear default buffers */
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    /* Store current fb reference */
+    GLint cur_fb;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &cur_fb);
+    /* Geometry pass */
+    geometry_pass(rs, ri, view->m, proj->m);
+    /* Copy depth to fb */
+    gbuffer_blit_depth_to_fb(rs->gbuf, cur_fb);
+    /* Direct Light pass */
+    light_pass(rs, ri, (mat4*)view, (mat4*)proj);
+    render_sky(rs, ri, view->m, proj->m);
+}
+
+/* Local callback data bundle */
+struct sh_gi_render_scene_userdata {
     struct renderer_state* rs;
     struct renderer_input* ri;
-    struct gbuffer* lcl_gbuf;
 };
 
 /* Callback passed to local cubemap renderer, called when rendering each cubemap side */
-static void lc_render_scene(mat4* view, mat4* proj, void* userdata)
+static void sh_gi_render_lcm_side(mat4* view, mat4* proj, void* userdata)
 {
-    struct lc_render_scene_params* p = userdata;
-    GLint cur_fb;
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &cur_fb);
-
-    geometry_pass(p->rs, p->ri, view->m, proj->m);
-    gbuffer_blit_depth_to_fb(p->lcl_gbuf, cur_fb);
-    light_pass(p->rs, p->ri, view, proj);
-    render_sky(p->rs, p->ri, view->m, proj->m);
-}
-
-static void upload_sh_coeffs(GLuint prog, double sh_coef[SH_COEFF_NUM][3])
-{
-    const char* uniform_name = "sh_coeffs";
-    size_t uniform_name_len = strlen(uniform_name);
-    glUseProgram(prog);
-    for (unsigned int i = 0; i < SH_COEFF_NUM; ++i) {
-        /* Construct uniform name ("sh_coeffs" + "[" + i + "]" + '\0') */
-        size_t uname_sz = uniform_name_len + 1 + 2 + 1 + 1;
-        char* uname = calloc(uname_sz, 1);
-        strcat(uname, uniform_name);
-        strcat(uname, "[");
-        snprintf(uname + uniform_name_len + 1, 3, "%u", i);
-        strcat(uname, "]");
-        /* Upload */
-        GLuint uloc = glGetUniformLocation(prog, uname);
-        float c[3] = { (float)sh_coef[i][0], (float)sh_coef[i][1], (float)sh_coef[i][2] };
-        glUniform3f(uloc, c[0], c[1], c[2]);
-        free(uname);
-    }
-    glUseProgram(0);
-}
-
-static void update_gi_data(struct renderer_state* rs, struct renderer_input* ri)
-{
-    /* Calculate probe position */
-    rs->gi.angle += 0.01f;
-    rs->gi.probe.pos = vec3_new(cosf(rs->gi.angle), 1.0f, sinf(rs->gi.angle));
+    /* Cast userdata */
+    struct sh_gi_render_scene_userdata* ud = userdata;
 
     /* HACK: Temporarily replace gbuffer reference in renderer state */
-    struct gbuffer* old_gbuf = rs->gbuf;
-    rs->gbuf = rs->gi.lcr_gbuf;
+    struct gbuffer* old_gbuf = ud->rs->gbuf;
+    ud->rs->gbuf = ud->rs->sh_gi_rs->lcr_gbuf;
 
-    /* Render local cubemap */
-    struct lc_render_scene_params rsp;
-    rsp.rs = rs;
-    rsp.ri = ri;
-    rsp.lcl_gbuf = rs->gi.lcr_gbuf;
-    lc_render(rs->lc_rs, rs->gi.probe.cm, rs->gi.probe.pos, lc_render_scene, &rsp);
+    /* Render scene */
+    render_scene(ud->rs, ud->ri, view, proj);
 
     /* Restore original gbuffer reference */
-    rs->gbuf = old_gbuf;
-
-    /* Calculate SH coefficients from captured cubemap */
-    lc_extract_sh_coeffs(rs->lc_rs, rs->gi.probe.sh_coeffs, rs->gi.probe.cm);
+    ud->rs->gbuf = old_gbuf;
 }
 
-static void environment_pass(struct renderer_state* rs, mat4* view)
+/* Callback passed to sh gi renderer, called when making the full screen pass render */
+static void sh_gi_prepare_gi_render(mat4* view, mat4* proj, void* userdata)
 {
-    /* Disable depth writting */
-    glDepthMask(GL_FALSE);
-    /* Enable blend for additive lighting */
-    glEnable(GL_BLEND);
-    glBlendEquation(GL_FUNC_ADD);
-    glBlendFunc(GL_ONE, GL_ONE);
-
-    /* Render environment light */
-    upload_sh_coeffs(rs->shdrs.env_pass, rs->gi.probe.sh_coeffs);
-    glUseProgram(rs->shdrs.env_pass);
-    glUniform3fv(glGetUniformLocation(rs->shdrs.env_pass, "probe_pos"), 1, rs->gi.probe.pos.xyz);
-
-    /* Bind gbuffer textures and perform a full ndc quad render */
-    bind_gbuffer_textures(rs, rs->shdrs.env_pass, view, &rs->proj);
-    glUseProgram(rs->shdrs.env_pass);
-    render_quad();
-    glUseProgram(0);
-
-    /* Restore gl values */
-    glDisable(GL_BLEND);
-    glDepthMask(GL_TRUE);
+    struct sh_gi_render_scene_userdata* ud = userdata;
+    bind_gbuffer_textures(ud->rs, ud->rs->sh_gi_rs->shdr, view, proj);
 }
 
 /*-----------------------------------------------------------------
@@ -305,25 +252,16 @@ static void environment_pass(struct renderer_state* rs, mat4* view)
  *-----------------------------------------------------------------*/
 void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view[16])
 {
-    /* Clear default buffers */
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    /* Geometry pass */
-    geometry_pass(rs, ri, view, rs->proj.m);
-    gbuffer_blit_depth_to_fb(rs->gbuf, 0);
-
-    /* Direct Light pass */
-    light_pass(rs, ri, (mat4*)view, &rs->proj);
-    render_sky(rs, ri, view, rs->proj.m);
-
-    /* Indirect lighting */
-    update_gi_data(rs, ri);
-    environment_pass(rs, (mat4*)view);
-
-    /* Visualize sample probe */
-    upload_sh_coeffs(rs->probe_vis->shdr, rs->gi.probe.sh_coeffs);
-    probe_vis_render(rs->probe_vis, rs->gi.probe.cm, rs->gi.probe.pos, *(mat4*)view, rs->proj, 1);
+    /* Render main scene */
+    render_scene(rs, ri, (mat4*)view, &rs->proj);
+    /* Render GI */
+    struct sh_gi_render_scene_userdata ud;
+    ud.rs = rs;
+    ud.ri = ri;
+    sh_gi_update(rs->sh_gi_rs, sh_gi_render_lcm_side, &ud);
+    sh_gi_render(rs->sh_gi_rs, view, rs->proj.m, sh_gi_prepare_gi_render, &ud);
+    /* Visualize probes (SH mode) */
+    sh_gi_vis_probes(rs->sh_gi_rs, view, rs->proj.m, 1);
 }
 
 void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height)
@@ -343,13 +281,8 @@ void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int
  *-----------------------------------------------------------------*/
 void renderer_destroy(struct renderer_state* rs)
 {
-    gbuffer_destroy(rs->gi.lcr_gbuf);
-    free(rs->gi.lcr_gbuf);
-    glDeleteTextures(1, &rs->gi.probe.cm);
-    lc_renderer_destroy(rs->lc_rs);
-    free(rs->lc_rs);
-    probe_vis_destroy(rs->probe_vis);
-    free(rs->probe_vis);
+    sh_gi_destroy(rs->sh_gi_rs);
+    free(rs->sh_gi_rs);
     sky_preetham_destroy(rs->sky_rs.preeth);
     free(rs->sky_rs.preeth);
     sky_texture_destroy(rs->sky_rs.tex);
