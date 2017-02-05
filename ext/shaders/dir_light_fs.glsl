@@ -1,5 +1,6 @@
 #version 330 core
 #include "inc/deferred.glsl"
+#include "inc/light.glsl"
 out vec4 color;
 
 struct dir_light {
@@ -7,15 +8,37 @@ struct dir_light {
     vec3 color;
 };
 uniform struct dir_light dir_l;
+uniform vec3 view_pos;
 
 void main()
 {
     // Prologue
     fetch_gbuffer_data();
 
+    // Light
+    vec3 L = normalize(dir_l.direction);
+    float light_intensity = 4.0;
+    vec3 light_col = dir_l.color * light_intensity;
+    float light_attenuation = 1.0;
+
+    // Material
+    vec3 albedo = d.albedo;
+    float metallic = 0.0;
+    float roughness = 0.8;
+
     // Directional lighting
-    vec3 light_dir = normalize(dir_l.direction);
-    float Kd = max(dot(d.normal, light_dir), 0.0);
-    vec3 result = Kd * d.albedo * dir_l.color;
+    vec3 V = normalize(view_pos - d.ws_pos);
+    vec3 Lo = radiance(d.normal, V, L,
+                       light_col, light_attenuation,
+                       albedo, metallic, roughness);
+
+    // Ambient
+    vec3 ao = vec3(1.0);       // TODO
+    vec3 amb_col = vec3(0.03); // TODO
+    vec3 ambient = amb_col * albedo * ao;
+
+    // Final
+    vec3 result = ambient + Lo;
+
     color = vec4(result, 1.0);
 }

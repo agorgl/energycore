@@ -170,16 +170,15 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     GLuint shdr = rs->shdrs.light_pass;
     bind_gbuffer_textures(rs, shdr, view, proj);
 
-    /* Iterate through lights */
+    /* Setup common uniforms */
     glUseProgram(shdr);
+    mat4 inverse_view = mat4_inverse(*(mat4*)view);
+    vec3 view_pos = vec3_new(inverse_view.xw, inverse_view.yw, inverse_view.zw);
+    glUniform3f(glGetUniformLocation(shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
+
+    /* Iterate through lights */
     for (size_t i = 0; i < ri->num_lights; ++i) {
         struct renderer_light* light = ri->lights + i;
-        /* Common uniforms */
-        /*
-        mat4 inverse_view = mat4_inverse(*(mat4*)view);
-        vec3 view_pos = vec3_new(inverse_view.xw, inverse_view.yw, inverse_view.zw);
-        glUniform3f(glGetUniformLocation(shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
-         */
         switch (light->type) {
             case LT_DIRECTIONAL: {
                 /* Full screen quad for directional light */
