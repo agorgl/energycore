@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include <math.h>
 #include <glad/glad.h>
 #include <gfxwnd/window.h>
@@ -21,7 +22,7 @@ static void APIENTRY gl_debug_proc(GLenum source, GLenum type, GLuint id, GLenum
 
     if (type == GL_DEBUG_TYPE_ERROR) {
         fprintf(stderr, "%s", message);
-        exit(1);
+        assert(0);
     }
 }
 
