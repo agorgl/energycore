@@ -82,14 +82,23 @@ struct model_hndl* model_to_gpu(struct model* m)
     return model;
 }
 
+#define TIMED_LOAD_BEGIN(fname) \
+    do { \
+        printf("Loading: %-85s", fname); \
+        timepoint_t t1 = millisecs();
+
+#define TIMED_LOAD_END \
+        timepoint_t t2 = millisecs(); \
+        printf("[ %3lu ms ]\n", (t2 - t1)); \
+    } while (0);
+
 struct model_hndl* model_from_file_to_gpu(const char* filename)
 {
     /* Load and parse model file */
-    printf("Loading: %-85s", filename);
-    timepoint_t t1 = millisecs();
-    struct model* m = model_from_file(filename);
-    timepoint_t t2 = millisecs();
-    printf("[ %3lu ms ]\n", (t2 - t1));
+    struct model* m = 0;
+    TIMED_LOAD_BEGIN(filename)
+    m = model_from_file(filename);
+    TIMED_LOAD_END
     /* Transfer data to gpu */
     struct model_hndl* h = model_to_gpu(m);
     /* Free memory data */
@@ -140,7 +149,10 @@ struct tex_hndl* tex_to_gpu(struct image* im)
 
 struct tex_hndl* tex_from_file_to_gpu(const char* filename)
 {
-    struct image* im = image_from_file(filename);
+    struct image* im = 0;
+    TIMED_LOAD_BEGIN(filename)
+    im = image_from_file(filename);
+    TIMED_LOAD_END
     struct tex_hndl* th = tex_to_gpu(im);
     image_delete(im);
     return th;
