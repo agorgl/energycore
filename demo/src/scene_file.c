@@ -8,9 +8,9 @@
 #include <json.h>
 
 struct scene_prefab {
-    const char* model;
-    const char** materials;
-    size_t num_materials;
+    const char* model_ref;
+    const char** material_refs;
+    size_t num_material_refs;
 };
 
 static void json_parse_float_arr(float* out, struct json_array_element_s* arr_e, int lim)
@@ -22,41 +22,36 @@ static void json_parse_float_arr(float* out, struct json_array_element_s* arr_e,
     }
 }
 
-static void free_mat_data(hm_ptr k, hm_ptr v)
-{
-    (void) k;
-    struct scene_material* mat = hm_pcast(v);
-    if (mat->diff_tex)
-        free((void*)mat->diff_tex);
-    free((void*)mat->name);
-    free(mat);
-}
-
 static void free_prefab_data(hm_ptr k, hm_ptr v)
 {
     (void) k;
     struct scene_prefab* prefab = hm_pcast(v);
-    if (prefab->model)
-        free((void*)prefab->model);
-    if (prefab->materials) {
-        for (size_t i = 0; i < prefab->num_materials; ++i)
-            free((void*)prefab->materials[i]);
-        free(prefab->materials);
+    if (prefab->model_ref)
+        free((void*)prefab->model_ref);
+    if (prefab->material_refs) {
+        for (size_t i = 0; i < prefab->num_material_refs; ++i)
+            free((void*)prefab->material_refs[i]);
+        free(prefab->material_refs);
     }
     free(prefab);
 }
 
-void load_scene_file(struct scene_object** scene_objects, size_t* num_scene_objects, const char* filepath)
+static const char* combine_path(const char* p1, const char* p2)
 {
-    *num_scene_objects = 0;
-    *scene_objects = 0;
-    size_t scene_objects_capacity = 0;
+    size_t path_sz = strlen(p1) + strlen(p2) + 1;
+    char* np = calloc(path_sz, sizeof(char));
+    strncat(np, p1, strrchr(p1, '/') - p1 + 1);
+    strncat(np, p2, strlen(p2));
+    return np;
+}
 
+struct scene* scene_from_file(const char* filepath)
+{
     /* Load file data */
     long data_buf_sz = filesize(filepath);
     if (data_buf_sz == -1) {
         printf("File not found: %s\n", filepath);
-        return;
+        return 0;
     }
     unsigned char* data_buf = malloc(data_buf_sz * sizeof(char));
     read_file_to_mem(filepath, data_buf, data_buf_sz);
@@ -85,51 +80,53 @@ void load_scene_file(struct scene_object** scene_objects, size_t* num_scene_obje
         }
     }
 
-    /* Create model location map */
-    struct hashmap modelmap;
-    hashmap_init(&modelmap, hm_str_hash, hm_str_eql);
-    /* Iterate through models map */
+    /* Allocate empty scene object */
+    struct scene* sc = calloc(1, sizeof(struct scene));
+    size_t i;
+
+    /* Fill in models */
+    sc->num_models = models_jo->length;
+    sc->models = calloc(sc->num_models, sizeof(struct scene_model));
+    i = 0;
     for (struct json_object_element_s* em = models_jo->start; em; em = em->next) {
         const char* mdl_key = em->name->string;
         const char* mdl_loc = ((struct json_string_s*) em->value->payload)->string;
-        hashmap_put(&modelmap, hm_cast(mdl_key), hm_cast(mdl_loc));
+        sc->models[i].ref = strdup(mdl_key);
+        sc->models[i].path = combine_path(filepath, mdl_loc);
+        ++i;
     }
 
-    /* Create texture location map */
-    struct hashmap texturemap;
-    hashmap_init(&texturemap, hm_str_hash, hm_str_eql);
-    /* Iterate through textures nodes */
+    /* Fill in textures */
     if (textures_jo) {
+        sc->num_textures = textures_jo->length;
+        sc->textures = calloc(sc->num_textures, sizeof(struct scene_texture));
+        i = 0;
         for (struct json_object_element_s* em = textures_jo->start; em; em = em->next) {
             const char* tex_key = em->name->string;
             const char* tex_loc = ((struct json_string_s*) em->value->payload)->string;
-            hashmap_put(&texturemap, hm_cast(tex_key), hm_cast(tex_loc));
+            sc->textures[i].ref = strdup(tex_key);
+            sc->textures[i].path = combine_path(filepath, tex_loc);
+            ++i;
         }
     }
 
-    /* Create material map */
-    struct hashmap materialmap;
-    hashmap_init(&materialmap, hm_str_hash, hm_str_eql);
-    /* Iterate through material nodes */
+    /* Fill in materials */
     if (materials_jo) {
+        sc->num_materials = materials_jo->length;
+        sc->materials = calloc(sc->num_materials, sizeof(struct scene_material));
+        i = 0;
         for (struct json_object_element_s* em = materials_jo->start; em; em = em->next) {
             const char* mat_key = em->name->string;
-            struct scene_material* mat = calloc(1, sizeof(struct scene_material));
-            mat->name = strdup(mat_key);
+            sc->materials[i].ref = strdup(mat_key);
             /* Iterate through material attributes */
             struct json_object_s* mat_attr_jo = em->value->payload;
             for (struct json_object_element_s* emma = mat_attr_jo->start; emma; emma = emma->next) {
                 if (strncmp(emma->name->string, "MainTex", emma->name->string_size) == 0) {
                     const char* tex_key = ((struct json_string_s*)(emma->value->payload))->string;
-                    /* Search texture */
-                    hm_ptr* p = hashmap_get(&texturemap, hm_cast(tex_key));
-                    if (p) {
-                        const char* tex = hm_pcast(*p);
-                        mat->diff_tex = strdup(tex);
-                    }
+                    sc->materials[i].albedo_tex_ref = strdup(tex_key);
                 }
             }
-            hashmap_put(&materialmap, hm_cast(mat_key), hm_cast(mat));
+            ++i;
         }
     }
 
@@ -146,15 +143,15 @@ void load_scene_file(struct scene_object** scene_objects, size_t* num_scene_obje
         for (struct json_object_element_s* epv = prfb_jo->start; epv; epv = epv->next) {
             if (strncmp(epv->name->string, "model", epv->name->string_size) == 0) {
                 const char* mdl_key = ((struct json_string_s*)epv->value->payload)->string;
-                prefab->model = strdup(mdl_key);
+                prefab->model_ref = strdup(mdl_key);
             } else if (strncmp(epv->name->string, "materials", epv->name->string_size) == 0) {
                 struct json_array_s* mats_ja = epv->value->payload;
-                prefab->num_materials = mats_ja->length;
-                prefab->materials = calloc(prefab->num_materials, sizeof(const char*));
+                prefab->num_material_refs = mats_ja->length;
+                prefab->material_refs = calloc(prefab->num_material_refs, sizeof(const char*));
                 size_t i = 0;
                 for (struct json_array_element_s* mae = mats_ja->start; mae; mae = mae->next) {
                     const char* mat_key = ((struct json_string_s*)mae->value->payload)->string;
-                    prefab->materials[i] = strdup(mat_key);
+                    prefab->material_refs[i] = strdup(mat_key);
                     ++i;
                 }
             }
@@ -163,6 +160,7 @@ void load_scene_file(struct scene_object** scene_objects, size_t* num_scene_obje
     }
 
     /* Populate scene objects */
+    size_t scene_objects_capacity = 0;
     struct hashmap sobjmap; /* Scene obj key to array index mapping */
     hashmap_init(&sobjmap, hm_str_hash, hm_str_eql);
     for (struct json_object_element_s* es = scenes_jo->start; es; es = es->next) {
@@ -173,15 +171,15 @@ void load_scene_file(struct scene_object** scene_objects, size_t* num_scene_obje
                 struct json_object_s* scene_objs_jo = est->value->payload;
                 /* Extend scene_objects array */
                 scene_objects_capacity += scene_objs_jo->length;
-                *scene_objects = realloc(*scene_objects, scene_objects_capacity * sizeof(struct scene_object));
+                sc->objects = realloc(sc->objects, scene_objects_capacity * sizeof(struct scene_object));
                 /* Iterate through objects */
                 for (struct json_object_element_s* eso = scene_objs_jo->start; eso; eso = eso->next) {
                     struct json_object_s* scene_obj_jo = eso->value->payload;
                     /* Iterate through object's attributes */
-                    struct scene_object* scn_obj = *scene_objects + (*num_scene_objects)++;
+                    struct scene_object* scn_obj = sc->objects + (sc->num_objects)++;
                     memset(scn_obj, 0, sizeof(*scn_obj));
                     /* Store its key - array index pair to populate parent references later */
-                    hashmap_put(&sobjmap, hm_cast(eso->name->string), hm_cast(*num_scene_objects - 1));
+                    hashmap_put(&sobjmap, hm_cast(eso->name->string), hm_cast(sc->num_objects - 1));
                     for (struct json_object_element_s* esoa = scene_obj_jo->start; esoa; esoa = esoa->next) {
                         if (strncmp(esoa->name->string, "name", esoa->name->string_size) == 0) {
                             const char* name = ((struct json_string_s*)esoa->value->payload)->string;
@@ -191,34 +189,15 @@ void load_scene_file(struct scene_object** scene_objects, size_t* num_scene_obje
                             /* Resolve */
                             hm_ptr* p = hashmap_get(&prefabmap, hm_cast(prefab_key));
                             if (p) {
-                                hm_ptr* pp = 0;
                                 struct scene_prefab* prefab = hm_pcast(*p);
-                                /* Resolve model */
-                                pp = hashmap_get(&modelmap, hm_cast(prefab->model));
-                                if (pp) {
-                                    const char* mdl_loc_rel = hm_pcast(*pp);
-                                    /* Create new buffer concating basename of scene file and above path */
-                                    size_t path_sz = strlen(filepath) + strlen(mdl_loc_rel) + 1;
-                                    scn_obj->model_loc = calloc(path_sz, sizeof(char));
-                                    strncat((char*)scn_obj->model_loc, filepath, strrchr(filepath, '/') - filepath + 1);
-                                    strncat((char*)scn_obj->model_loc, mdl_loc_rel, strlen(mdl_loc_rel));
-                                }
-                                /* Resolve materials */
-                                if (prefab->materials) {
-                                    scn_obj->num_materials = prefab->num_materials;
-                                    scn_obj->materials = calloc(scn_obj->num_materials, sizeof(struct scene_material));
-                                    for (size_t i = 0; i < prefab->num_materials; ++i) {
-                                        hm_ptr* p = hashmap_get(&materialmap, hm_cast(prefab->materials[i]));
-                                        if (!p)
-                                            continue;
-                                        struct scene_material* mat = hm_pcast(*p);
-                                        scn_obj->materials[i].name = strdup(mat->name);
-                                        /* Create new buffer concating basename of scene file and above path */
-                                        size_t path_sz = strlen(filepath) + strlen(mat->diff_tex) + 1;
-                                        scn_obj->materials[i].diff_tex = calloc(path_sz, sizeof(char));
-                                        strncat((char*)scn_obj->materials[i].diff_tex, filepath, strrchr(filepath, '/') - filepath + 1);
-                                        strncat((char*)scn_obj->materials[i].diff_tex, mat->diff_tex, strlen(mat->diff_tex));
-                                    }
+                                /* Model refs */
+                                scn_obj->mdl_ref = strdup(prefab->model_ref);
+                                /* Mat refs */
+                                if (prefab->material_refs) {
+                                    scn_obj->num_mat_refs = prefab->num_material_refs;
+                                    scn_obj->mat_refs = calloc(scn_obj->num_mat_refs, sizeof(struct scene_material));
+                                    for (size_t i = 0; i < prefab->num_material_refs; ++i)
+                                        scn_obj->mat_refs[i] = strdup(prefab->material_refs[i]);
                                 }
                             }
                         } else if (strncmp(esoa->name->string, "transform", esoa->name->string_size) == 0) {
@@ -227,13 +206,13 @@ void load_scene_file(struct scene_object** scene_objects, size_t* num_scene_obje
                             for (struct json_object_element_s* e = scene_obj_tattr_jo->start; e; e = e->next) {
                                 struct json_array_s* ev_jar = e->value->payload;
                                 if (strncmp(e->name->string, "scale", e->name->string_size) == 0) {
-                                    json_parse_float_arr(scn_obj->scaling, ev_jar->start, 3);
+                                    json_parse_float_arr(scn_obj->transform.scaling, ev_jar->start, 3);
                                 }
                                 else if (strncmp(e->name->string, "rotation", e->name->string_size) == 0) {
-                                    json_parse_float_arr(scn_obj->rotation, ev_jar->start, 4);
+                                    json_parse_float_arr(scn_obj->transform.rotation, ev_jar->start, 4);
                                 }
                                 else if (strncmp(e->name->string, "position", e->name->string_size) == 0) {
-                                    json_parse_float_arr(scn_obj->translation, ev_jar->start, 3);
+                                    json_parse_float_arr(scn_obj->transform.translation, ev_jar->start, 3);
                                 }
                             }
                         }
@@ -253,7 +232,7 @@ void load_scene_file(struct scene_object** scene_objects, size_t* num_scene_obje
         for_obj_elem(est, es->value->payload) { /* Iterate through scene object types */
             if (strncmp(est->name->string, "objects", est->name->string_size) == 0) {
                 for_obj_elem(eso, est->value->payload) { /* Iterate through objects */
-                    struct scene_object* scn_obj = *scene_objects + cur_obj++;
+                    struct scene_object* scn_obj = sc->objects + cur_obj++;
                     scn_obj->parent_ofs = -1L;
                     for_obj_elem(esoa, eso->value->payload) { /* Iterate through object's attributes */
                         if (strncmp(esoa->name->string, "transform", esoa->name->string_size) == 0) {
@@ -272,14 +251,46 @@ void load_scene_file(struct scene_object** scene_objects, size_t* num_scene_obje
         }
     }
 
-    /* Free */
-    hashmap_iter(&materialmap, free_mat_data);
-    hashmap_destroy(&materialmap);
-    hashmap_destroy(&texturemap);
     hashmap_destroy(&sobjmap);
     hashmap_iter(&prefabmap, free_prefab_data);
     hashmap_destroy(&prefabmap);
-    hashmap_destroy(&modelmap);
     free(root);
     free(data_buf);
+    return sc;
+}
+
+void scene_destroy(struct scene* sc)
+{
+    for (size_t i = 0; i < sc->num_objects; ++i) {
+        struct scene_object* o = sc->objects + i;
+        if (o->mdl_ref)
+            free((void*)o->mdl_ref);
+        if (o->mat_refs) {
+            for (size_t i = 0; i < o->num_mat_refs; ++i)
+                free((void*)o->mat_refs[i]);
+            free(o->mat_refs);
+        }
+        if (o->name)
+            free((void*)o->name);
+    }
+    free(sc->objects);
+    for (size_t i = 0; i < sc->num_materials; ++i) {
+        struct scene_material* m = sc->materials + i;
+        free((void*)m->ref);
+        free((void*)m->albedo_tex_ref);
+    }
+    free(sc->materials);
+    for (size_t i = 0; i < sc->num_textures; ++i) {
+        struct scene_texture* t = sc->textures + i;
+        free((void*)t->ref);
+        free((void*)t->path);
+    }
+    free(sc->textures);
+    for (size_t i = 0; i < sc->num_models; ++i) {
+        struct scene_model* m = sc->models + i;
+        free((void*)m->ref);
+        free((void*)m->path);
+    }
+    free(sc->models);
+    free(sc);
 }

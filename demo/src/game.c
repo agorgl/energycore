@@ -56,71 +56,73 @@ static void on_fb_size(struct window* wnd, unsigned int width, unsigned int heig
     renderer_resize(&ctx->rndr_state, width, height);
 }
 
-static void load_data(struct game_context* ctx, struct scene_object* scene_objects, size_t num_scene_objects)
+static void load_data(struct game_context* ctx, struct scene* sc)
 {
     /* Initialize model, texture and material stores */
     hashmap_init(&ctx->model_store, hm_str_hash, hm_str_eql);
     hashmap_init(&ctx->tex_store, hm_str_hash, hm_str_eql);
     hashmap_init(&ctx->mat_store, hm_str_hash, hm_str_eql);
+
+    /* Load models */
+    for (size_t i = 0; i < sc->num_models; ++i) {
+        struct scene_model* m = sc->models + i;
+        hm_ptr* p = hashmap_get(&ctx->model_store, hm_cast(m->ref));
+        if (!p) {
+            /* Load, parse and upload model */
+            struct model_hndl* model = model_from_file_to_gpu(m->path);
+            hashmap_put(&ctx->model_store, hm_cast(m->ref), hm_cast(model));
+        }
+    }
+
+    /* Load textures */
+    for (size_t i = 0; i < sc->num_textures; ++i) {
+        struct scene_texture* t = sc->textures + i;
+        hm_ptr* p = hashmap_get(&ctx->tex_store, hm_cast(t->ref));
+        if (!p) {
+            /* Load, parse and upload texture */
+            struct tex_hndl* tex = tex_from_file_to_gpu(t->path);
+            hashmap_put(&ctx->tex_store, hm_cast(t->ref), hm_cast(tex));
+        }
+    }
+
+    /* Load materials */
+    for (size_t i = 0; i < sc->num_materials; ++i) {
+        struct scene_material* m = sc->materials + i;
+        hm_ptr* p = hashmap_get(&ctx->mat_store, hm_cast(m->ref));
+        if (!p) {
+            /* Store material */
+            struct material* mat = calloc(1, sizeof(struct material));
+            /* Set albedo texture */
+            if (m->albedo_tex_ref) {
+                hm_ptr* p = hashmap_get(&ctx->tex_store, hm_cast(m->albedo_tex_ref));
+                if (p)
+                    mat->diff_tex = *(struct tex_hndl*)*p;
+            }
+            hashmap_put(&ctx->mat_store, hm_cast(m->ref), hm_cast(mat));
+        }
+    }
+
     /* Initialize world */
     ctx->world = world_create();
     /* Add all scene objects */
     struct vector transform_handles; /* Used to later populate parent relations */
     vector_init(&transform_handles, sizeof(struct transform_handle));
-    for (size_t i = 0; i < num_scene_objects; ++i) {
+    for (size_t i = 0; i < sc->num_objects; ++i) {
+        /* Scene object refering to */
+        struct scene_object* so = sc->objects + i;
         /* Create entity */
         entity_t e = entity_create(&ctx->world->emgr);
-        struct render_component* rendr_c = 0;
-        /* Check if model exists on the store */
-        const char* mdl_loc = scene_objects[i].model_loc;
-        if (mdl_loc) {
-            struct model_hndl* model;
-            hm_ptr* p = hashmap_get(&ctx->model_store, hm_cast(mdl_loc));
-            if (p)
-                model = hm_pcast(*p);
-            else {
-                /* Load, parse and upload model */
-                model = model_from_file_to_gpu(mdl_loc);
-                hashmap_put(&ctx->model_store, hm_cast(mdl_loc), hm_cast(model));
-            }
-            /* Create and set render component */
-            rendr_c = render_component_create(&ctx->world->render_comp_dbuf, e);
-            rendr_c->model = model;
-        }
-        /* Check if materials exist on the store */
-        if (rendr_c && scene_objects[i].materials) {
-            for (size_t j = 0; j < scene_objects[i].num_materials; ++j) {
-                struct scene_material* mtrl = scene_objects[i].materials + j;
-                struct material* material;
-                hm_ptr* p = hashmap_get(&ctx->mat_store, hm_cast(mtrl->name));
-                if (p)
-                    material = hm_pcast(*p);
-                else {
-                    /* Create material */
-                    material = calloc(1, sizeof(struct material));
-                    /* Check each texture if on texture map */
-                    const char* tex_loc = mtrl->diff_tex;
-                    if (tex_loc) {
-                        struct tex_hndl* th;
-                        hm_ptr* p = hashmap_get(&ctx->tex_store, hm_cast(tex_loc));
-                        if (p)
-                            th = hm_pcast(*p);
-                        else {
-                            /* Load parse and upload texture */
-                            th = tex_from_file_to_gpu(tex_loc);
-                            hashmap_put(&ctx->tex_store, hm_cast(tex_loc), hm_cast(th));
-                        }
-                        material->diff_tex = *th;
-                    }
-                    hashmap_put(&ctx->mat_store, hm_cast(mtrl->name), hm_cast(material));
-                }
-                rendr_c->materials[j] = material;
-            }
+        /* Create and set render component */
+        if (so->mdl_ref) {
+            struct render_component* rendr_c = render_component_create(&ctx->world->render_comp_dbuf, e);
+            rendr_c->model = (struct model_hndl*)*hashmap_get(&ctx->model_store, hm_cast(so->mdl_ref));
+            for (size_t j = 0; j < so->num_mat_refs; ++j)
+                rendr_c->materials[j] = (struct material*)*hashmap_get(&ctx->mat_store, hm_cast(so->mat_refs[j]));
         }
         /* Create and set transform component */
-        float* pos = scene_objects[i].translation;
-        float* rot = scene_objects[i].rotation;
-        float* scl = scene_objects[i].scaling;
+        float* pos = so->transform.translation;
+        float* rot = so->transform.rotation;
+        float* scl = so->transform.scaling;
         struct transform_handle th = transform_component_create(&ctx->world->transform_dbuf, e);
         transform_set_pose_data(&ctx->world->transform_dbuf, th,
             vec3_new(scl[0], scl[1], scl[2]),
@@ -131,8 +133,8 @@ static void load_data(struct game_context* ctx, struct scene_object* scene_objec
     }
 
     /* Populate parent links */
-    for (size_t i = 0; i < num_scene_objects; ++i) {
-        long par_ofs = scene_objects[i].parent_ofs;
+    for (size_t i = 0; i < sc->num_objects; ++i) {
+        long par_ofs = sc->objects[i].parent_ofs;
         if (par_ofs != -1) {
             struct transform_handle th_child = *(struct transform_handle*)vector_at(&transform_handles, i);
             struct transform_handle th_parnt = *(struct transform_handle*)vector_at(&transform_handles, par_ofs);
@@ -278,26 +280,10 @@ void game_init(struct game_context* ctx)
         scene_file = SCENE_FILE;
 
     /* Load scene file */
-    struct scene_object* scene_objects;
-    size_t num_scene_objects;
-    load_scene_file(&scene_objects, &num_scene_objects, scene_file);
+    struct scene* sc = scene_from_file(scene_file);
     /* Load data into GPU and construct world entities */
-    load_data(ctx, scene_objects, num_scene_objects);
-    /* Free scene file data */
-    for (size_t i = 0; i < num_scene_objects; ++i) {
-        struct scene_object* so = scene_objects + i;
-        free((void*)so->model_loc);
-        free((void*)so->name);
-        if (so->materials) {
-            for (size_t i = 0; i < so->num_materials; ++i) {
-                if (so->materials[i].diff_tex)
-                    free((void*)so->materials[i].diff_tex);
-                free((void*)so->materials->name);
-            }
-            free(so->materials);
-        }
-    }
-    free(scene_objects);
+    load_data(ctx, sc);
+    scene_destroy(sc);
 
     /* Load shaders */
     load_shdrs(ctx);

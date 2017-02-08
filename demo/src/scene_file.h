@@ -33,22 +33,42 @@
 
 #include <stdlib.h>
 
-struct scene_material {
-    const char* name;
-    const char* diff_tex;
-};
-
-struct scene_object {
-    const char* name;
-    const char* model_loc;
-    float translation[3];
-    float rotation[4];
-    float scaling[3];
-    long parent_ofs;
-    struct scene_material* materials;
+struct scene {
+    /* Models */
+    struct scene_model {
+        const char* ref;
+        const char* path;
+    }* models;
+    size_t num_models;
+    /* Textures */
+    struct scene_texture {
+        const char* ref;
+        const char* path;
+    }* textures;
+    size_t num_textures;
+    /* Materials */
+    struct scene_material {
+        const char* ref;
+        const char* albedo_tex_ref;
+    }* materials;
     size_t num_materials;
+    /* Objects */
+    struct scene_object {
+        const char* name;
+        struct {
+            float translation[3];
+            float rotation[4];
+            float scaling[3];
+        } transform;
+        const char* mdl_ref;
+        const char** mat_refs;
+        size_t num_mat_refs;
+        long parent_ofs;
+    }* objects;
+    size_t num_objects;
 };
 
-void load_scene_file(struct scene_object** scene_objects, size_t* num_scene_objects, const char* filepath);
+struct scene* scene_from_file(const char* filepath);
+void scene_destroy(struct scene* sc);
 
 #endif /* ! _SCENE_FILE_H_ */
