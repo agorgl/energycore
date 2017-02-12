@@ -115,8 +115,8 @@ static void load_data(struct game_context* ctx, struct scene* sc)
     /* Initialize world */
     ctx->world = world_create();
     /* Add all scene objects */
-    struct vector transform_handles; /* Used to later populate parent relations */
-    vector_init(&transform_handles, sizeof(struct transform_handle));
+    struct hashmap transform_handles; /* Used to later populate parent relations */
+    hashmap_init(&transform_handles, hm_str_hash, hm_str_eql);
     for (size_t i = 0; i < sc->num_objects; ++i) {
         /* Scene object refering to */
         struct scene_object* so = sc->objects + i;
@@ -139,19 +139,19 @@ static void load_data(struct game_context* ctx, struct scene* sc)
             quat_new(rot[0], rot[1], rot[2], rot[3]),
             vec3_new(pos[0], pos[1], pos[2]));
         /* Store transform handle for later parent relations */
-        vector_append(&transform_handles, &th);
+        hashmap_put(&transform_handles, hm_cast(so->ref), hm_cast(th.offs));
     }
 
     /* Populate parent links */
     for (size_t i = 0; i < sc->num_objects; ++i) {
-        long par_ofs = sc->objects[i].parent_ofs;
-        if (par_ofs != -1) {
-            struct transform_handle th_child = *(struct transform_handle*)vector_at(&transform_handles, i);
-            struct transform_handle th_parnt = *(struct transform_handle*)vector_at(&transform_handles, par_ofs);
+        struct scene_object* so = sc->objects + i;
+        if (so->parent_ref) {
+            struct transform_handle th_child = *(struct transform_handle*)hashmap_get(&transform_handles, hm_cast(so->ref));
+            struct transform_handle th_parnt = *(struct transform_handle*)hashmap_get(&transform_handles, hm_cast(so->parent_ref));
             transform_set_parent(&ctx->world->transform_dbuf, th_child, th_parnt);
         }
     }
-    vector_destroy(&transform_handles);
+    hashmap_destroy(&transform_handles);
 }
 
 static const struct shdr_info {

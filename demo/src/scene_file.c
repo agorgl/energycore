@@ -8,10 +8,16 @@
 #include <json.h>
 
 struct scene_prefab {
-    const char* model_ref;
-    const char** material_refs;
-    size_t num_material_refs;
+    struct scene_object* objects;
+    size_t num_objects;
 };
+
+/* Fw declarations */
+static void free_material(struct scene_material* m);
+static void free_texture(struct scene_texture* t);
+static void free_model(struct scene_model* m);
+static void free_scene_object(struct scene_object* o);
+static void scene_cleanup(struct scene* sc);
 
 static void json_parse_float_arr(float* out, struct json_array_element_s* arr_e, int lim)
 {
@@ -22,18 +28,79 @@ static void json_parse_float_arr(float* out, struct json_array_element_s* arr_e,
     }
 }
 
-static void free_prefab_data(hm_ptr k, hm_ptr v)
+static void parse_transform_component(struct json_object_s* j_transf, float trans[3], float rot[4], float scl[3])
 {
-    (void) k;
-    struct scene_prefab* prefab = hm_pcast(v);
-    if (prefab->model_ref)
-        free((void*)prefab->model_ref);
-    if (prefab->material_refs) {
-        for (size_t i = 0; i < prefab->num_material_refs; ++i)
-            free((void*)prefab->material_refs[i]);
-        free(prefab->material_refs);
+    /* Iterate through transform attributes */
+    for (struct json_object_element_s* e = j_transf->start; e; e = e->next) {
+        struct json_array_s* ev_jar = e->value->payload;
+        if (strncmp(e->name->string, "scale", e->name->string_size) == 0) {
+            json_parse_float_arr(scl, ev_jar->start, 3);
+        }
+        else if (strncmp(e->name->string, "rotation", e->name->string_size) == 0) {
+            json_parse_float_arr(rot, ev_jar->start, 4);
+        }
+        else if (strncmp(e->name->string, "position", e->name->string_size) == 0) {
+            json_parse_float_arr(trans, ev_jar->start, 3);
+        }
     }
-    free(prefab);
+}
+
+static void parse_scene_object(struct json_object_element_s* eso, struct scene_object* scn_obj)
+{
+    scn_obj->ref = strdup(eso->name->string);
+    struct json_object_s* scene_obj_jo = eso->value->payload;
+    for (struct json_object_element_s* attr = scene_obj_jo->start; attr; attr = attr->next) {
+        if (strncmp(attr->name->string, "name", attr->name->string_size) == 0) {
+            const char* name = ((struct json_string_s*)attr->value->payload)->string;
+            scn_obj->name = strdup(name);
+        } else if (strncmp(attr->name->string, "transform", attr->name->string_size) == 0) {
+            struct json_object_s* trans_jo = attr->value->payload;
+            /* Iterate through transform attributes */
+            parse_transform_component(
+                trans_jo,
+                scn_obj->transform.translation,
+                scn_obj->transform.rotation,
+                scn_obj->transform.scaling);
+            for (struct json_object_element_s* e = trans_jo->start; e; e = e->next) {
+                if (strncmp(e->name->string, "parent", e->name->string_size) == 0) {
+                    const char* par_ref = ((struct json_string_s*)e->value->payload)->string;
+                    scn_obj->parent_ref = strdup(par_ref);
+                }
+            }
+        } else if (strncmp(attr->name->string, "model", attr->name->string_size) == 0) {
+            const char* mdl_ref = ((struct json_string_s*)attr->value->payload)->string;
+            scn_obj->mdl_ref = strdup(mdl_ref);
+        } else if (strncmp(attr->name->string, "materials", attr->name->string_size) == 0) {
+            struct json_array_s* mats_ja = attr->value->payload;
+            scn_obj->num_mat_refs = mats_ja->length;
+            scn_obj->mat_refs = calloc(scn_obj->num_mat_refs, sizeof(const char*));
+            size_t i = 0;
+            for (struct json_array_element_s* mae = mats_ja->start; mae; mae = mae->next) {
+                const char* mat_key = ((struct json_string_s*)mae->value->payload)->string;
+                scn_obj->mat_refs[i] = strdup(mat_key);
+                ++i;
+            }
+        }
+    }
+}
+
+static const char* parse_prefab_parent(struct json_object_s* scene_obj_jo)
+{
+    for (struct json_object_element_s* attr = scene_obj_jo->start; attr; attr = attr->next)
+        if (strncmp(attr->name->string, "prefab", attr->name->string_size) == 0)
+            return ((struct json_string_s*)attr->value->payload)->string;
+    return 0;
+}
+
+static void parse_scene_chunk(struct json_object_s* scene_objs_jo, struct scene_object* scn_objs)
+{
+    /* Iterate through objects */
+    size_t i = 0;
+    for (struct json_object_element_s* eso = scene_objs_jo->start; eso; eso = eso->next) {
+        struct scene_object* scn_obj = scn_objs + (i++);
+        memset(scn_obj, 0, sizeof(struct scene_object));
+        parse_scene_object(eso, scn_obj);
+    }
 }
 
 static const char* combine_path(const char* p1, const char* p2)
@@ -43,6 +110,39 @@ static const char* combine_path(const char* p1, const char* p2)
     strncat(np, p1, strrchr(p1, '/') - p1 + 1);
     strncat(np, p2, strlen(p2));
     return np;
+}
+
+static void copy_scene_object(struct scene_object* dst, struct scene_object* src)
+{
+    dst->ref = strdup(src->ref);
+    dst->name = strdup(src->name);
+    dst->mdl_ref = src->mdl_ref ? strdup(src->mdl_ref) : 0;
+    dst->parent_ref = src->parent_ref ? strdup(src->parent_ref) : 0;
+    dst->num_mat_refs = src->num_mat_refs;
+    dst->mat_refs = calloc(dst->num_mat_refs, sizeof(const char*));
+    for (size_t i = 0; i < src->num_mat_refs; ++i)
+        dst->mat_refs[i] = strdup(src->mat_refs[i]);
+    memcpy(&dst->transform, &src->transform, sizeof(((struct scene_object*)0)->transform));
+}
+
+static void free_prefab_data(hm_ptr k, hm_ptr v)
+{
+    (void) k;
+    struct scene_prefab* sp = (struct scene_prefab*)v;
+    for (size_t i = 0; i < sp->num_objects; ++i)
+        free_scene_object(sp->objects + i);
+    free(sp->objects);
+    free(sp);
+}
+
+static const char* complex_ref(const char* guid, const char* file_id)
+{
+    size_t sz = strlen(guid) + strlen(file_id) + 3;
+    char* nr = calloc(sz, sizeof(char));
+    strncat(nr, guid, strlen(guid));
+    strncat(nr, "::", 2);
+    strncat(nr, file_id, strlen(file_id));
+    return nr;
 }
 
 struct scene* scene_from_file(const char* filepath)
@@ -133,36 +233,19 @@ struct scene* scene_from_file(const char* filepath)
     /* Create prefab map */
     struct hashmap prefabmap;
     hashmap_init(&prefabmap, hm_str_hash, hm_str_eql);
-    /* Iterate through prefabs map */
+    /* Iterate through prefab mappings */
     for (struct json_object_element_s* ep = prefabs_jo->start; ep; ep = ep->next) {
         const char* prfb_key = ep->name->string;
-        if (ep->value->type == json_type_null)
-            continue;
         struct json_object_s* prfb_jo = ep->value->payload;
         struct scene_prefab* prefab = calloc(1, sizeof(struct scene_prefab));
-        for (struct json_object_element_s* epv = prfb_jo->start; epv; epv = epv->next) {
-            if (strncmp(epv->name->string, "model", epv->name->string_size) == 0) {
-                const char* mdl_key = ((struct json_string_s*)epv->value->payload)->string;
-                prefab->model_ref = strdup(mdl_key);
-            } else if (strncmp(epv->name->string, "materials", epv->name->string_size) == 0) {
-                struct json_array_s* mats_ja = epv->value->payload;
-                prefab->num_material_refs = mats_ja->length;
-                prefab->material_refs = calloc(prefab->num_material_refs, sizeof(const char*));
-                size_t i = 0;
-                for (struct json_array_element_s* mae = mats_ja->start; mae; mae = mae->next) {
-                    const char* mat_key = ((struct json_string_s*)mae->value->payload)->string;
-                    prefab->material_refs[i] = strdup(mat_key);
-                    ++i;
-                }
-            }
-        }
+        prefab->num_objects = prfb_jo->length;
+        prefab->objects = calloc(prefab->num_objects, sizeof(struct scene_object));
+        parse_scene_chunk(prfb_jo, prefab->objects);
         hashmap_put(&prefabmap, hm_cast(prfb_key), hm_cast(prefab));
     }
 
     /* Populate scene objects */
     size_t scene_objects_capacity = 0;
-    struct hashmap sobjmap; /* Scene obj key to array index mapping */
-    hashmap_init(&sobjmap, hm_str_hash, hm_str_eql);
     for (struct json_object_element_s* es = scenes_jo->start; es; es = es->next) {
         /* Iterate through scene object types */
         struct json_object_s* scene_jo = es->value->payload;
@@ -174,46 +257,28 @@ struct scene* scene_from_file(const char* filepath)
                 sc->objects = realloc(sc->objects, scene_objects_capacity * sizeof(struct scene_object));
                 /* Iterate through objects */
                 for (struct json_object_element_s* eso = scene_objs_jo->start; eso; eso = eso->next) {
-                    struct json_object_s* scene_obj_jo = eso->value->payload;
-                    /* Iterate through object's attributes */
+                    const char* scn_obj_ref = eso->name->string;
+                    /* Populate object's attributes */
                     struct scene_object* scn_obj = sc->objects + (sc->num_objects)++;
                     memset(scn_obj, 0, sizeof(*scn_obj));
-                    /* Store its key - array index pair to populate parent references later */
-                    hashmap_put(&sobjmap, hm_cast(eso->name->string), hm_cast(sc->num_objects - 1));
-                    for (struct json_object_element_s* esoa = scene_obj_jo->start; esoa; esoa = esoa->next) {
-                        if (strncmp(esoa->name->string, "name", esoa->name->string_size) == 0) {
-                            const char* name = ((struct json_string_s*)esoa->value->payload)->string;
-                            scn_obj->name = strdup(name);
-                        } else if (strncmp(esoa->name->string, "prefab", esoa->name->string_size) == 0) {
-                            const char* prefab_key = ((struct json_string_s*)esoa->value->payload)->string;
-                            /* Resolve */
-                            hm_ptr* p = hashmap_get(&prefabmap, hm_cast(prefab_key));
-                            if (p) {
-                                struct scene_prefab* prefab = hm_pcast(*p);
-                                /* Model refs */
-                                scn_obj->mdl_ref = strdup(prefab->model_ref);
-                                /* Mat refs */
-                                if (prefab->material_refs) {
-                                    scn_obj->num_mat_refs = prefab->num_material_refs;
-                                    scn_obj->mat_refs = calloc(scn_obj->num_mat_refs, sizeof(struct scene_material));
-                                    for (size_t i = 0; i < prefab->num_material_refs; ++i)
-                                        scn_obj->mat_refs[i] = strdup(prefab->material_refs[i]);
-                                }
-                            }
-                        } else if (strncmp(esoa->name->string, "transform", esoa->name->string_size) == 0) {
-                            /* Iterate through transform attributes */
-                            struct json_object_s* scene_obj_tattr_jo = esoa->value->payload;
-                            for (struct json_object_element_s* e = scene_obj_tattr_jo->start; e; e = e->next) {
-                                struct json_array_s* ev_jar = e->value->payload;
-                                if (strncmp(e->name->string, "scale", e->name->string_size) == 0) {
-                                    json_parse_float_arr(scn_obj->transform.scaling, ev_jar->start, 3);
-                                }
-                                else if (strncmp(e->name->string, "rotation", e->name->string_size) == 0) {
-                                    json_parse_float_arr(scn_obj->transform.rotation, ev_jar->start, 4);
-                                }
-                                else if (strncmp(e->name->string, "position", e->name->string_size) == 0) {
-                                    json_parse_float_arr(scn_obj->transform.translation, ev_jar->start, 3);
-                                }
+                    parse_scene_object(eso, scn_obj);
+                    /* Check if it inherits a prefab */
+                    const char* prfb_key = parse_prefab_parent(eso->value->payload);
+                    if (prfb_key) {
+                        hm_ptr* p = hashmap_get(&prefabmap, hm_cast(prfb_key));
+                        if (p) {
+                            struct scene_prefab* sprefb = hm_pcast(*p);
+                            scene_objects_capacity += sprefb->num_objects;
+                            sc->objects = realloc(sc->objects, scene_objects_capacity * sizeof(struct scene_object));
+                            for (size_t i = 0; i < sprefb->num_objects; ++i) {
+                                struct scene_object* src_prfb_obj = sprefb->objects + i;
+                                struct scene_object* dst_prfb_obj = sc->objects + sc->num_objects++;
+                                copy_scene_object(dst_prfb_obj, src_prfb_obj);
+                                free((void*)dst_prfb_obj->ref);
+                                dst_prfb_obj->ref = complex_ref(src_prfb_obj->ref, scn_obj_ref);
+                                if (dst_prfb_obj->parent_ref)
+                                    free((void*)dst_prfb_obj->parent_ref);
+                                dst_prfb_obj->parent_ref = strdup(scn_obj_ref);
                             }
                         }
                     }
@@ -222,75 +287,146 @@ struct scene* scene_from_file(const char* filepath)
         }
     }
 
-#define for_obj_elem(e, o) for (struct json_object_element_s* e =      \
-                                    ((struct json_object_s*)o)->start; \
-                                    e; e = e->next)
-
-    /* Populate parent links */
-    size_t cur_obj = 0;
-    for_obj_elem(es, scenes_jo) {
-        for_obj_elem(est, es->value->payload) { /* Iterate through scene object types */
-            if (strncmp(est->name->string, "objects", est->name->string_size) == 0) {
-                for_obj_elem(eso, est->value->payload) { /* Iterate through objects */
-                    struct scene_object* scn_obj = sc->objects + cur_obj++;
-                    scn_obj->parent_ofs = -1L;
-                    for_obj_elem(esoa, eso->value->payload) { /* Iterate through object's attributes */
-                        if (strncmp(esoa->name->string, "transform", esoa->name->string_size) == 0) {
-                            for_obj_elem(e, esoa->value->payload) { /* Iterate through transform attributes */
-                                if (strncmp(e->name->string, "parent", e->name->string_size) == 0) {
-                                    struct json_string_s* n = e->value->payload;
-                                    hm_ptr* p = hashmap_get(&sobjmap, hm_cast(n->string));
-                                    long par_ofs = p ? *(long*)p : -1;
-                                    scn_obj->parent_ofs = par_ofs;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    hashmap_destroy(&sobjmap);
     hashmap_iter(&prefabmap, free_prefab_data);
     hashmap_destroy(&prefabmap);
     free(root);
     free(data_buf);
+
+    /* Remove unused stuff from scene */
+    scene_cleanup(sc);
     return sc;
+}
+
+static void scene_cleanup(struct scene* sc)
+{
+    struct hashmap used_materials, used_models, used_textures;
+    hashmap_init(&used_materials, hm_str_hash, hm_str_eql);
+    hashmap_init(&used_models, hm_str_hash, hm_str_eql);
+    hashmap_init(&used_textures, hm_str_hash, hm_str_eql);
+
+    /* Populate used models and materials using scene objects */
+    for (size_t i = 0; i < sc->num_objects; ++i) {
+        hm_ptr* p = 0;
+        struct scene_object* so = sc->objects + i;
+        if (so->mdl_ref) {
+            p = hashmap_get(&used_models, hm_cast(so->mdl_ref));
+            if (!p)
+                hashmap_put(&used_models, hm_cast(so->mdl_ref), 0);
+        }
+        if (so->mat_refs) {
+            for (size_t j = 0; j < so->num_mat_refs; ++j) {
+                p = hashmap_get(&used_materials, hm_cast(so->mat_refs[j]));
+                if (!p)
+                    hashmap_put(&used_materials, hm_cast(so->mat_refs[j]), 0);
+            }
+        }
+    }
+
+    /* Populate used textures from used materials */
+    for (size_t i = 0; i < sc->num_materials; ++i) {
+        struct scene_material* sm = sc->materials + i;
+        hm_ptr* p = hashmap_get(&used_materials, hm_cast(sm->ref));
+        if (!p)
+            continue;
+        const char* textures[] = {sm->albedo_tex_ref};
+        for (size_t j = 0; j < sizeof(textures)/sizeof(const char*); ++j) {
+            const char* tex_ref = textures[j];
+            if (tex_ref) {
+                hm_ptr* p = hashmap_get(&used_textures, hm_cast(tex_ref));
+                if (!p)
+                    hashmap_put(&used_textures, hm_cast(tex_ref), 0);
+            }
+        }
+    }
+
+    /* Remove unused models */
+    for (size_t i = 0; i < sc->num_models; ++i) {
+        const char* ref = sc->models[i].ref;
+        hm_ptr* p = hashmap_get(&used_models, hm_cast(ref));
+        if (!p) {
+            free_model(sc->models + i);
+            --sc->num_models;
+            memmove(sc->models + i, sc->models + i + 1, (sc->num_models - i) * sizeof(struct scene_model));
+            --i;
+        }
+    }
+
+    /* Remove unused materials */
+    for (size_t i = 0; i < sc->num_materials; ++i) {
+        const char* ref = sc->materials[i].ref;
+        hm_ptr* p = hashmap_get(&used_materials, hm_cast(ref));
+        if (!p) {
+            free_material(sc->materials + i);
+            --sc->num_materials;
+            memmove(sc->materials + i, sc->materials + i + 1, (sc->num_materials - i) * sizeof(struct scene_material));
+            --i;
+        }
+    }
+
+    /* Remove unused textures */
+    for (size_t i = 0; i < sc->num_textures; ++i) {
+        const char* ref = sc->textures[i].ref;
+        hm_ptr* p = hashmap_get(&used_textures, hm_cast(ref));
+        if (!p) {
+            free_texture(sc->textures + i);
+            --sc->num_textures;
+            memmove(sc->textures + i, sc->textures + i + 1, (sc->num_textures - i) * sizeof(struct scene_texture));
+            --i;
+        }
+    }
+
+    hashmap_destroy(&used_textures);
+    hashmap_destroy(&used_models);
+    hashmap_destroy(&used_materials);
+}
+
+static void free_material(struct scene_material* m)
+{
+    free((void*)m->ref);
+    free((void*)m->albedo_tex_ref);
+}
+
+static void free_texture(struct scene_texture* t)
+{
+    free((void*)t->ref);
+    free((void*)t->path);
+}
+
+static void free_model(struct scene_model* m)
+{
+    free((void*)m->ref);
+    free((void*)m->path);
+}
+
+static void free_scene_object(struct scene_object* o)
+{
+    free((void*)o->ref);
+    if (o->parent_ref)
+        free((void*)o->parent_ref);
+    if (o->mdl_ref)
+        free((void*)o->mdl_ref);
+    if (o->mat_refs) {
+        for (size_t j = 0; j < o->num_mat_refs; ++j)
+            free((void*)o->mat_refs[j]);
+        free(o->mat_refs);
+    }
+    if (o->name)
+        free((void*)o->name);
 }
 
 void scene_destroy(struct scene* sc)
 {
-    for (size_t i = 0; i < sc->num_objects; ++i) {
-        struct scene_object* o = sc->objects + i;
-        if (o->mdl_ref)
-            free((void*)o->mdl_ref);
-        if (o->mat_refs) {
-            for (size_t i = 0; i < o->num_mat_refs; ++i)
-                free((void*)o->mat_refs[i]);
-            free(o->mat_refs);
-        }
-        if (o->name)
-            free((void*)o->name);
-    }
+    for (size_t i = 0; i < sc->num_objects; ++i)
+        free_scene_object(sc->objects + i);
     free(sc->objects);
-    for (size_t i = 0; i < sc->num_materials; ++i) {
-        struct scene_material* m = sc->materials + i;
-        free((void*)m->ref);
-        free((void*)m->albedo_tex_ref);
-    }
+    for (size_t i = 0; i < sc->num_materials; ++i)
+        free_material(sc->materials + i);
     free(sc->materials);
-    for (size_t i = 0; i < sc->num_textures; ++i) {
-        struct scene_texture* t = sc->textures + i;
-        free((void*)t->ref);
-        free((void*)t->path);
-    }
+    for (size_t i = 0; i < sc->num_textures; ++i)
+        free_texture(sc->textures + i);
     free(sc->textures);
-    for (size_t i = 0; i < sc->num_models; ++i) {
-        struct scene_model* m = sc->models + i;
-        free((void*)m->ref);
-        free((void*)m->path);
-    }
+    for (size_t i = 0; i < sc->num_models; ++i)
+        free_model(sc->models + i);
     free(sc->models);
     free(sc);
 }

@@ -54,6 +54,7 @@ struct scene {
     size_t num_materials;
     /* Objects */
     struct scene_object {
+        const char* ref;
         const char* name;
         struct {
             float translation[3];
@@ -63,7 +64,7 @@ struct scene {
         const char* mdl_ref;
         const char** mat_refs;
         size_t num_mat_refs;
-        long parent_ofs;
+        const char* parent_ref;
     }* objects;
     size_t num_objects;
 };
