@@ -272,7 +272,7 @@ void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int
     glViewport(0, 0, width, height);
     rs->viewport.x = width;
     rs->viewport.y = height;
-    rs->proj = mat4_perspective(radians(60.0f), 0.1f, 300.0f, ((float)width / height));
+    rs->proj = mat4_perspective(radians(60.0f), 0.1f, 30000.0f, ((float)width / height));
     /* GBuf */
     gbuffer_destroy(rs->gbuf);
     memset(rs->gbuf, 0, sizeof(struct gbuffer));
