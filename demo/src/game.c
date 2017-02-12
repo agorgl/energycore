@@ -40,6 +40,16 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         ctx->visualize_normals = !ctx->visualize_normals;
     else if (action == KEY_ACTION_RELEASE && key == KEY_M)
         ctx->dynamic_sky = !ctx->dynamic_sky;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_KP_ADD)
+        ctx->cam.move_speed *= (ctx->cam.move_speed < 10e2) ? 2.0f : 1.0f;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_KP_SUBTRACT)
+        ctx->cam.move_speed /= (ctx->cam.move_speed > 10e-2) ? 2.0f : 1.0f;
+    else if (action == KEY_ACTION_RELEASE && key ==  KEY_U) {
+        if (glIsEnabled(GL_MULTISAMPLE))
+            glDisable(GL_MULTISAMPLE);
+        else
+            glEnable(GL_MULTISAMPLE);
+    }
 }
 
 static void on_mouse_button(struct window* wnd, int button, int action, int mods)
