@@ -132,7 +132,8 @@ struct tex_hndl* tex_to_gpu(struct image* im)
     GLuint id;
     glGenTextures(1, &id);
     glBindTexture(GL_TEXTURE_2D, id);
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 4.0f);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -144,6 +145,8 @@ struct tex_hndl* tex_to_gpu(struct image* im)
         im->channels == 4 ? GL_RGBA : GL_RGB,
         GL_UNSIGNED_BYTE,
         im->data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
     struct tex_hndl* th = calloc(1, sizeof(struct tex_hndl));
     th->id = id;
     return th;
