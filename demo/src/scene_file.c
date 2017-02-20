@@ -128,7 +128,7 @@ static void copy_scene_object(struct scene_object* dst, struct scene_object* src
 static void free_prefab_data(hm_ptr k, hm_ptr v)
 {
     (void) k;
-    struct scene_prefab* sp = (struct scene_prefab*)v;
+    struct scene_prefab* sp = (struct scene_prefab*)hm_pcast(v);
     for (size_t i = 0; i < sp->num_objects; ++i)
         free_scene_object(sp->objects + i);
     free(sp->objects);

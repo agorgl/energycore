@@ -89,7 +89,7 @@ struct model_hndl* model_to_gpu(struct model* m)
 
 #define TIMED_LOAD_END \
         timepoint_t t2 = millisecs(); \
-        printf("[ %3lu ms ]\n", (t2 - t1)); \
+        printf("[ %3lu ms ]\n", (unsigned long)(t2 - t1)); \
     } while (0);
 
 struct model_hndl* model_from_file_to_gpu(const char* filename)

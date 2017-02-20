@@ -108,7 +108,7 @@ static void load_data(struct game_context* ctx, struct scene* sc)
                 if (tex_ref) {
                     hm_ptr* p = hashmap_get(&ctx->tex_store, hm_cast(tex_ref));
                     if (p)
-                        mat->tex[j].hndl.id = ((struct tex_hndl*)*p)->id;
+                        mat->tex[j].hndl = *(struct tex_hndl*)hm_pcast(*p);
                     mat->tex[j].scl[0] = m->textures[j].scale[0];
                     mat->tex[j].scl[1] = m->textures[j].scale[1];
                 }
@@ -130,11 +130,11 @@ static void load_data(struct game_context* ctx, struct scene* sc)
         /* Create and set render component */
         if (so->mdl_ref) {
             struct render_component* rendr_c = render_component_create(&ctx->world->render_comp_dbuf, e);
-            rendr_c->model = (struct model_hndl*)*hashmap_get(&ctx->model_store, hm_cast(so->mdl_ref));
+            rendr_c->model = (struct model_hndl*)hm_pcast(*hashmap_get(&ctx->model_store, hm_cast(so->mdl_ref)));
             for (size_t j = 0; j < so->num_mat_refs && j < 16; ++j) {
                 hm_ptr* p = hashmap_get(&ctx->mat_store, hm_cast(so->mat_refs[j]));
                 if (p)
-                    rendr_c->materials[j] = (struct material*)*p;
+                    rendr_c->materials[j] = (struct material*)hm_pcast(*p);
             }
         }
         /* Create and set transform component */
@@ -229,7 +229,7 @@ static void tex_store_free(hm_ptr k, hm_ptr v)
 static void mat_store_free(hm_ptr k, hm_ptr v)
 {
     (void) k;
-    free((void*)v);
+    free((void*)hm_pcast(v));
 }
 
 static void shdr_store_free(hm_ptr k, hm_ptr v)
