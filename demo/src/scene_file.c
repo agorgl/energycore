@@ -221,9 +221,21 @@ struct scene* scene_from_file(const char* filepath)
             /* Iterate through material attributes */
             struct json_object_s* mat_attr_jo = em->value->payload;
             for (struct json_object_element_s* emma = mat_attr_jo->start; emma; emma = emma->next) {
-                if (strncmp(emma->name->string, "MainTex", emma->name->string_size) == 0) {
-                    const char* tex_key = ((struct json_string_s*)(emma->value->payload))->string;
-                    sc->materials[i].albedo_tex_ref = strdup(tex_key);
+                int type = -1;
+                if (strncmp(emma->name->string, "MainTex", emma->name->string_size) == 0)
+                    type = STT_ALBEDO;
+                if (type != -1) {
+                    sc->materials[i].textures[type].type = type;
+                    for (struct json_object_element_s* tex_attr = ((struct json_object_s*)(emma->value->payload))->start;
+                            tex_attr; tex_attr = tex_attr->next) {
+                        if (strncmp(tex_attr->name->string, "texture", tex_attr->name->string_size) == 0) {
+                            const char* tex_key = ((struct json_string_s*)(tex_attr->value->payload))->string;
+                            sc->materials[i].textures[type].tex_ref = strdup(tex_key);
+                        } else if (strncmp(tex_attr->name->string, "scale", tex_attr->name->string_size) == 0) {
+                            struct json_array_element_s* scl_arr = ((struct json_array_s*)(tex_attr->value->payload))->start;
+                            json_parse_float_arr(sc->materials[i].textures[type].scale, scl_arr, 2);
+                        }
+                    }
                 }
             }
             ++i;
@@ -328,9 +340,8 @@ static void scene_cleanup(struct scene* sc)
         hm_ptr* p = hashmap_get(&used_materials, hm_cast(sm->ref));
         if (!p)
             continue;
-        const char* textures[] = {sm->albedo_tex_ref};
-        for (size_t j = 0; j < sizeof(textures)/sizeof(const char*); ++j) {
-            const char* tex_ref = textures[j];
+        for (int j = 0; j < STT_MAX; ++j) {
+            const char* tex_ref = sc->materials[i].textures[j].tex_ref;
             if (tex_ref) {
                 hm_ptr* p = hashmap_get(&used_textures, hm_cast(tex_ref));
                 if (!p)
@@ -383,7 +394,11 @@ static void scene_cleanup(struct scene* sc)
 static void free_material(struct scene_material* m)
 {
     free((void*)m->ref);
-    free((void*)m->albedo_tex_ref);
+    for (size_t i = 0; i < STT_MAX; ++i) {
+        const char* tex_ref = m->textures[i].tex_ref;
+        if (tex_ref)
+            free((void*)m->textures[i].tex_ref);
+    }
 }
 
 static void free_texture(struct scene_texture* t)

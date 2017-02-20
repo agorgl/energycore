@@ -49,7 +49,15 @@ struct scene {
     /* Materials */
     struct scene_material {
         const char* ref;
-        const char* albedo_tex_ref;
+        struct {
+            const char* tex_ref;
+            enum {
+                STT_ALBEDO = 0,
+                STT_NORMAL,
+                STT_MAX
+            } type;
+            float scale[2];
+        } textures[2];
     }* materials;
     size_t num_materials;
     /* Objects */

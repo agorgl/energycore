@@ -102,11 +102,16 @@ static void load_data(struct game_context* ctx, struct scene* sc)
         if (!p) {
             /* Store material */
             struct material* mat = calloc(1, sizeof(struct material));
-            /* Set albedo texture */
-            if (m->albedo_tex_ref) {
-                hm_ptr* p = hashmap_get(&ctx->tex_store, hm_cast(m->albedo_tex_ref));
-                if (p)
-                    mat->diff_tex = *(struct tex_hndl*)*p;
+            /* Set texture parameters */
+            for (int j = 0; j < MAT_MAX; ++j) {
+                const char* tex_ref = m->textures[j].tex_ref;
+                if (tex_ref) {
+                    hm_ptr* p = hashmap_get(&ctx->tex_store, hm_cast(tex_ref));
+                    if (p)
+                        mat->tex[j].hndl.id = ((struct tex_hndl*)*p)->id;
+                    mat->tex[j].scl[0] = m->textures[j].scale[0];
+                    mat->tex[j].scl[1] = m->textures[j].scale[1];
+                }
             }
             hashmap_put(&ctx->mat_store, hm_cast(m->ref), hm_cast(mat));
         }
@@ -126,8 +131,11 @@ static void load_data(struct game_context* ctx, struct scene* sc)
         if (so->mdl_ref) {
             struct render_component* rendr_c = render_component_create(&ctx->world->render_comp_dbuf, e);
             rendr_c->model = (struct model_hndl*)*hashmap_get(&ctx->model_store, hm_cast(so->mdl_ref));
-            for (size_t j = 0; j < so->num_mat_refs; ++j)
-                rendr_c->materials[j] = (struct material*)*hashmap_get(&ctx->mat_store, hm_cast(so->mat_refs[j]));
+            for (size_t j = 0; j < so->num_mat_refs && j < 16; ++j) {
+                hm_ptr* p = hashmap_get(&ctx->mat_store, hm_cast(so->mat_refs[j]));
+                if (p)
+                    rendr_c->materials[j] = (struct material*)*p;
+            }
         }
         /* Create and set transform component */
         float* pos = so->transform.translation;
@@ -390,9 +398,12 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
             rm->vao = mh->vao;
             rm->ebo = mh->ebo;
             rm->indice_count = mh->indice_count;
-            if (rc->materials[mh->mat_idx])
-                rm->material.diff_tex = rc->materials[mh->mat_idx]->diff_tex.id;
-            else {
+            if (rc->materials[mh->mat_idx]) {
+                rm->material.diff_tex = rc->materials[mh->mat_idx]->tex[MAT_ALBEDO].hndl.id;
+                float* scl = rc->materials[mh->mat_idx]->tex[MAT_ALBEDO].scl;
+                rm->material.diff_tex_scl[0] = scl[0];
+                rm->material.diff_tex_scl[1] = scl[1];
+            } else {
                 /* Default to white color */
                 rm->material.diff_col[0] = 1.0f;
                 rm->material.diff_col[1] = 1.0f;

@@ -54,8 +54,17 @@ struct model_hndl
 
 struct tex_hndl { unsigned int id; };
 
+enum material_attr {
+    MAT_ALBEDO = 0,
+    MAT_NORMAL,
+    MAT_MAX
+};
+
 struct material {
-    struct tex_hndl diff_tex;
+    struct {
+        struct tex_hndl hndl;
+        float scl[2];
+    } tex[MAT_MAX];
 };
 
 /* Geometry gpu data */

@@ -10,6 +10,7 @@ in VS_OUT {
 
 struct material {
     sampler2D albedo_tex;
+    vec2 albedo_scl;
     vec3 albedo_col;
 };
 uniform struct material mat;
@@ -17,5 +18,5 @@ uniform struct material mat;
 void main()
 {
     g_normal = normalize(fs_in.normal);
-    g_albedo = texture(mat.albedo_tex, fs_in.uv) + vec4(mat.albedo_col, 1.0);
+    g_albedo = texture(mat.albedo_tex, fs_in.uv * mat.albedo_scl) + vec4(mat.albedo_col, 1.0);
 }

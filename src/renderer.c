@@ -104,6 +104,7 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, rm->material.diff_tex);
         glUniform3fv(glGetUniformLocation(shdr, "mat.albedo_col"), 1, rm->material.diff_col);
+        glUniform2fv(glGetUniformLocation(shdr, "mat.albedo_scl"), 1, rm->material.diff_tex_scl);
         /* Render mesh */
         glBindVertexArray(rm->vao);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rm->ebo);

@@ -47,6 +47,7 @@ struct renderer_mesh {
     struct {
         float diff_col[3];
         unsigned int diff_tex;
+        float diff_tex_scl[2];
     } material;
 };
 
