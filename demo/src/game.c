@@ -4,6 +4,7 @@
 #include <string.h>
 #include <assert.h>
 #include <math.h>
+#include <prof.h>
 #include <glad/glad.h>
 #include <gfxwnd/window.h>
 #include "gpures.h"
@@ -300,7 +301,10 @@ void game_init(struct game_context* ctx)
     /* Load scene file */
     struct scene* sc = scene_from_file(scene_file);
     /* Load data into GPU and construct world entities */
+    timepoint_t t1 = millisecs();
     load_data(ctx, sc);
+    timepoint_t t2 = millisecs();
+    printf("Total time: %lu:%lu\n", (t2 - t1) / 1000, (t2 - t1) % 1000);
     scene_destroy(sc);
 
     /* Load shaders */
