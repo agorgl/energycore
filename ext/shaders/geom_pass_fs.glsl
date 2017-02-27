@@ -13,7 +13,7 @@ struct material {
     vec2 albedo_scl;
     vec3 albedo_col;
 };
-uniform struct material mat;
+uniform material mat;
 
 void main()
 {

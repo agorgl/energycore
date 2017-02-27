@@ -8,7 +8,7 @@ struct gbuffer {
     sampler2DMS albedo;
     sampler2DMS depth;
 };
-uniform struct gbuffer gbuf;
+uniform gbuffer gbuf;
 uniform vec2 u_screen;
 uniform mat4 u_inv_view_proj;
 

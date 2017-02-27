@@ -7,7 +7,7 @@ struct dir_light {
     vec3 direction;
     vec3 color;
 };
-uniform struct dir_light dir_l;
+uniform dir_light dir_l;
 uniform vec3 view_pos;
 
 void main()
