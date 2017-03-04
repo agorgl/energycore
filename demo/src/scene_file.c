@@ -80,6 +80,9 @@ static void parse_scene_object(struct json_object_element_s* eso, struct scene_o
                 scn_obj->mat_refs[i] = strdup(mat_key);
                 ++i;
             }
+        } else if (strncmp(attr->name->string, "mgroup_name", attr->name->string_size) == 0) {
+            const char* mgroup = ((struct json_string_s*)attr->value->payload)->string;
+            scn_obj->mgroup_name = strdup(mgroup);
         }
     }
 }
@@ -120,6 +123,7 @@ static void copy_scene_object(struct scene_object* dst, struct scene_object* src
     dst->parent_ref = src->parent_ref ? strdup(src->parent_ref) : 0;
     dst->num_mat_refs = src->num_mat_refs;
     dst->mat_refs = calloc(dst->num_mat_refs, sizeof(const char*));
+    dst->mgroup_name = src->mgroup_name ? strdup(src->mgroup_name) : 0;
     for (size_t i = 0; i < src->num_mat_refs; ++i)
         dst->mat_refs[i] = strdup(src->mat_refs[i]);
     memcpy(&dst->transform, &src->transform, sizeof(((struct scene_object*)0)->transform));
@@ -420,6 +424,8 @@ static void free_scene_object(struct scene_object* o)
         free((void*)o->parent_ref);
     if (o->mdl_ref)
         free((void*)o->mdl_ref);
+    if (o->mgroup_name)
+        free((void*)o->mgroup_name);
     if (o->mat_refs) {
         for (size_t j = 0; j < o->num_mat_refs; ++j)
             free((void*)o->mat_refs[j]);

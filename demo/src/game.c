@@ -67,6 +67,16 @@ static void on_fb_size(struct window* wnd, unsigned int width, unsigned int heig
     renderer_resize(&ctx->rndr_state, width, height);
 }
 
+static int mesh_group_offset_from_name(struct model_hndl* m, const char* mgroup_name)
+{
+    for (unsigned int i = 0; i <m->num_mesh_groups; ++i) {
+        if (strcmp(m->mesh_groups[i]->name, mgroup_name) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 static void load_data(struct game_context* ctx, struct scene* sc)
 {
     /* Initialize model, texture and material stores */
@@ -130,12 +140,21 @@ static void load_data(struct game_context* ctx, struct scene* sc)
         entity_t e = entity_create(&ctx->world->emgr);
         /* Create and set render component */
         if (so->mdl_ref) {
-            struct render_component* rendr_c = render_component_create(&ctx->world->render_comp_dbuf, e);
-            rendr_c->model = (struct model_hndl*)hm_pcast(*hashmap_get(&ctx->model_store, hm_cast(so->mdl_ref)));
-            for (size_t j = 0; j < so->num_mat_refs && j < 16; ++j) {
-                hm_ptr* p = hashmap_get(&ctx->mat_store, hm_cast(so->mat_refs[j]));
-                if (p)
-                    rendr_c->materials[j] = (struct material*)hm_pcast(*p);
+            struct model_hndl* mhdl = (struct model_hndl*)hm_pcast(*hashmap_get(&ctx->model_store, hm_cast(so->mdl_ref)));
+            int mgroup_idx = -1;
+            if (so->mgroup_name)
+                mgroup_idx = mesh_group_offset_from_name(mhdl, so->mgroup_name);
+            if (mgroup_idx != -1) {
+                struct render_component* rendr_c = render_component_create(&ctx->world->render_comp_dbuf, e);
+                rendr_c->model = mhdl;
+                rendr_c->mesh_group_idx = mgroup_idx;
+                for (size_t j = 0; j < so->num_mat_refs && j < 16; ++j) {
+                    hm_ptr* p = hashmap_get(&ctx->mat_store, hm_cast(so->mat_refs[j]));
+                    if (p)
+                        rendr_c->materials[j] = (struct material*)hm_pcast(*p);
+                }
+            } else {
+                printf("Mesh group offset not found for %s!\n", so->mgroup_name);
             }
         }
         /* Create and set transform component */
@@ -379,8 +398,10 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
     for (unsigned int i = 0; i < num_ents; ++i) {
         entity_t e = entity_mgr_at(&ctx->world->emgr, i);
         struct render_component* rc = render_component_lookup(&ctx->world->render_comp_dbuf, e);
-        if (rc)
-            ri->num_meshes += rc->model->num_meshes;
+        if (rc) {
+            struct mesh_group* mgroup = rc->model->mesh_groups[rc->mesh_group_idx];
+            ri->num_meshes += mgroup->num_mesh_offs;
+        }
     }
 
     /* Populate renderer mesh inputs */
@@ -396,15 +417,21 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
             &ctx->world->transform_dbuf,
             transform_component_lookup(&ctx->world->transform_dbuf, e));
         struct model_hndl* mdlh = rc->model;
-        for (unsigned int j = 0; j < mdlh->num_meshes; ++j) {
-            struct mesh_hndl* mh = mdlh->meshes + j;
+        struct mesh_group* mgroup = mdlh->mesh_groups[rc->mesh_group_idx];
+        for (unsigned int j = 0; j < mgroup->num_mesh_offs; ++j) {
+            /* Source */
+            size_t mesh_ofs = mgroup->mesh_offsets[j];
+            assert(mesh_ofs < mdlh->num_meshes);
+            struct mesh_hndl* mh = mdlh->meshes + mesh_ofs;
+            /* Target */
             struct renderer_mesh* rm = ri->meshes + cur_mesh;
             rm->vao = mh->vao;
             rm->ebo = mh->ebo;
             rm->indice_count = mh->indice_count;
-            if (rc->materials[mh->mat_idx]) {
-                rm->material.diff_tex = rc->materials[mh->mat_idx]->tex[MAT_ALBEDO].hndl.id;
-                float* scl = rc->materials[mh->mat_idx]->tex[MAT_ALBEDO].scl;
+            struct material* mat = rc->materials[mh->mat_idx];
+            if (mat) {
+                rm->material.diff_tex = mat->tex[MAT_ALBEDO].hndl.id;
+                float* scl = mat->tex[MAT_ALBEDO].scl;
                 rm->material.diff_tex_scl[0] = scl[0];
                 rm->material.diff_tex_scl[1] = scl[1];
             } else {

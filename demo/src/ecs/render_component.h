@@ -40,6 +40,7 @@
 /* Packed render component data */
 struct render_component {
     struct model_hndl* model;
+    size_t mesh_group_idx;
     struct material* materials[MAX_MATERIALS];
 };
 

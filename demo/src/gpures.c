@@ -76,8 +76,11 @@ struct model_hndl* model_to_gpu(struct model* m)
     /* Move skeleton and frameset */
     model->skel = m->skeleton;
     model->fset = m->frameset;
+    model->mesh_groups = m->mesh_groups;
+    model->num_mesh_groups = m->num_mesh_groups;
     m->skeleton = 0;
     m->frameset = 0;
+    m->mesh_groups = 0;
 
     return model;
 }
@@ -123,6 +126,9 @@ void model_free_from_gpu(struct model_hndl* mdlh)
     /* Free frameset if exists */
     if (mdlh->fset)
         frameset_delete(mdlh->fset);
+    for (unsigned int i = 0; i < mdlh->num_mesh_groups; ++i)
+        mesh_group_delete(mdlh->mesh_groups[i]);
+    free(mdlh->mesh_groups);
     free(mdlh->meshes);
     free(mdlh);
 }

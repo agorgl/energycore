@@ -70,6 +70,7 @@ struct scene {
             float scaling[3];
         } transform;
         const char* mdl_ref;
+        const char* mgroup_name;
         const char** mat_refs;
         size_t num_mat_refs;
         const char* parent_ref;

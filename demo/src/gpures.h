@@ -50,6 +50,8 @@ struct model_hndl
     unsigned int num_meshes;
     struct skeleton* skel;
     struct frameset* fset;
+    struct mesh_group** mesh_groups;
+    unsigned int num_mesh_groups;
 };
 
 struct tex_hndl { unsigned int id; };
