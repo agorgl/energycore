@@ -1,4 +1,5 @@
 #include <energycore/renderer.h>
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -10,7 +11,8 @@
 #include "sh_gi.h"
 #include "gbuffer.h"
 #include "glutils.h"
-#include <assert.h>
+#include "frprof.h"
+#include "dbgtxt.h"
 
 /*-----------------------------------------------------------------
  * Initialization
@@ -50,6 +52,12 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
 
     /* Fetch shaders */
     renderer_shdr_fetch(rs);
+
+    /* Initialize frame profiler */
+    rs->fprof = frame_prof_init();
+
+    /* Initialize debug text rendering */
+    dbgtxt_init();
 }
 
 void renderer_shdr_fetch(struct renderer_state* rs)
@@ -209,11 +217,15 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
     GLint cur_fb;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &cur_fb);
     /* Geometry pass */
+    frame_prof_timepoint_start(rs->fprof);
     geometry_pass(rs, ri, view->m, proj->m);
+    frame_prof_timepoint_end(rs->fprof);
     /* Copy depth to fb */
     gbuffer_blit_depth_to_fb(rs->gbuf, cur_fb);
     /* Direct Light pass */
+    frame_prof_timepoint_start(rs->fprof);
     light_pass(rs, ri, (mat4*)view, (mat4*)proj);
+    frame_prof_timepoint_end(rs->fprof);
     render_sky(rs, ri, view->m, proj->m);
 }
 
@@ -266,6 +278,13 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     sh_gi_render(rs->sh_gi_rs, view, rs->proj.m, sh_gi_prepare_gi_render, &ud);
     sh_gi_vis_probes(rs->sh_gi_rs, view, rs->proj.m, 1);
 #endif
+    /* Show profiling info */
+    frame_prof_flush(rs->fprof);
+    float gpass_msec = frame_prof_timepoint_msec(rs->fprof, 0);
+    float light_msec = frame_prof_timepoint_msec(rs->fprof, 1);
+    char buf[128];
+    snprintf(buf, sizeof(buf), "GPass: %.3f\nLPass: %.3f", gpass_msec, light_msec);
+    dbgtxt_prnt(buf, 10, 10);
 }
 
 void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height)
@@ -285,6 +304,8 @@ void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int
  *-----------------------------------------------------------------*/
 void renderer_destroy(struct renderer_state* rs)
 {
+    dbgtxt_destroy();
+    frame_prof_destroy(rs->fprof);
     sh_gi_destroy(rs->sh_gi_rs);
     free(rs->sh_gi_rs);
     sky_preetham_destroy(rs->sky_rs.preeth);
