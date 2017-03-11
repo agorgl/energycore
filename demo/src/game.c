@@ -13,6 +13,9 @@
 
 #define SCENE_FILE "ext/scenes/sample_scene.json"
 
+/* Fw declarations */
+static void prepare_renderer_input(struct game_context* ctx, struct renderer_input* ri);
+
 static void APIENTRY gl_debug_proc(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* user_param)
 {
     (void) source;
@@ -348,6 +351,9 @@ void game_init(struct game_context* ctx)
 
     /* Visualizations setup */
     ctx->visualize_normals = 0;
+
+    /* Build initial renderer input */
+    prepare_renderer_input(ctx, &ctx->cached_ri);
 }
 
 void game_update(void* userdata, float dt)
@@ -488,20 +494,15 @@ static void visualize_normals(struct game_context* ctx, mat4* view, mat4* proj)
 
 void game_render(void* userdata, float interpolation)
 {
-    (void) interpolation;
     struct game_context* ctx = userdata;
 
-    /* Fill in struct with renderer input */
-    struct renderer_input ri;
-    prepare_renderer_input(ctx, &ri);
-    ri.sky_tex = ctx->sky_tex->id;
-    ri.sky_type = ctx->dynamic_sky ? RST_PREETHAM : RST_TEXTURE;
+    /* Update renderer input dynamic parameters */
+    ctx->cached_ri.sky_tex = ctx->sky_tex->id;
+    ctx->cached_ri.sky_type = ctx->dynamic_sky ? RST_PREETHAM : RST_TEXTURE;
 
     /* Render */
     mat4 iview = camera_interpolated_view(&ctx->cam, interpolation);
-    renderer_render(&ctx->rndr_state, &ri, (float*)&iview);
-    free(ri.lights);
-    free(ri.meshes);
+    renderer_render(&ctx->rndr_state, &ctx->cached_ri, (float*)&iview);
 
     if (ctx->visualize_normals)
         visualize_normals(ctx, &iview, &ctx->rndr_state.proj);
@@ -520,6 +521,9 @@ void game_perf_update(void* userdata, float msec, float fps)
 
 void game_shutdown(struct game_context* ctx)
 {
+    /* Free cached renderer input */
+    free(ctx->cached_ri.lights);
+    free(ctx->cached_ri.meshes);
     /* Unbind GPU handles */
     glUseProgram(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
