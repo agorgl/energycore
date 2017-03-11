@@ -9,6 +9,7 @@
 #include "sky_preetham.h"
 #include "probe_vis.h"
 #include "sh_gi.h"
+#include "bbrndr.h"
 #include "gbuffer.h"
 #include "glutils.h"
 #include "frprof.h"
@@ -50,6 +51,10 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     rs->sh_gi_rs = malloc(sizeof(struct sh_gi_renderer));
     sh_gi_init(rs->sh_gi_rs);
 
+    /* Initialize internal bbox renderer state */
+    rs->bbox_rs = malloc(sizeof(struct bbox_rndr));
+    bbox_rndr_init(rs->bbox_rs);
+
     /* Fetch shaders */
     renderer_shdr_fetch(rs);
 
@@ -58,6 +63,10 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
 
     /* Initialize debug text rendering */
     dbgtxt_init();
+
+    /* Default options */
+    rs->options.show_bboxes = 0;
+    rs->options.show_fprof = 1;
 }
 
 void renderer_shdr_fetch(struct renderer_state* rs)
@@ -263,6 +272,24 @@ static void sh_gi_prepare_gi_render(mat4* view, mat4* proj, void* userdata)
 #endif
 
 /*-----------------------------------------------------------------
+ * Visualizations
+ *-----------------------------------------------------------------*/
+static void visualize_bboxes(struct renderer_state* rs, struct renderer_input* ri, float view[16])
+{
+    glDepthMask(GL_FALSE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    /* Loop through meshes */
+    for (unsigned int i = 0; i < ri->num_meshes; ++i) {
+        /* Setup mesh to be rendered */
+        struct renderer_mesh* rm = ri->meshes + i;
+        /* Upload model matrix */
+        bbox_rndr_render(rs->bbox_rs, rm->model_mat, view, rs->proj.m, rm->aabb.min, rm->aabb.max);
+    }
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glDepthMask(GL_TRUE);
+}
+
+/*-----------------------------------------------------------------
  * Public interface
  *-----------------------------------------------------------------*/
 void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view[16])
@@ -278,13 +305,18 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     sh_gi_render(rs->sh_gi_rs, view, rs->proj.m, sh_gi_prepare_gi_render, &ud);
     sh_gi_vis_probes(rs->sh_gi_rs, view, rs->proj.m, 1);
 #endif
+    /* Visualize bboxes */
+    if (rs->options.show_bboxes)
+        visualize_bboxes(rs, ri, view);
     /* Show profiling info */
     frame_prof_flush(rs->fprof);
-    float gpass_msec = frame_prof_timepoint_msec(rs->fprof, 0);
-    float light_msec = frame_prof_timepoint_msec(rs->fprof, 1);
-    char buf[128];
-    snprintf(buf, sizeof(buf), "GPass: %.3f\nLPass: %.3f", gpass_msec, light_msec);
-    dbgtxt_prnt(buf, 10, 10);
+    if (rs->options.show_fprof) {
+        float gpass_msec = frame_prof_timepoint_msec(rs->fprof, 0);
+        float light_msec = frame_prof_timepoint_msec(rs->fprof, 1);
+        char buf[128];
+        snprintf(buf, sizeof(buf), "GPass: %.3f\nLPass: %.3f", gpass_msec, light_msec);
+        dbgtxt_prnt(buf, 10, 10);
+    }
 }
 
 void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height)
@@ -306,6 +338,8 @@ void renderer_destroy(struct renderer_state* rs)
 {
     dbgtxt_destroy();
     frame_prof_destroy(rs->fprof);
+    bbox_rndr_destroy(rs->bbox_rs);
+    free(rs->bbox_rs);
     sh_gi_destroy(rs->sh_gi_rs);
     free(rs->sh_gi_rs);
     sky_preetham_destroy(rs->sky_rs.preeth);

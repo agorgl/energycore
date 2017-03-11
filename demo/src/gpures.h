@@ -42,6 +42,7 @@ struct mesh_hndl
     unsigned int ebo;
     unsigned int indice_count;
     unsigned int mat_idx;
+    float aabb_min[3], aabb_max[3];
 };
 
 struct model_hndl

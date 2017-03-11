@@ -45,6 +45,8 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         ctx->cam.move_speed *= (ctx->cam.move_speed < 10e2) ? 2.0f : 1.0f;
     else if (action == KEY_ACTION_RELEASE && key == KEY_KP_SUBTRACT)
         ctx->cam.move_speed /= (ctx->cam.move_speed > 10e-2) ? 2.0f : 1.0f;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_B)
+        ctx->rndr_state.options.show_bboxes = !ctx->rndr_state.options.show_bboxes;
     else if (action == KEY_ACTION_RELEASE && key ==  KEY_U) {
         if (glIsEnabled(GL_MULTISAMPLE))
             glDisable(GL_MULTISAMPLE);
@@ -440,6 +442,8 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
                 rm->material.diff_col[1] = 1.0f;
                 rm->material.diff_col[2] = 1.0f;
             }
+            memcpy(rm->aabb.min, mh->aabb_min, 3 * sizeof(float));
+            memcpy(rm->aabb.max, mh->aabb_max, 3 * sizeof(float));
             memcpy(rm->model_mat, transform, 16 * sizeof(float));
             ++cur_mesh;
         }

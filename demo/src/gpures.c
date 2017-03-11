@@ -7,6 +7,21 @@
 #include <assets/assetload.h>
 #include "glutil.h"
 
+static void mesh_calc_aabb(struct mesh* m, float min[3], float max[3])
+{
+    memset(min, 0, 3 * sizeof(float));
+    memset(max, 0, 3 * sizeof(float));
+    for (int i = 0; i < m->num_verts; ++i) {
+        struct vertex* v = m->vertices + i;
+        for (unsigned int j = 0; j < 3; ++j) {
+            if (v->position[j] < min[j])
+                min[j] = v->position[j];
+            else if (v->position[j] > max[j])
+                max[j] = v->position[j];
+        }
+    }
+}
+
 struct model_hndl* model_to_gpu(struct model* m)
 {
     struct model_hndl* model = calloc(1, sizeof(struct model_hndl));
@@ -69,6 +84,10 @@ struct model_hndl* model_to_gpu(struct model* m)
                 mesh->indices,
                 GL_STATIC_DRAW);
         mh->indice_count = mesh->num_indices;
+
+        /* Compute local AABB */
+        mesh_calc_aabb(mesh, mh->aabb_min, mh->aabb_max);
+
         total_verts += mesh->num_verts;
         total_indices += mesh->num_indices;
     }
