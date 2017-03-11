@@ -43,8 +43,8 @@ static const GLuint box_indices[] = {
 
 void bbox_rndr_init(struct bbox_rndr* st)
 {
-    /* Build shader */
-    st->shdr = shader_from_srcs(vs_src, 0, fs_src);
+    /* Build visualization shader */
+    st->vis_shdr = shader_from_srcs(vs_src, 0, fs_src);
 
     /* Create cube vao and empty vbo */
     GLuint vao, vbo, ebo;
@@ -74,7 +74,26 @@ void bbox_rndr_init(struct bbox_rndr* st)
     st->indice_count = indice_count;
 }
 
-void bbox_rndr_render(struct bbox_rndr* st, float model[16], float view[16], float proj[16], float aabb_min[3], float aabb_max[3])
+void bbox_rndr_vis(struct bbox_rndr* st, float model[16], float view[16], float proj[16], float aabb_min[3], float aabb_max[3])
+{
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+    GLuint shdr = st->vis_shdr;
+    glUseProgram(shdr);
+    GLuint proj_mat_loc = glGetUniformLocation(shdr, "proj");
+    GLuint view_mat_loc = glGetUniformLocation(shdr, "view");
+    GLuint modl_mat_loc = glGetUniformLocation(shdr, "model");
+    glUniformMatrix4fv(proj_mat_loc, 1, GL_FALSE, proj);
+    glUniformMatrix4fv(view_mat_loc, 1, GL_FALSE, view);
+    glUniformMatrix4fv(modl_mat_loc, 1, GL_FALSE, model);
+
+    bbox_rndr_render(st, aabb_min, aabb_max);
+    glUseProgram(0);
+
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+}
+
+void bbox_rndr_render(struct bbox_rndr* st, float aabb_min[3], float aabb_max[3])
 {
     float verts[24] = {
         aabb_max[0], aabb_max[1], aabb_max[2],
@@ -90,21 +109,11 @@ void bbox_rndr_render(struct bbox_rndr* st, float model[16], float view[16], flo
     glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    GLuint shdr = st->shdr;
-    glUseProgram(shdr);
-    GLuint proj_mat_loc = glGetUniformLocation(shdr, "proj");
-    GLuint view_mat_loc = glGetUniformLocation(shdr, "view");
-    GLuint modl_mat_loc = glGetUniformLocation(shdr, "model");
-    glUniformMatrix4fv(proj_mat_loc, 1, GL_FALSE, proj);
-    glUniformMatrix4fv(view_mat_loc, 1, GL_FALSE, view);
-    glUniformMatrix4fv(modl_mat_loc, 1, GL_FALSE, model);
-
     glBindVertexArray(st->vao);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, st->ebo);
     glDrawElements(GL_TRIANGLES, st->indice_count, GL_UNSIGNED_INT, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
-    glUseProgram(0);
 }
 
 void bbox_rndr_destroy(struct bbox_rndr* st)
@@ -112,5 +121,5 @@ void bbox_rndr_destroy(struct bbox_rndr* st)
     glDeleteBuffers(1, &st->ebo);
     glDeleteBuffers(1, &st->vbo);
     glDeleteVertexArrays(1, &st->vao);
-    glDeleteProgram(st->shdr);
+    glDeleteProgram(st->vis_shdr);
 }

@@ -32,13 +32,14 @@
 #define _BBRNDR_H_
 
 struct bbox_rndr {
-    unsigned int shdr;
+    unsigned int vis_shdr;
     unsigned int vao, vbo, ebo;
     unsigned int indice_count;
 };
 
 void bbox_rndr_init(struct bbox_rndr* st);
-void bbox_rndr_render(struct bbox_rndr* st, float model[16], float view[16], float proj[16], float aabb_min[3], float aabb_max[3]);
+void bbox_rndr_render(struct bbox_rndr* st, float aabb_min[3], float aabb_max[3]);
+void bbox_rndr_vis(struct bbox_rndr* st, float model[16], float view[16], float proj[16], float aabb_min[3], float aabb_max[3]);
 void bbox_rndr_destroy(struct bbox_rndr* st);
 
 #endif /* ! _BBRNDR_H_ */

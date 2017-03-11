@@ -276,17 +276,13 @@ static void sh_gi_prepare_gi_render(mat4* view, mat4* proj, void* userdata)
  *-----------------------------------------------------------------*/
 static void visualize_bboxes(struct renderer_state* rs, struct renderer_input* ri, float view[16])
 {
-    glDepthMask(GL_FALSE);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     /* Loop through meshes */
     for (unsigned int i = 0; i < ri->num_meshes; ++i) {
         /* Setup mesh to be rendered */
         struct renderer_mesh* rm = ri->meshes + i;
         /* Upload model matrix */
-        bbox_rndr_render(rs->bbox_rs, rm->model_mat, view, rs->proj.m, rm->aabb.min, rm->aabb.max);
+        bbox_rndr_vis(rs->bbox_rs, rm->model_mat, view, rs->proj.m, rm->aabb.min, rm->aabb.max);
     }
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    glDepthMask(GL_TRUE);
 }
 
 /*-----------------------------------------------------------------
