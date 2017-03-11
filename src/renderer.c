@@ -11,6 +11,7 @@
 #include "sh_gi.h"
 #include "bbrndr.h"
 #include "gbuffer.h"
+#include "occull.h"
 #include "glutils.h"
 #include "frprof.h"
 #include "dbgtxt.h"
@@ -55,6 +56,10 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     rs->bbox_rs = malloc(sizeof(struct bbox_rndr));
     bbox_rndr_init(rs->bbox_rs);
 
+    /* Initialize internal occlusion state */
+    rs->occl_st = malloc(sizeof(struct occull_state));
+    occull_init(rs->occl_st);
+
     /* Fetch shaders */
     renderer_shdr_fetch(rs);
 
@@ -65,6 +70,7 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     dbgtxt_init();
 
     /* Default options */
+    rs->options.use_occlusion_culling = 0;
     rs->options.show_bboxes = 0;
     rs->options.show_fprof = 1;
 }
@@ -109,12 +115,26 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
     glUniform1i(glGetUniformLocation(shdr, "mat.albedo_tex"), 0);
 
     /* Loop through meshes */
+    rs->dbginfo.num_visible_objs = 0;
     for (unsigned int i = 0; i < ri->num_meshes; ++i) {
         /* Setup mesh to be rendered */
         struct renderer_mesh* rm = ri->meshes + i;
+        /* Determine object visibility using occlusion culling */
+        unsigned int visible = 1;
+        if (rs->options.use_occlusion_culling) {
+            /* Begin occlusion query, use index i as handle */
+            occull_object_begin(rs->occl_st, i);
+            visible = occull_should_render(rs->occl_st, rm->aabb.min, rm->aabb.max);
+            if (!visible) {
+                occull_object_end(rs->occl_st);
+                continue;
+            }
+        }
+        if (visible)
+            rs->dbginfo.num_visible_objs++;
         /* Upload model matrix */
         glUniformMatrix4fv(modl_mat_loc, 1, GL_FALSE, rm->model_mat);
-        /* Set font face */
+        /* Set front face */
         float model_det = mat4_det(*(mat4*)rm->model_mat);
         glFrontFace(model_det < 0 ? GL_CW : GL_CCW);
         /* Set material parameters */
@@ -130,6 +150,9 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
         glBindTexture(GL_TEXTURE_2D, 0);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
+        /* End occlusion query for current object */
+        if (rs->options.use_occlusion_culling)
+            occull_object_end(rs->occl_st);
     }
     glUseProgram(0);
     glFrontFace(GL_CCW);
@@ -292,6 +315,7 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
 {
     /* Render main scene */
     render_scene(rs, ri, (mat4*)view, &rs->proj);
+
     /* Render GI */
 #ifdef WITH_GI
     struct sh_gi_render_scene_userdata ud;
@@ -301,16 +325,22 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     sh_gi_render(rs->sh_gi_rs, view, rs->proj.m, sh_gi_prepare_gi_render, &ud);
     sh_gi_vis_probes(rs->sh_gi_rs, view, rs->proj.m, 1);
 #endif
+
     /* Visualize bboxes */
     if (rs->options.show_bboxes)
         visualize_bboxes(rs, ri, view);
-    /* Show profiling info */
+
+    /* Update debug info */
     frame_prof_flush(rs->fprof);
+    rs->dbginfo.gpass_msec = frame_prof_timepoint_msec(rs->fprof, 0);
+    rs->dbginfo.lpass_msec = frame_prof_timepoint_msec(rs->fprof, 1);
+
+    /* Show debug info */
     if (rs->options.show_fprof) {
-        float gpass_msec = frame_prof_timepoint_msec(rs->fprof, 0);
-        float light_msec = frame_prof_timepoint_msec(rs->fprof, 1);
         char buf[128];
-        snprintf(buf, sizeof(buf), "GPass: %.3f\nLPass: %.3f", gpass_msec, light_msec);
+        snprintf(buf, sizeof(buf), "GPass: %.3f\nLPass: %.3f\nVis/Tot: %u/%u",
+                 rs->dbginfo.gpass_msec, rs->dbginfo.lpass_msec,
+                 rs->dbginfo.num_visible_objs, ri->num_meshes);
         dbgtxt_prnt(buf, 10, 10);
     }
 }
@@ -334,6 +364,8 @@ void renderer_destroy(struct renderer_state* rs)
 {
     dbgtxt_destroy();
     frame_prof_destroy(rs->fprof);
+    occull_destroy(rs->occl_st);
+    free(rs->occl_st);
     bbox_rndr_destroy(rs->bbox_rs);
     free(rs->bbox_rs);
     sh_gi_destroy(rs->sh_gi_rs);

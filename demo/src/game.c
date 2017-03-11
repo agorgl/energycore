@@ -47,6 +47,8 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         ctx->cam.move_speed /= (ctx->cam.move_speed > 10e-2) ? 2.0f : 1.0f;
     else if (action == KEY_ACTION_RELEASE && key == KEY_B)
         ctx->rndr_state.options.show_bboxes = !ctx->rndr_state.options.show_bboxes;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_C)
+        ctx->rndr_state.options.use_occlusion_culling = !ctx->rndr_state.options.use_occlusion_culling;
     else if (action == KEY_ACTION_RELEASE && key ==  KEY_U) {
         if (glIsEnabled(GL_MULTISAMPLE))
             glDisable(GL_MULTISAMPLE);
