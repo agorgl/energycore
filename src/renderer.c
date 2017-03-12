@@ -119,6 +119,11 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
     for (unsigned int i = 0; i < ri->num_meshes; ++i) {
         /* Setup mesh to be rendered */
         struct renderer_mesh* rm = ri->meshes + i;
+        /* Upload model matrix */
+        glUniformMatrix4fv(modl_mat_loc, 1, GL_FALSE, rm->model_mat);
+        /* Set front face */
+        float model_det = mat4_det(*(mat4*)rm->model_mat);
+        glFrontFace(model_det < 0 ? GL_CW : GL_CCW);
         /* Determine object visibility using occlusion culling */
         unsigned int visible = 1;
         if (rs->options.use_occlusion_culling) {
@@ -132,11 +137,6 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
         }
         if (visible)
             rs->dbginfo.num_visible_objs++;
-        /* Upload model matrix */
-        glUniformMatrix4fv(modl_mat_loc, 1, GL_FALSE, rm->model_mat);
-        /* Set front face */
-        float model_det = mat4_det(*(mat4*)rm->model_mat);
-        glFrontFace(model_det < 0 ? GL_CW : GL_CCW);
         /* Set material parameters */
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, rm->material.diff_tex);
