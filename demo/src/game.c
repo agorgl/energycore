@@ -52,6 +52,8 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         ctx->rndr_state.options.show_bboxes = !ctx->rndr_state.options.show_bboxes;
     else if (action == KEY_ACTION_RELEASE && key == KEY_C)
         ctx->rndr_state.options.use_occlusion_culling = !ctx->rndr_state.options.use_occlusion_culling;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_K)
+        ctx->rndr_state.options.use_normal_mapping = !ctx->rndr_state.options.use_normal_mapping;
     else if (action == KEY_ACTION_RELEASE && key ==  KEY_U) {
         if (glIsEnabled(GL_MULTISAMPLE))
             glDisable(GL_MULTISAMPLE);
@@ -444,6 +446,10 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
                 float* scl = mat->tex[MAT_ALBEDO].scl;
                 rm->material.diff_tex_scl[0] = scl[0];
                 rm->material.diff_tex_scl[1] = scl[1];
+                scl = mat->tex[MAT_NORMAL].scl;
+                rm->material.norm_tex = mat->tex[MAT_NORMAL].hndl.id;
+                rm->material.norm_tex_scl[0] = scl[0];
+                rm->material.norm_tex_scl[1] = scl[1];
             } else {
                 /* Default to white color */
                 rm->material.diff_col[0] = 1.0f;

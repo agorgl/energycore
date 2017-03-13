@@ -6,6 +6,7 @@ in VS_OUT {
     vec2 uv;
     vec3 normal;
     vec3 frag_pos;
+    mat3 TBN;
 } fs_in;
 
 uniform int u_mode;

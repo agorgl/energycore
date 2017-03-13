@@ -5,6 +5,7 @@
 #include <prof.h>
 #include <glad/glad.h>
 #include <assets/assetload.h>
+#include <assets/model/postprocess.h>
 #include "glutil.h"
 
 static void mesh_calc_aabb(struct mesh* m, float min[3], float max[3])
@@ -58,6 +59,12 @@ struct model_hndl* model_to_gpu(struct model* m)
         GLuint nm_attrib = 2;
         glEnableVertexAttribArray(nm_attrib);
         glVertexAttribPointer(nm_attrib, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (GLvoid*)offsetof(struct vertex, normal));
+        GLuint tn_attrib = 3;
+        glEnableVertexAttribArray(tn_attrib);
+        glVertexAttribPointer(tn_attrib, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (GLvoid*)offsetof(struct vertex, tangent));
+        GLuint btn_attrib = 4;
+        glEnableVertexAttribArray(btn_attrib);
+        glVertexAttribPointer(btn_attrib, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (GLvoid*)offsetof(struct vertex, binormal));
 
         /* Create vertex weight data vbo */
         if (mesh->weights) {
@@ -120,6 +127,7 @@ struct model_hndl* model_from_file_to_gpu(const char* filename)
     struct model* m = 0;
     TIMED_LOAD_BEGIN(filename)
     m = model_from_file(filename);
+    model_generate_tangents(m);
     TIMED_LOAD_END
     /* Transfer data to gpu */
     struct model_hndl* h = model_to_gpu(m);

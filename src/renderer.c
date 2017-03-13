@@ -113,6 +113,7 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
 
     /* Set texture locations */
     glUniform1i(glGetUniformLocation(shdr, "mat.albedo_tex"), 0);
+    glUniform1i(glGetUniformLocation(shdr, "mat.normal_tex"), 1);
 
     /* Loop through meshes */
     rs->dbginfo.num_visible_objs = 0;
@@ -142,6 +143,14 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
         glBindTexture(GL_TEXTURE_2D, rm->material.diff_tex);
         glUniform3fv(glGetUniformLocation(shdr, "mat.albedo_col"), 1, rm->material.diff_col);
         glUniform2fv(glGetUniformLocation(shdr, "mat.albedo_scl"), 1, rm->material.diff_tex_scl);
+        int use_nm = 0;
+        if (rs->options.use_normal_mapping) {
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, rm->material.norm_tex);
+            glUniform2fv(glGetUniformLocation(shdr, "mat.normal_scl"), 1, rm->material.norm_tex_scl);
+            use_nm = rm->material.norm_tex ? 1 : 0;
+        }
+        glUniform1i(glGetUniformLocation(shdr, "use_nm"), use_nm);
         /* Render mesh */
         glBindVertexArray(rm->vao);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rm->ebo);

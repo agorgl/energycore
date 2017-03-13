@@ -228,6 +228,8 @@ struct scene* scene_from_file(const char* filepath)
                 int type = -1;
                 if (strncmp(emma->name->string, "MainTex", emma->name->string_size) == 0)
                     type = STT_ALBEDO;
+                else if (strncmp(emma->name->string, "BumpMap", emma->name->string_size) == 0)
+                    type = STT_NORMAL;
                 if (type != -1) {
                     sc->materials[i].textures[type].type = type;
                     for (struct json_object_element_s* tex_attr = ((struct json_object_s*)(emma->value->payload))->start;
