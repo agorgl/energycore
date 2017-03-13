@@ -1,6 +1,8 @@
 #version 330 core
+#include "inc/encoding.glsl"
 layout (location = 0) out vec3 g_normal;
 layout (location = 1) out vec4 g_albedo;
+layout (location = 2) out vec4 g_roughness_metallic;
 
 in VS_OUT {
     vec2 uv;
@@ -27,4 +29,5 @@ void main()
     else
         g_normal = normalize(fs_in.normal);
     g_albedo = texture(mat.albedo_tex, fs_in.uv * mat.albedo_scl) + vec4(mat.albedo_col, 1.0);
+    g_roughness_metallic = vec4(unpack3(0.8), 0.0);
 }

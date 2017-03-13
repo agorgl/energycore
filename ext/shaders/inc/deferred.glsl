@@ -2,11 +2,13 @@
 // deferred.glsl
 //
 #extension GL_ARB_sample_shading : enable
+#include "encoding.glsl"
 
 struct gbuffer {
     sampler2DMS normal;
     sampler2DMS albedo;
     sampler2DMS depth;
+    sampler2DMS roughness_metallic;
 };
 uniform gbuffer gbuf;
 uniform vec2 u_screen;
@@ -17,6 +19,8 @@ struct {
     vec3 ws_pos;
     vec3 normal;
     vec3 albedo;
+    float roughness;
+    float metallic;
 } d;
 
 vec3 reconstruct_wpos_from_depth()
@@ -35,4 +39,7 @@ void fetch_gbuffer_data()
     d.ws_pos = reconstruct_wpos_from_depth();
     d.normal = texelFetch(gbuf.normal, st, gl_SampleID).rgb;
     d.albedo = texelFetch(gbuf.albedo, st, gl_SampleID).rgb;
+    vec4 rm = texelFetch(gbuf.roughness_metallic, st, gl_SampleID).rgba;
+    d.roughness = pack3(rm.rgb);
+    d.metallic = rm.a;
 }

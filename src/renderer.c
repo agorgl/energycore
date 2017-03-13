@@ -175,6 +175,7 @@ static void bind_gbuffer_textures(struct renderer_state* rs, GLuint shdr, mat4* 
     glUniform1i(glGetUniformLocation(shdr, "gbuf.depth"), 0);
     glUniform1i(glGetUniformLocation(shdr, "gbuf.normal"), 1);
     glUniform1i(glGetUniformLocation(shdr, "gbuf.albedo"), 2);
+    glUniform1i(glGetUniformLocation(shdr, "gbuf.roughness_metallic"), 3);
     glUniform2fv(glGetUniformLocation(shdr, "u_screen"), 1, rs->viewport.xy);
     mat4 inv_view_proj = mat4_inverse(mat4_mul_mat4(*proj, *view));
     glUniformMatrix4fv(glGetUniformLocation(shdr, "u_inv_view_proj"), 1, GL_FALSE, inv_view_proj.m);

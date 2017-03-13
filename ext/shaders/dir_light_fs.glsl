@@ -23,8 +23,8 @@ void main()
 
     // Material
     vec3 albedo = d.albedo;
-    float metallic = 0.0;
-    float roughness = 0.8;
+    float metallic = d.metallic;
+    float roughness = d.roughness;
 
     // Directional lighting
     vec3 V = normalize(view_pos - d.ws_pos);
