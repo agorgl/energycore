@@ -54,6 +54,8 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         ctx->rndr_state.options.use_occlusion_culling = !ctx->rndr_state.options.use_occlusion_culling;
     else if (action == KEY_ACTION_RELEASE && key == KEY_K)
         ctx->rndr_state.options.use_normal_mapping = !ctx->rndr_state.options.use_normal_mapping;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_T)
+        ctx->rndr_state.options.show_gbuf_textures = !ctx->rndr_state.options.show_gbuf_textures;
     else if (action == KEY_ACTION_RELEASE && key ==  KEY_U) {
         if (glIsEnabled(GL_MULTISAMPLE))
             glDisable(GL_MULTISAMPLE);

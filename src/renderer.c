@@ -15,6 +15,7 @@
 #include "glutils.h"
 #include "frprof.h"
 #include "dbgtxt.h"
+#include "mrtdbg.h"
 
 /*-----------------------------------------------------------------
  * Initialization
@@ -69,10 +70,14 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     /* Initialize debug text rendering */
     dbgtxt_init();
 
+    /* Initialize multiple render targets debugger */
+    mrtdbg_init();
+
     /* Default options */
     rs->options.use_occlusion_culling = 0;
     rs->options.show_bboxes = 0;
     rs->options.show_fprof = 1;
+    rs->options.show_gbuf_textures = 0;
 }
 
 void renderer_shdr_fetch(struct renderer_state* rs)
@@ -340,6 +345,10 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     if (rs->options.show_bboxes)
         visualize_bboxes(rs, ri, view);
 
+    /* Show gbuffer textures */
+    if (rs->options.show_gbuf_textures)
+        mrtdbg_show_textures(rs->gbuf->fbo);
+
     /* Update debug info */
     frame_prof_flush(rs->fprof);
     rs->dbginfo.gpass_msec = frame_prof_timepoint_msec(rs->fprof, 0);
@@ -372,6 +381,7 @@ void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int
  *-----------------------------------------------------------------*/
 void renderer_destroy(struct renderer_state* rs)
 {
+    mrtdbg_destroy();
     dbgtxt_destroy();
     frame_prof_destroy(rs->fprof);
     occull_destroy(rs->occl_st);
