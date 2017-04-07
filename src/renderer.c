@@ -75,6 +75,7 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
 
     /* Default options */
     rs->options.use_occlusion_culling = 0;
+    rs->options.use_rough_met_maps = 1;
     rs->options.show_bboxes = 0;
     rs->options.show_fprof = 1;
     rs->options.show_gbuf_textures = 0;
@@ -119,17 +120,22 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
     /* Set texture locations */
     glUniform1i(glGetUniformLocation(shdr, "mat.albedo_tex"), 0);
     glUniform1i(glGetUniformLocation(shdr, "mat.normal_tex"), 1);
+    glUniform1i(glGetUniformLocation(shdr, "mat.rough_tex"), 2);
+    glUniform1i(glGetUniformLocation(shdr, "mat.metal_tex"), 3);
 
     /* Loop through meshes */
     rs->dbginfo.num_visible_objs = 0;
     for (unsigned int i = 0; i < ri->num_meshes; ++i) {
         /* Setup mesh to be rendered */
         struct renderer_mesh* rm = ri->meshes + i;
+
         /* Upload model matrix */
         glUniformMatrix4fv(modl_mat_loc, 1, GL_FALSE, rm->model_mat);
+
         /* Set front face */
         float model_det = mat4_det(*(mat4*)rm->model_mat);
         glFrontFace(model_det < 0 ? GL_CW : GL_CCW);
+
         /* Determine object visibility using occlusion culling */
         unsigned int visible = 1;
         if (rs->options.use_occlusion_culling) {
@@ -143,11 +149,14 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
         }
         if (visible)
             rs->dbginfo.num_visible_objs++;
-        /* Set material parameters */
+
+        /* Albedo */
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, rm->material.diff_tex);
         glUniform3fv(glGetUniformLocation(shdr, "mat.albedo_col"), 1, rm->material.diff_col);
         glUniform2fv(glGetUniformLocation(shdr, "mat.albedo_scl"), 1, rm->material.diff_tex_scl);
+
+        /* Normal map */
         int use_nm = 0;
         if (rs->options.use_normal_mapping) {
             glActiveTexture(GL_TEXTURE1);
@@ -156,14 +165,43 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
             use_nm = rm->material.norm_tex ? 1 : 0;
         }
         glUniform1i(glGetUniformLocation(shdr, "use_nm"), use_nm);
+
+        /* Roughness / Metallic */
+        float roughness_val = 0.8, metallic_val = 0.0;
+        const float no_scale[] = {1.0f, 1.0f};
+        float* roughness_scl = (float*) no_scale, *metallic_scl = (float*) no_scale;
+        if (rs->options.use_rough_met_maps) {
+            if (rm->material.rough_tex) {
+                glActiveTexture(GL_TEXTURE2);
+                glBindTexture(GL_TEXTURE_2D, rm->material.rough_tex);
+                roughness_scl = rm->material.rough_tex_scl;
+            }
+            if (rm->material.metal_tex) {
+                glActiveTexture(GL_TEXTURE3);
+                glBindTexture(GL_TEXTURE_2D, rm->material.metal_tex);
+                metallic_scl = rm->material.metal_tex_scl;
+            }
+            roughness_val = rm->material.rough_tex ? 0.0 : roughness_val;
+            metallic_val = rm->material.metal_tex ? 0.0 : metallic_val;
+        }
+        glUniform2fv(glGetUniformLocation(shdr, "mat.rough_scl"), 1, roughness_scl);
+        glUniform1fv(glGetUniformLocation(shdr, "mat.roughness"), 1, &roughness_val);
+        glUniform2fv(glGetUniformLocation(shdr, "mat.metal_scl"), 1, metallic_scl);
+        glUniform1fv(glGetUniformLocation(shdr, "mat.metallic"),  1, &metallic_val);
+
         /* Render mesh */
         glBindVertexArray(rm->vao);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rm->ebo);
         glDrawElements(GL_TRIANGLES, rm->indice_count, GL_UNSIGNED_INT, (void*)0);
+
         /* Reset bindings */
-        glBindTexture(GL_TEXTURE_2D, 0);
+        for (int i = 0; i < 4; ++i) {
+            glActiveTexture(GL_TEXTURE0 + i);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
+
         /* End occlusion query for current object */
         if (rs->options.use_occlusion_culling)
             occull_object_end(rs->occl_st);

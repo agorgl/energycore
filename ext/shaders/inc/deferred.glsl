@@ -40,6 +40,6 @@ void fetch_gbuffer_data()
     d.normal = texelFetch(gbuf.normal, st, gl_SampleID).rgb;
     d.albedo = texelFetch(gbuf.albedo, st, gl_SampleID).rgb;
     vec4 rm = texelFetch(gbuf.roughness_metallic, st, gl_SampleID).rgba;
-    d.roughness = pack3(rm.rgb);
+    d.roughness = (rm.r + rm.g + rm.b) / 3.0;
     d.metallic = rm.a;
 }

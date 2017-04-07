@@ -54,10 +54,12 @@ struct scene {
             enum {
                 STT_ALBEDO = 0,
                 STT_NORMAL,
+                STT_ROUGHNESS,
+                STT_METALLIC,
                 STT_MAX
             } type;
             float scale[2];
-        } textures[2];
+        } textures[4];
     }* materials;
     size_t num_materials;
     /* Objects */

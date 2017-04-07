@@ -56,6 +56,8 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         ctx->rndr_state.options.use_normal_mapping = !ctx->rndr_state.options.use_normal_mapping;
     else if (action == KEY_ACTION_RELEASE && key == KEY_T)
         ctx->rndr_state.options.show_gbuf_textures = !ctx->rndr_state.options.show_gbuf_textures;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_R)
+        ctx->rndr_state.options.use_rough_met_maps = !ctx->rndr_state.options.use_rough_met_maps;
     else if (action == KEY_ACTION_RELEASE && key ==  KEY_U) {
         if (glIsEnabled(GL_MULTISAMPLE))
             glDisable(GL_MULTISAMPLE);
@@ -452,6 +454,14 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
                 rm->material.norm_tex = mat->tex[MAT_NORMAL].hndl.id;
                 rm->material.norm_tex_scl[0] = scl[0];
                 rm->material.norm_tex_scl[1] = scl[1];
+                scl = mat->tex[MAT_ROUGHNESS].scl;
+                rm->material.rough_tex = mat->tex[MAT_ROUGHNESS].hndl.id;
+                rm->material.rough_tex_scl[0] = scl[0];
+                rm->material.rough_tex_scl[1] = scl[1];
+                scl = mat->tex[MAT_METALLIC].scl;
+                rm->material.metal_tex = mat->tex[MAT_METALLIC].hndl.id;
+                rm->material.metal_tex_scl[0] = scl[0];
+                rm->material.metal_tex_scl[1] = scl[1];
             } else {
                 /* Default to white color */
                 rm->material.diff_col[0] = 1.0f;

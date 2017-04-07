@@ -60,6 +60,8 @@ struct tex_hndl { unsigned int id; };
 enum material_attr {
     MAT_ALBEDO = 0,
     MAT_NORMAL,
+    MAT_ROUGHNESS,
+    MAT_METALLIC,
     MAT_MAX
 };
 

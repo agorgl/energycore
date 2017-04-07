@@ -50,6 +50,10 @@ struct renderer_mesh {
         float diff_tex_scl[2];
         unsigned int norm_tex;
         float norm_tex_scl[2];
+        unsigned int rough_tex;
+        float rough_tex_scl[2];
+        unsigned int metal_tex;
+        float metal_tex_scl[2];
     } material;
     /* AABB */
     struct {
@@ -144,6 +148,7 @@ struct renderer_state {
         unsigned int show_gbuf_textures;
         unsigned int use_occlusion_culling;
         unsigned int use_normal_mapping;
+        unsigned int use_rough_met_maps;
     } options;
 };
 

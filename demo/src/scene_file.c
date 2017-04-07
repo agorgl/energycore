@@ -225,12 +225,19 @@ struct scene* scene_from_file(const char* filepath)
             /* Iterate through material attributes */
             struct json_object_s* mat_attr_jo = em->value->payload;
             for (struct json_object_element_s* emma = mat_attr_jo->start; emma; emma = emma->next) {
-                int type = -1;
+                int targets[4] = {-1, -1, -1, -1};
                 if (strncmp(emma->name->string, "MainTex", emma->name->string_size) == 0)
-                    type = STT_ALBEDO;
+                    targets[0] = STT_ALBEDO;
                 else if (strncmp(emma->name->string, "BumpMap", emma->name->string_size) == 0)
-                    type = STT_NORMAL;
-                if (type != -1) {
+                    targets[0] = STT_NORMAL;
+                else if (strncmp(emma->name->string, "SpecGlossMap", emma->name->string_size) == 0) {
+                    targets[0] = STT_ROUGHNESS;
+                    targets[1] = STT_METALLIC;
+                }
+                for (size_t j = 0; j < sizeof(targets) / sizeof(targets[0]); ++j) {
+                    int type = targets[j];
+                    if (type == -1)
+                        break;
                     sc->materials[i].textures[type].type = type;
                     for (struct json_object_element_s* tex_attr = ((struct json_object_s*)(emma->value->payload))->start;
                             tex_attr; tex_attr = tex_attr->next) {
