@@ -1,4 +1,4 @@
-#include "sky_texture.h"
+#include "skytex.h"
 #include <glad/glad.h>
 #include "glutils.h"
 

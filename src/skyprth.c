@@ -1,4 +1,4 @@
-#include "sky_preetham.h"
+#include "skyprth.h"
 #include <string.h>
 #include <math.h>
 #include <glad/glad.h>

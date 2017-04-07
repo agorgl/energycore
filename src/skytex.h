@@ -28,29 +28,18 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _SKY_PREETHAM_H_
-#define _SKY_PREETHAM_H_
+#ifndef _SKYTEX_H_
+#define _SKYTEX_H_
 
-#include <linalgb.h>
+#include "linalgb.h"
 
-struct sky_preetham {
+struct sky_texture {
     unsigned int vao, vbo;
     unsigned int shdr;
 };
 
-struct sky_preetham_params {
-    float luminance;   /* [0,   2] */
-    float turbidity;   /* [1,  20] */
-    float rayleigh;    /* [0,   4] */
-    float mie_coef;    /* [0, 0.1] */
-    float mie_dirg;    /* [0,   1] */
-    float inclination; /* [0,   1] */
-    float azimuth;     /* [0,   1] */
-};
+void sky_texture_init(struct sky_texture* sb);
+void sky_texture_render(struct sky_texture* sb, mat4* view, mat4* proj, unsigned int cubemap);
+void sky_texture_destroy(struct sky_texture* sb);
 
-void sky_preetham_init(struct sky_preetham* sp);
-void sky_preetham_default_params(struct sky_preetham_params* params);
-void sky_preetham_render(struct sky_preetham* sp, struct sky_preetham_params* params, mat4* proj, mat4* view);
-void sky_preetham_destroy(struct sky_preetham* sp);
-
-#endif /* ! _SKY_PREETHAM_H_ */
+#endif /* ! _SKYTEX_H_ */

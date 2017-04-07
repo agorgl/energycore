@@ -5,8 +5,8 @@
 #include <math.h>
 #include <stdio.h>
 #include <glad/glad.h>
-#include "sky_texture.h"
-#include "sky_preetham.h"
+#include "skytex.h"
+#include "skyprth.h"
 #include "probe_vis.h"
 #include "sh_gi.h"
 #include "bbrndr.h"
