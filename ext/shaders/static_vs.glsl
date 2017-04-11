@@ -25,6 +25,10 @@ void main()
     T = normalize(T - dot(T, N) * N);
     // Then retrieve perpendicular vector B with the cross product of T and N
     vec3 B = cross(N, T);
+    // TBN must form a right handed coord system.
+    // Some models have symmetric UVs. Check and fix.
+    if (dot(cross(N, T), B) < 0.0)
+        T = T * (-1.0);
     mat3 TBN = mat3(T, B, N);
     vs_out.uv = uv;
     vs_out.normal = mat3(transpose(inverse(model))) * normal;
