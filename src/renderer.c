@@ -384,8 +384,29 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
         visualize_bboxes(rs, ri, view);
 
     /* Show gbuffer textures */
-    if (rs->options.show_gbuf_textures)
-        mrtdbg_show_textures(rs->gbuf->fbo);
+    if (rs->options.show_gbuf_textures) {
+        const struct mrtdbg_tex_info tinfos[] = {
+            {
+                .handle = rs->gbuf->albedo_buf,
+                .type   = 0, .layer  = 0,
+                .mode   = MRTDBG_MODE_RGB,
+            },{
+                .handle = rs->gbuf->normal_buf,
+                .type   = 0, .layer  = 0,
+                .mode   = MRTDBG_MODE_RGB,
+            },{
+                .handle = rs->gbuf->roughness_metallic_buf,
+                .type   = 0, .layer  = 0,
+                .mode   = MRTDBG_MODE_MONO_R,
+            },{
+                .handle = rs->gbuf->roughness_metallic_buf,
+                .type   = 0, .layer  = 0,
+                .mode   = MRTDBG_MODE_MONO_A,
+            }
+        };
+        mrtdbg_show_textures((struct mrtdbg_tex_info*)tinfos,
+                             sizeof(tinfos) / sizeof(tinfos[0]));
+    }
 
     /* Update debug info */
     frame_prof_flush(rs->fprof);
