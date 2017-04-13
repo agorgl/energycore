@@ -12,6 +12,7 @@
 #include "bbrndr.h"
 #include "gbuffer.h"
 #include "occull.h"
+#include "shdwmap.h"
 #include "glutils.h"
 #include "frprof.h"
 #include "dbgtxt.h"
@@ -61,6 +62,11 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     rs->occl_st = malloc(sizeof(struct occull_state));
     occull_init(rs->occl_st);
 
+    /* Initialize internal shadowmap state */
+    rs->shdwmap = malloc(sizeof(struct shadowmap));
+    const GLuint shmap_res = 2048;
+    shadowmap_init(rs->shdwmap, shmap_res, shmap_res);
+
     /* Fetch shaders */
     renderer_shdr_fetch(rs);
 
@@ -76,6 +82,7 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     /* Default options */
     rs->options.use_occlusion_culling = 0;
     rs->options.use_rough_met_maps = 1;
+    rs->options.use_shadows = 0;
     rs->options.show_bboxes = 0;
     rs->options.show_fprof = 1;
     rs->options.show_gbuf_textures = 0;
@@ -269,6 +276,17 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     mat4 inverse_view = mat4_inverse(*(mat4*)view);
     vec3 view_pos = vec3_new(inverse_view.xw, inverse_view.yw, inverse_view.zw);
     glUniform3f(glGetUniformLocation(shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
+    glUniformMatrix4fv(glGetUniformLocation(shdr, "view"), 1, GL_FALSE, view->m);
+
+    /* Setup shadowmap inputs */
+    glActiveTexture(GL_TEXTURE7);
+    glUniform1i(glGetUniformLocation(shdr, "shadowmap"), 7);
+    glUniform1i(glGetUniformLocation(shdr, "shadows_enabled"), rs->options.use_shadows);
+    if (rs->options.use_shadows) {
+        glBindTexture(GL_TEXTURE_2D_ARRAY, rs->shdwmap->glh.tex_id);
+        shadowmap_bind(rs->shdwmap, shdr);
+    } else
+        glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
     /* Iterate through lights */
     for (size_t i = 0; i < ri->num_lights; ++i) {
@@ -293,6 +311,20 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     glDepthMask(GL_TRUE);
 }
 
+static void render_shadowmap_scene(GLuint shdr, void* userdata)
+{
+    struct renderer_input* ri = userdata;
+    for (size_t i = 0; i < ri->num_meshes; ++i) {
+        struct renderer_mesh* rm = ri->meshes + i;
+        glUniformMatrix4fv(glGetUniformLocation(shdr, "model"), 1, GL_FALSE, rm->model_mat);
+        glBindVertexArray(rm->vao);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rm->ebo);
+        glDrawElements(GL_TRIANGLES, rm->indice_count, GL_UNSIGNED_INT, 0);
+    }
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
 static void render_scene(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj)
 {
     /* Clear default buffers */
@@ -307,6 +339,11 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
     frame_prof_timepoint_end(rs->fprof);
     /* Copy depth to fb */
     gbuffer_blit_depth_to_fb(rs->gbuf, cur_fb);
+    /* Shadowmap pass*/
+    if (rs->options.use_shadows) {
+        float* light_dir = ri->lights[0].type_data.dir.direction.xyz;
+        shadowmap_render(rs->shdwmap, light_dir, view->m, proj->m, render_shadowmap_scene, ri);
+    }
     /* Direct Light pass */
     frame_prof_timepoint_start(rs->fprof);
     light_pass(rs, ri, (mat4*)view, (mat4*)proj);
@@ -443,6 +480,8 @@ void renderer_destroy(struct renderer_state* rs)
     mrtdbg_destroy();
     dbgtxt_destroy();
     frame_prof_destroy(rs->fprof);
+    shadowmap_destroy(rs->shdwmap);
+    free(rs->shdwmap);
     occull_destroy(rs->occl_st);
     free(rs->occl_st);
     bbox_rndr_destroy(rs->bbox_rs);

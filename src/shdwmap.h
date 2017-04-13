@@ -28,137 +28,37 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _RENDERER_H_
-#define _RENDERER_H_
+#ifndef _SHDWMAP_H_
+#define _SHDWMAP_H_
 
 #include <linalgb.h>
 
-/*-----------------------------------------------------------------
- * Renderer input
- *-----------------------------------------------------------------*/
-struct renderer_mesh {
-    /* Geometry handles */
-    unsigned int vao;
-    unsigned int ebo;
-    unsigned int indice_count;
-    /* Model matrix */
-    float model_mat[16];
-    /* Material parameters */
+#define SHADOWMAP_NSPLITS 4
+
+struct shadowmap {
+    /* Resolution */
+    unsigned int width, height;
+    /* GL handles */
     struct {
-        float diff_col[3];
-        unsigned int diff_tex;
-        float diff_tex_scl[2];
-        unsigned int norm_tex;
-        float norm_tex_scl[2];
-        unsigned int rough_tex;
-        float rough_tex_scl[2];
-        unsigned int metal_tex;
-        float metal_tex_scl[2];
-    } material;
-    /* AABB */
+        unsigned int tex_id, fbo_id;
+        unsigned int shdr;
+    } glh;
+    /* Split data */
     struct {
-        float min[3], max[3];
-    } aabb;
+        mat4 proj_mat;
+        mat4 view_mat;
+        mat4 shdw_mat;
+        vec2 plane;
+        float near_plane, far_plane;
+    } sd[SHADOWMAP_NSPLITS];
 };
 
-enum renderer_sky_type {
-    RST_TEXTURE,
-    RST_PREETHAM,
-    RST_NONE
-};
+/* Callback function called to render the scene for the swadowmap */
+typedef void(*render_sm_scene_fn)(unsigned int shdr, void* userdata);
 
-struct renderer_light {
-    /* Light type */
-    enum renderer_light_type {
-        LT_DIRECTIONAL,
-        LT_POINT
-    } type;
-    /* Common light type data */
-    vec3 color;
-    /* Light type-specific data */
-    union {
-        struct {
-            vec3 direction;
-        } dir;
-        struct {
-            vec3 position;
-            float radius;
-        } pt;
-    } type_data;
-};
+void shadowmap_init(struct shadowmap* sm, int width, int height);
+void shadowmap_render(struct shadowmap* sm, float light_pos[3], float view[16], float proj[16], render_sm_scene_fn render_scene, void* userdata);
+void shadowmap_bind(struct shadowmap* sm, unsigned int shdr);
+void shadowmap_destroy(struct shadowmap* sm);
 
-/* Scene description passed to render function */
-struct renderer_input {
-    /* Meshes to render */
-    struct renderer_mesh* meshes;
-    unsigned int num_meshes;
-    /* Sky type and parameters */
-    enum renderer_sky_type sky_type;
-    unsigned int sky_tex; /* Used if sky_type is RST_TEXTURE */
-    /* Lighting parameters */
-    struct renderer_light* lights;
-    unsigned int num_lights;
-};
-
-/*-----------------------------------------------------------------
- * Renderer state
- *-----------------------------------------------------------------*/
-/* Shader fetch function, used by renderer_shdr_fetch.
- * Takes as input the name of a shader and returns shader handle */
-typedef unsigned int(*rndr_shdr_fetch_fn)(const char*, void* userdata);
-
-/* Sky renderers */
-struct sky_renderer_state {
-    struct sky_texture* tex;
-    struct sky_preetham* preeth;
-};
-
-/* Aggregate state */
-struct renderer_state {
-    /* Internal subrenderers */
-    struct sky_renderer_state sky_rs;
-    struct sh_gi_renderer* sh_gi_rs;
-    struct bbox_rndr* bbox_rs;
-    struct shadowmap* shdwmap;
-    /* Shader handle fetching */
-    rndr_shdr_fetch_fn shdr_fetch_cb;
-    void* shdr_fetch_userdata;
-    /* Shaders */
-    struct {
-        unsigned int geom_pass;
-        unsigned int light_pass;
-    } shdrs;
-    /* GBuffer */
-    struct gbuffer* gbuf;
-    /* Occlusion culling */
-    struct occull_state* occl_st;
-    /* Cached values */
-    vec2 viewport;
-    mat4 proj;
-    /* Frame profiler and debug info's */
-    struct frame_prof* fprof;
-    struct {
-        unsigned int num_visible_objs;
-        float gpass_msec;
-        float lpass_msec;
-    } dbginfo;
-    /* Options */
-    struct {
-        unsigned int show_bboxes;
-        unsigned int show_fprof;
-        unsigned int show_gbuf_textures;
-        unsigned int use_occlusion_culling;
-        unsigned int use_normal_mapping;
-        unsigned int use_rough_met_maps;
-        unsigned int use_shadows;
-    } options;
-};
-
-/* Public interface */
-void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sf_ud);
-void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view_mat[16]);
-void renderer_shdr_fetch(struct renderer_state* rs);
-void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height);
-void renderer_destroy(struct renderer_state* rs);
-
-#endif /* ! _RENDERER_H_ */
+#endif /* ! _SHDWMAP_H_ */
