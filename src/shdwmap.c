@@ -119,7 +119,7 @@ static float extract_aspect_from_projection(float proj[4][4])
 /* Transform 1 front and 1 back corner of the NDC box
  * using the inverse projection matrix, and perform perspective division.
  * Their z values will now contain the near and far values of the frustum */
-static void extract_near_far_from_projection(float proj[4][4], float* near, float* far)
+static void extract_near_far_from_projection(float proj[4][4], float* near_z, float* far_z)
 {
     mat4 inv_proj = mat4_inverse(*(mat4*)proj);
     vec4 points[] = { vec4_new(-1, 1, -1, 1), vec4_new(-1, 1, 1, 1) };
@@ -127,8 +127,8 @@ static void extract_near_far_from_projection(float proj[4][4], float* near, floa
         points[i] = mat4_mul_vec4(inv_proj, points[i]);
         points[i] = vec4_div(points[i], points[i].w);
     }
-    *near = -points[0].z;
-    *far = -points[1].z;
+    *near_z = -points[0].z;
+    *far_z = -points[1].z;
 }
 
 /* Lerp */
