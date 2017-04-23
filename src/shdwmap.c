@@ -149,7 +149,7 @@ static void shadowmap_setup_splits(struct shadowmap* sm, float light_pos[3], flo
     /* Clear previous split values */
     memset(&sm->sd, 0, sizeof(sm->sd));
     /* Calculate split data */
-    const float split_lambda = 0.9f;
+    const float split_lambda = 0.8f;
     const unsigned int split_num = SHADOWMAP_NSPLITS;
     for (unsigned int i = 0; i < split_num; ++i) {
         /* Find the split planes using GPU Gem 3. Chap 10 "Practical Split Scheme". */
@@ -166,69 +166,48 @@ static void shadowmap_setup_splits(struct shadowmap* sm, float light_pos[3], flo
                 split_lambda)
             : camera_far;
 
-        /* Create the projection for this split */
+        /* Get world space frustum split coordinates */
+        frustum f = frustum_new_clipbox();
         mat4 split_proj = mat4_perspective(camera_fov, split_near, split_far, camera_aspect);
+        f = frustum_transform(f, mat4_inverse(split_proj));
+        f = frustum_transform(f, inv_view);
 
-        /* Extract the frustum points in world space coordinates */
-        vec4 split_vertices[8] = {
-            /* Near plane */
-            vec4_new(-1.f, -1.f, -1.f, 1.f),
-            vec4_new(-1.f,  1.f, -1.f, 1.f),
-            vec4_new( 1.f,  1.f, -1.f, 1.f),
-            vec4_new( 1.f, -1.f, -1.f, 1.f),
-            /* Far plane */
-            vec4_new(-1.f, -1.f,  1.f, 1.f),
-            vec4_new(-1.f,  1.f,  1.f, 1.f),
-            vec4_new( 1.f,  1.f,  1.f, 1.f),
-            vec4_new( 1.f, -1.f,  1.f, 1.f)
-        };
-        for (unsigned int j = 0; j < 8; ++j) {
-            /* NDC -> View space */
-            split_vertices[j] = mat4_mul_vec4(mat4_inverse(split_proj), split_vertices[j]);
-            split_vertices[j] = vec4_div(split_vertices[j], split_vertices[j].w);
-            /* View space -> World space */
-            split_vertices[j] = mat4_mul_vec4(inv_view, split_vertices[j]);
-        }
+        /* Calculate frustum bounding sphere, light direction and texels per unit values */
+        sphere fbsh = sphere_of_frustum(f);
+        vec3 light_dir = vec3_neg(vec3_normalize(*(vec3*)light_pos));
+        float texels_per_unit = sm->width / (fbsh.radius * 2.0f);
 
-        /* Find the centroid in order to construct the light view matrix eye */
-        vec4 split_centroid = vec4_zero();
-        for(unsigned int j = 0; j < 8; ++j)
-            split_centroid = vec4_add(split_centroid, split_vertices[j]);
-        split_centroid = vec4_div(split_centroid, 8.0f);
+        /* - Texel snapping -
+         * Create a helper view matrix that will move
+         * the frustum center into texel size increments */
+        mat4 base_lview = mat4_view_look_at(vec3_zero(), light_dir, vec3_up());
+        mat4 tscl = mat4_scale(vec3_new(texels_per_unit, texels_per_unit, texels_per_unit));
+        base_lview = mat4_mul_mat4(base_lview, tscl);
 
-        /* Construct the light view matrix */
-        float dist = max(split_far - split_near, vec4_dist(split_vertices[5], split_vertices[6]));
-        vec3 light_dir = vec3_normalize(*(vec3*)light_pos);
-        vec3 split_centr = vec3_new(split_centroid.x, split_centroid.y, split_centroid.z);
-        vec3 view_pos = vec3_add(split_centr, vec3_mul(light_dir, dist));
-        mat4 view_mat = mat4_view_look_at(view_pos, split_centr, vec3_new(0.0f, 1.0f, 0.0f));
+        /* Move frustum center in texel sized increments */
+        vec3 center = frustum_center(f);
+        center = mat4_mul_vec3(base_lview, center);
+        center.x = floor(center.x);
+        center.y = floor(center.y);
+        center = mat4_mul_vec3(mat4_inverse(base_lview), center);
 
-        /* Transform split vertices to the light view space */
-        vec4 split_vertices_ls[8];
-        memset(split_vertices_ls, 0, sizeof(split_vertices_ls));
-        for(unsigned int j = 0; j < 8; ++j)
-            split_vertices_ls[j] = mat4_mul_vec4(view_mat, split_vertices[j]);
+        /* Construct final view matrix using texel corrected frustum center */
+        vec3 eye = vec3_add(center, vec3_mul(light_dir, fbsh.radius * 2.0f));
+        mat4 view_mat = mat4_view_look_at(eye, center, vec3_up());
 
-        /* Find the frustum bounding box in view space */
-        vec4 min = split_vertices_ls[0];
-        vec4 max = split_vertices_ls[0];
-        for(unsigned int j = 0; j < 8; ++j) {
-            min = vec4_min(min, split_vertices_ls[j]);
-            max = vec4_max(max, split_vertices_ls[j]);
-        }
-
-        /* Create an orthogonal projection matrix with the corners */
-        float near_offset = 10.0f;
-        float far_offset = 20.0f;
-        mat4 proj_mat = mat4_orthographic(min.x, max.x, min.y, max.y, -max.z - near_offset, -min.z + far_offset);
+        /* Create orthogonal projection matrix with consistent size */
+        float radius = fbsh.radius;
+        float near_z = radius * 4.0f;
+        float far_z = -radius * 4.0f;
+        mat4 proj_mat = mat4_orthographic(-radius, radius, -radius, radius, near_z, far_z);
 
         /* Save matrices and planes */
         sm->sd[i].proj_mat = proj_mat;
         sm->sd[i].view_mat = view_mat;
         sm->sd[i].shdw_mat = mat4_mul_mat4(proj_mat, view_mat);
         sm->sd[i].plane = vec2_new(split_near, split_far);
-        sm->sd[i].near_plane = -max.z - near_offset;
-        sm->sd[i].far_plane = -min.z + far_offset;
+        sm->sd[i].near_plane = near_z;
+        sm->sd[i].far_plane = far_z;
     }
 }
 
@@ -275,7 +254,7 @@ void shadowmap_render(struct shadowmap* sm, float light_pos[3], float view[16], 
 
     /* Set cull face mode to front
      * in order to improve peter panning issues on solid objects */
-    //glCullFace(GL_FRONT);
+    glCullFace(GL_FRONT);
     /* Invoke callback to render scene */
     render_scene(shdr, userdata);
     /* Revert cull face mode */
