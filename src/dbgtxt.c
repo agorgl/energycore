@@ -58,7 +58,8 @@ static void dbgtxt_uncompress_font(unsigned char** buf, int* w, int* h)
 {
     *w = FONT_ATLAS_WIDTH; *h = FONT_ATLAS_HEIGHT;
     /* Align width to 8 byte boundary */
-    *w = (*w) + (8 - (*w) % 8);
+    unsigned int extra_bits = *w % 8;
+    *w += extra_bits ? (8 - extra_bits) : 0;
     unsigned int num_pixels = (*w) * (*h);
     *buf = malloc(num_pixels * sizeof(char));
     memset(*buf, 0, num_pixels * sizeof(char));
