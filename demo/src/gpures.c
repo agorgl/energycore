@@ -12,7 +12,7 @@ static void mesh_calc_aabb(struct mesh* m, float min[3], float max[3])
 {
     memset(min, 0, 3 * sizeof(float));
     memset(max, 0, 3 * sizeof(float));
-    for (int i = 0; i < m->num_verts; ++i) {
+    for (size_t i = 0; i < m->num_verts; ++i) {
         struct vertex* v = m->vertices + i;
         for (unsigned int j = 0; j < 3; ++j) {
             if (v->position[j] < min[j])
