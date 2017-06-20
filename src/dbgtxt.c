@@ -3,8 +3,57 @@
 #include <string.h>
 #include <glad/glad.h>
 #include <linalgb.h>
-#include "slkscrfnt.h"
 #include "glutils.h"
+
+/* Embedded Fonts */
+#include "slkscrfnt.h"
+#include "gohufnt.h"
+
+static struct fntdata {
+    struct font_map_entry {
+        char c;
+        int width;
+        int x, y;
+        int w, h;
+        int ox, oy;
+    }* map;
+    struct font_metrics {
+        unsigned int ascender;
+        unsigned int descender;
+        unsigned int height;
+    }* metrics;
+    struct font_atlas {
+        unsigned int width;
+        unsigned int height;
+    }* atlas;
+    unsigned char* data;
+} embedded_fonts[] = {
+    {
+        .map     = (struct font_map_entry*) gohu_font_map,
+        .metrics = (struct font_metrics*) &gohu_font_metrics,
+        .atlas   = (struct font_atlas*) &gohu_font_atlas,
+        .data    = (unsigned char*) gohu_font_data_bits
+    }, {
+        .map     = (struct font_map_entry*) slkscr_font_map,
+        .metrics = (struct font_metrics*) &slkscr_font_metrics,
+        .atlas   = (struct font_atlas*) &slkscr_font_atlas,
+        .data    = (unsigned char*) slkscr_font_data_bits
+    }
+};
+#define NUM_EFONTS (sizeof(embedded_fonts) / sizeof (embedded_fonts[0]))
+
+static unsigned int font_index(enum font fnt)
+{
+    switch (fnt) {
+        case FNT_GOHU:
+            return 0;
+        case FNT_SLKSCR:
+            return 1;
+        default:
+            break;
+    }
+    return 0;
+}
 
 static const char* vshader = "\
 #version 330 core                            \n\
@@ -50,13 +99,18 @@ typedef struct {
 static struct {
     GLuint shdr;
     GLuint vao, vbo, ebo;
-    GLuint atlas;
-    unsigned int atlas_width, atlas_height;
+    struct {
+        GLuint tex;
+        unsigned int width, height;
+    } fntatlas[NUM_EFONTS];
+    enum font active_fnt;
 } st;
 
-static void dbgtxt_uncompress_font(unsigned char** buf, int* w, int* h)
+static void dbgtxt_uncompress_font(unsigned char** buf, int* w, int* h, struct fntdata* fnt)
 {
-    *w = FONT_ATLAS_WIDTH; *h = FONT_ATLAS_HEIGHT;
+    /* Fetch font data */
+    *w = fnt->atlas->width; *h = fnt->atlas->height;
+    unsigned char* font_data_bits = fnt->data;
     /* Align width to 8 byte boundary */
     unsigned int extra_bits = *w % 8;
     *w += extra_bits ? (8 - extra_bits) : 0;
@@ -73,7 +127,10 @@ static void dbgtxt_uncompress_font(unsigned char** buf, int* w, int* h)
 
 static void dbgtxt_add_text(vertex_t* verts, GLuint* indcs, const char* text, int x, int y, float col[4])
 {
-    int pen_x = x, pen_y = y - (FONT_ASCENDER + FONT_DESCENDER);
+    struct fntdata* fnt = embedded_fonts + st.active_fnt;
+    struct font_map_entry* font_map = fnt->map;
+    unsigned int atlas_width = st.fntatlas[st.active_fnt].width, atlas_height = st.fntatlas[st.active_fnt].height;
+    int pen_x = x, pen_y = y - (fnt->metrics->ascender + fnt->metrics->descender);
     float r = col[0], g = col[1], b = col[2], a = col[3];
     /* Iterate through each character */
     size_t num_chars = strlen(text);
@@ -82,21 +139,21 @@ static void dbgtxt_add_text(vertex_t* verts, GLuint* indcs, const char* text, in
         const char cc = text[i];
         /* Handle line breaks */
         if (cc == '\n') {
-            pen_y -= st.atlas_height;
+            pen_y -= atlas_height;
             pen_x = x;
             continue;
         }
         /* Get corresponding glyph for current char */
-        struct glyph glph = font_map[cc - 32]; /* TODO: Replace with font_map.c mapping */
+        struct font_map_entry glph = font_map[cc - 32]; /* TODO: Replace with font_map.c mapping */
         /* Calculate glyph render triangles */
         int x0 = pen_x + glph.ox;
         int y0 = pen_y + glph.oy;
         int x1 = x0 + glph.w;
         int y1 = y0 - glph.h;
-        float s0 = (float)(glph.x) / st.atlas_width;
-        float t0 = (float)(glph.y) / st.atlas_height;
-        float s1 = s0 + (float)(glph.w) / st.atlas_width;
-        float t1 = t0 + (float)(glph.h) / st.atlas_height;
+        float s0 = (float)(glph.x) / atlas_width;
+        float t0 = (float)(glph.y) / atlas_height;
+        float s1 = s0 + (float)(glph.w) / atlas_width;
+        float t1 = t0 + (float)(glph.h) / atlas_height;
         vertex_t vertices[4] =
             {{x0, y0, 0, s0, t0, r, g, b, a},
              {x0, y1, 0, s0, t1, r, g, b, a},
@@ -120,22 +177,24 @@ void dbgtxt_init()
     /* Compile shader program */
     st.shdr = shader_from_srcs(vshader, 0, fshader);
 
-    /* Uncompress embedded font */
-    unsigned char* imgbuf;
-    int width, height;
-    dbgtxt_uncompress_font(&imgbuf, &width, &height);
-    st.atlas_width = width;
-    st.atlas_height = height;
+    for (unsigned int i = 0; i < NUM_EFONTS; ++i) {
+        /* Uncompress embedded font */
+        unsigned char* imgbuf;
+        int width, height;
+        dbgtxt_uncompress_font(&imgbuf, &width, &height, embedded_fonts + i);
+        st.fntatlas[i].width = width;
+        st.fntatlas[i].height = height;
 
-    /* Upload font atlas */
-    glGenTextures(1, &st.atlas);
-    glBindTexture(GL_TEXTURE_2D, st.atlas);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, imgbuf);
-    free(imgbuf);
+        /* Upload font atlas */
+        glGenTextures(1, &st.fntatlas[i].tex);
+        glBindTexture(GL_TEXTURE_2D, st.fntatlas[i].tex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, imgbuf);
+        free(imgbuf);
+    }
 
     /* Create vertex and indice buffers */
     GLuint vbo, ebo;
@@ -164,6 +223,11 @@ void dbgtxt_init()
     st.vao = vao;
     st.vbo = vbo;
     st.ebo = ebo;
+}
+
+void dbgtxt_setfnt(enum font fnt)
+{
+    st.active_fnt = font_index(fnt);
 }
 
 void dbgtxt_prntc(const char* text, float x, float y, float r, float g, float b, float a)
@@ -203,7 +267,7 @@ void dbgtxt_prntc(const char* text, float x, float y, float r, float g, float b,
     glUseProgram(st.shdr);
     glUniform1i(glGetUniformLocation(st.shdr, "fntatlas"), 0);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, st.atlas);
+    glBindTexture(GL_TEXTURE_2D, st.fntatlas[st.active_fnt].tex);
 
     /* Setup and upload ortho matrix */
     mat4 model = mat4_id();
@@ -241,7 +305,8 @@ void dbgtxt_destroy()
     glDeleteBuffers(1, &st.vbo);
     glDeleteBuffers(1, &st.ebo);
     glDeleteVertexArrays(1, &st.vao);
-    glDeleteTextures(1, &st.atlas);
+    for (unsigned int i = 0; i < NUM_EFONTS; ++i)
+        glDeleteTextures(1, &st.fntatlas[i].tex);
     glDeleteProgram(st.shdr);
     memset(&st, 0, sizeof(st));
 }

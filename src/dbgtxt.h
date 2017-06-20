@@ -31,7 +31,13 @@
 #ifndef _DBGTXT_H_
 #define _DBGTXT_H_
 
+enum font {
+    FNT_GOHU = 0,
+    FNT_SLKSCR
+};
+
 void dbgtxt_init();
+void dbgtxt_setfnt(enum font fnt);
 void dbgtxt_prnt(const char* text, float x, float y);
 void dbgtxt_prntc(const char* text, float x, float y, float r, float g, float b, float a);
 void dbgtxt_destroy();

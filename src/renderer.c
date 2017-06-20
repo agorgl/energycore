@@ -456,7 +456,10 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
         snprintf(buf, sizeof(buf), "GPass: %.3f\nLPass: %.3f\nVis/Tot: %u/%u",
                  rs->dbginfo.gpass_msec, rs->dbginfo.lpass_msec,
                  rs->dbginfo.num_visible_objs, ri->num_meshes);
-        dbgtxt_prnt(buf, 10, 10);
+        dbgtxt_setfnt(FNT_GOHU);
+        dbgtxt_prnt(buf, 5, 15);
+        dbgtxt_setfnt(FNT_SLKSCR);
+        dbgtxt_prntc("EnergyCore", rs->viewport.x - 130, rs->viewport.y - 25, 0.08f, 0.08f, 0.08f, 1.0f);
     }
 }
 

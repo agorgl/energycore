@@ -3,19 +3,19 @@
 
 /* slkscr.ttf */
 
-#define FONT_ATLAS_WIDTH 769
-#define FONT_ATLAS_HEIGHT 14
-#define FONT_ASCENDER 16
-#define FONT_DESCENDER -4
-#define FONT_HEIGHT 20
+const struct {
+    unsigned int ascender;
+    unsigned int descender;
+    unsigned int height;
+} slkscr_font_metrics = { 16, -4, 20 };
 
-struct glyph {
+const struct {
     char c;
     int width;
     int x, y;
     int w, h;
     int ox, oy;
-} font_map[] = {
+} slkscr_font_map[] = {
      {' ',  8,   0, 12,  1,  0, 0,  0},
      {'!',  6,   1,  2,  3, 10, 2, 10},
      {'"', 10,   4,  2,  7,  4, 2, 10},
@@ -113,7 +113,12 @@ struct glyph {
      {'~', 12, 760,  2,  9,  4, 2, 10},
 };
 
-unsigned char font_data_bits[] = {
+const struct {
+    unsigned int width;
+    unsigned int height;
+} slkscr_font_atlas = { 769, 14 };
+
+const unsigned char slkscr_font_data_bits[] = {
    0x00, 0x00, 0x00, 0x0c, 0x00, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

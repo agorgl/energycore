@@ -3,19 +3,19 @@
 
 /* gohufont-14.pcf */
 
-#define FONT_ATLAS_WIDTH 760
-#define FONT_ATLAS_HEIGHT 14
-#define FONT_ASCENDER 0
-#define FONT_DESCENDER 0
-#define FONT_HEIGHT 14
+const struct {
+    unsigned int ascender;
+    unsigned int descender;
+    unsigned int height;
+} gohu_font_metrics = { 0, 0, 14 };
 
-struct glyph {
+const struct {
     char c;
     int width;
     int x, y;
     int w, h;
     int ox, oy;
-} font_map[] = {
+} gohu_font_map[] = {
     {' ',  8, 0,   0, 8, 14, 0, 11},
     {'!',  8, 8,   0, 8, 14, 0, 11},
     {'"',  8, 16,  0, 8, 14, 0, 11},
@@ -113,7 +113,12 @@ struct glyph {
     {'~',  8, 752, 0, 8, 14, 0, 11},
 };
 
-unsigned char font_data_bits[] = {
+const struct {
+    unsigned int width;
+    unsigned int height;
+} gohu_font_atlas = { 760, 14 };
+
+const unsigned char gohu_font_data_bits[] = {
   0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
