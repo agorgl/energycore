@@ -120,6 +120,7 @@ struct renderer_state {
     struct sh_gi_renderer* sh_gi_rs;
     struct bbox_rndr* bbox_rs;
     struct shadowmap* shdwmap;
+    struct panicscr_rndr* ps_rndr;
     /* Shader handle fetching */
     rndr_shdr_fetch_fn shdr_fetch_cb;
     void* shdr_fetch_userdata;

@@ -17,6 +17,7 @@
 #include "frprof.h"
 #include "dbgtxt.h"
 #include "mrtdbg.h"
+#include "panicscr.h"
 
 /*-----------------------------------------------------------------
  * Initialization
@@ -66,6 +67,11 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     rs->shdwmap = malloc(sizeof(struct shadowmap));
     const GLuint shmap_res = 2048;
     shadowmap_init(rs->shdwmap, shmap_res, shmap_res);
+
+    /* Initialize internal panic screen state */
+    rs->ps_rndr = malloc(sizeof(struct panicscr_rndr));
+    panicscr_init(rs->ps_rndr);
+    panicscr_register_gldbgcb(rs->ps_rndr);
 
     /* Fetch shaders */
     renderer_shdr_fetch(rs);
@@ -403,6 +409,12 @@ static void visualize_bboxes(struct renderer_state* rs, struct renderer_input* r
  *-----------------------------------------------------------------*/
 void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view[16])
 {
+    /* Show panic screen if any critical error occured */
+    if (rs->ps_rndr->should_show) {
+        panicscr_show(rs->ps_rndr);
+        return;
+    }
+
     /* Render main scene */
     render_scene(rs, ri, (mat4*)view, &rs->proj);
 
@@ -480,6 +492,8 @@ void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int
  *-----------------------------------------------------------------*/
 void renderer_destroy(struct renderer_state* rs)
 {
+    panicscr_destroy(rs->ps_rndr);
+    free(rs->ps_rndr);
     mrtdbg_destroy();
     dbgtxt_destroy();
     frame_prof_destroy(rs->fprof);

@@ -16,20 +16,6 @@
 /* Fw declarations */
 static void prepare_renderer_input(struct game_context* ctx, struct renderer_input* ri);
 
-static void APIENTRY gl_debug_proc(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* user_param)
-{
-    (void) source;
-    (void) id;
-    (void) severity;
-    (void) length;
-    (void) user_param;
-
-    if (type == GL_DEBUG_TYPE_ERROR) {
-        fprintf(stderr, "%s", message);
-        assert(0);
-    }
-}
-
 static void on_key(struct window* wnd, int key, int scancode, int action, int mods)
 {
     (void)scancode; (void)mods;
@@ -274,9 +260,6 @@ void game_init(struct game_context* ctx)
     wnd_callbacks.mouse_button_cb = on_mouse_button;
     wnd_callbacks.fb_size_cb = on_fb_size;
     window_set_callbacks(ctx->wnd, &wnd_callbacks);
-
-    /* Setup OpenGL debug handler */
-    glDebugMessageCallback(gl_debug_proc, ctx);
 
     /* Pick scene file, try environment variable first */
     const char* scene_file = getenv("EC_SCENE");
