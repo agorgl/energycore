@@ -71,19 +71,16 @@ void occull_object_end(struct occull_state* st)
         glEndQuery(GL_ANY_SAMPLES_PASSED);
 }
 
-static void free_occlusion_db(hm_ptr k, hm_ptr v)
-{
-    (void) k;
-    struct occlusion_info* oi = hm_pcast(v);
-    glDeleteQueries(1, &oi->query);
-    free(oi);
-}
-
 void occull_destroy(struct occull_state* st)
 {
     bbox_rndr_destroy(st->bbox_rndr);
     free(st->bbox_rndr);
-    hashmap_iter(st->occlusion_db, free_occlusion_db);
+    struct hashmap_iter it;
+    hashmap_for(*st->occlusion_db, it) {
+        struct occlusion_info* oi = hm_pcast(it.p->value);
+        glDeleteQueries(1, &oi->query);
+        free(oi);
+    }
     hashmap_destroy(st->occlusion_db);
     free(st->occlusion_db);
 }

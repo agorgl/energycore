@@ -129,16 +129,6 @@ static void copy_scene_object(struct scene_object* dst, struct scene_object* src
     memcpy(&dst->transform, &src->transform, sizeof(((struct scene_object*)0)->transform));
 }
 
-static void free_prefab_data(hm_ptr k, hm_ptr v)
-{
-    (void) k;
-    struct scene_prefab* sp = (struct scene_prefab*)hm_pcast(v);
-    for (size_t i = 0; i < sp->num_objects; ++i)
-        free_scene_object(sp->objects + i);
-    free(sp->objects);
-    free(sp);
-}
-
 static const char* complex_ref(const char* guid, const char* file_id)
 {
     size_t sz = strlen(guid) + strlen(file_id) + 3;
@@ -312,7 +302,14 @@ struct scene* scene_from_file(const char* filepath)
         }
     }
 
-    hashmap_iter(&prefabmap, free_prefab_data);
+    struct hashmap_iter it;
+    hashmap_for(prefabmap, it) {
+        struct scene_prefab* sp = (struct scene_prefab*)hm_pcast(it.p->value);
+        for (size_t i = 0; i < sp->num_objects; ++i)
+            free_scene_object(sp->objects + i);
+        free(sp->objects);
+        free(sp);
+    }
     hashmap_destroy(&prefabmap);
     free(root);
     free(data_buf);

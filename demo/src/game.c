@@ -247,55 +247,6 @@ static void load_shdrs(struct game_context* ctx)
     }
 }
 
-static void model_store_free(hm_ptr k, hm_ptr v)
-{
-    (void) k;
-    struct model_hndl* mh = hm_pcast(v);
-    model_free_from_gpu(mh);
-}
-
-static void tex_store_free(hm_ptr k, hm_ptr v)
-{
-    (void) k;
-    struct tex_hndl* th = hm_pcast(v);
-    tex_free_from_gpu(th);
-}
-
-static void mat_store_free(hm_ptr k, hm_ptr v)
-{
-    (void) k;
-    free((void*)hm_pcast(v));
-}
-
-static void shdr_store_free(hm_ptr k, hm_ptr v)
-{
-    (void) k;
-    GLuint shdr = v;
-    glDeleteProgram(shdr);
-}
-
-static void free_shdrs(struct game_context* ctx)
-{
-    hashmap_iter(&ctx->shdr_store, shdr_store_free);
-    hashmap_destroy(&ctx->shdr_store);
-}
-
-static void free_data(struct game_context* ctx)
-{
-    /* Destroy world */
-    world_destroy(ctx->world);
-    /* Free model store data */
-    hashmap_iter(&ctx->model_store, model_store_free);
-    /* Free texture store data */
-    hashmap_iter(&ctx->tex_store, tex_store_free);
-    /* Free material store data */
-    hashmap_iter(&ctx->mat_store, mat_store_free);
-    /* Free model, texture and material store */
-    hashmap_destroy(&ctx->mat_store);
-    hashmap_destroy(&ctx->tex_store);
-    hashmap_destroy(&ctx->model_store);
-}
-
 static unsigned int rndr_shdr_fetch(const char* shdr_name, void* userdata)
 {
     struct game_context* ctx = userdata;
@@ -541,22 +492,56 @@ void game_perf_update(void* userdata, float msec, float fps)
 
 void game_shutdown(struct game_context* ctx)
 {
+    struct hashmap_iter it;
+
     /* Free cached renderer input */
     free(ctx->cached_ri.lights);
     free(ctx->cached_ri.meshes);
+
     /* Unbind GPU handles */
     glUseProgram(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
     /* Free sky texture */
     tex_free_from_gpu(ctx->sky_tex);
+
     /* Destroy renderer */
     renderer_destroy(&ctx->rndr_state);
+
+    /* Destroy world */
+    world_destroy(ctx->world);
+
     /* Free shaders */
-    free_shdrs(ctx);
-    /* Free any loaded resources */
-    free_data(ctx);
+    hashmap_for(ctx->shdr_store, it) {
+        GLuint shdr = it.p->value;
+        glDeleteProgram(shdr);
+    }
+
+    /* Free model store data */
+    hashmap_for(ctx->model_store, it) {
+        struct model_hndl* mh = hm_pcast(it.p->value);
+        model_free_from_gpu(mh);
+    }
+
+    /* Free texture store data */
+    hashmap_for(ctx->tex_store, it) {
+        struct tex_hndl* th = hm_pcast(it.p->value);
+        tex_free_from_gpu(th);
+    }
+
+    /* Free material store data */
+    hashmap_for(ctx->mat_store, it) {
+        free((void*)hm_pcast(it.p->value));
+    }
+
+    /* Free stores */
+    hashmap_destroy(&ctx->shdr_store);
+    hashmap_destroy(&ctx->model_store);
+    hashmap_destroy(&ctx->mat_store);
+    hashmap_destroy(&ctx->tex_store);
+
     /* Close window */
     window_destroy(ctx->wnd);
 }
