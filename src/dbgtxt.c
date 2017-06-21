@@ -125,7 +125,7 @@ static void dbgtxt_uncompress_font(unsigned char** buf, int* w, int* h, struct f
     }
 }
 
-static void dbgtxt_add_text(vertex_t* verts, GLuint* indcs, const char* text, int x, int y, float col[4])
+static void dbgtxt_add_text(vertex_t* verts, GLuint* indcs, const char* text, size_t num_chars, int x, int y, float col[4])
 {
     struct fntdata* fnt = embedded_fonts + st.active_fnt;
     struct font_map_entry* font_map = fnt->map;
@@ -133,7 +133,6 @@ static void dbgtxt_add_text(vertex_t* verts, GLuint* indcs, const char* text, in
     int pen_x = x, pen_y = y - (fnt->metrics->ascender + fnt->metrics->descender);
     float r = col[0], g = col[1], b = col[2], a = col[3];
     /* Iterate through each character */
-    size_t num_chars = strlen(text);
     for (size_t i = 0; i < num_chars ; ++i) {
         /* Current character */
         const char cc = text[i];
@@ -230,7 +229,7 @@ void dbgtxt_setfnt(enum font fnt)
     st.active_fnt = font_index(fnt);
 }
 
-void dbgtxt_prntc(const char* text, float x, float y, float r, float g, float b, float a)
+void dbgtxt_prntnc(const char* text, size_t num_chars, float x, float y, float r, float g, float b, float a)
 {
     /* Get current viewport size */
     GLint viewport[4];
@@ -238,13 +237,12 @@ void dbgtxt_prntc(const char* text, float x, float y, float r, float g, float b,
     int width = viewport[2], height = viewport[3];
 
     /* Allocate and fill vertex and indice data buffers */
-    size_t num_chars = strlen(text);
     unsigned int num_verts = 4 * num_chars;
     unsigned int num_indices = 6 * num_chars;
     vertex_t* verts = calloc(num_verts, sizeof(vertex_t));
     GLuint* indices = calloc(num_indices, sizeof(GLuint));
     float col[4] = {r, g, b, a};
-    dbgtxt_add_text(verts, indices, text, x, height - y, col);
+    dbgtxt_add_text(verts, indices, text, num_chars, x, height - y, col);
 
     /* Update vertex and indice buffers */
     glBindBuffer(GL_ARRAY_BUFFER, st.vbo);
@@ -292,6 +290,12 @@ void dbgtxt_prntc(const char* text, float x, float y, float r, float g, float b,
     /* Free resources */
     free(indices);
     free(verts);
+}
+
+void dbgtxt_prntc(const char* text, float x, float y, float r, float g, float b, float a)
+{
+    size_t num_chars = strlen(text);
+    dbgtxt_prntnc(text, num_chars, x, y, r, g, b, a);
 }
 
 void dbgtxt_prnt(const char* text, float x, float y)
