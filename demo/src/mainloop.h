@@ -46,7 +46,6 @@ struct mainloop_data
     mainloop_perf_fn perf_callback;
     int should_terminate;
     int updates_per_second;
-    int max_frameskip;
     int perf_cur_sample_cnt;
     float perf_samples[ML_PERF_SAMPLES];
     void* userdata;

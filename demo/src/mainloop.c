@@ -2,34 +2,39 @@
 #include <prof.h>
 
 typedef unsigned long timepoint_type;
+typedef timepoint_type timepoint_diff;
 
-timepoint_type clock_msec()
+static inline timepoint_type clock_msec()
 {
     return millisecs();
 }
 
 void mainloop(struct mainloop_data* loop_data)
 {
-    timepoint_type next_update = clock_msec();
-    const float skip_ticks = 1000 / loop_data->updates_per_second;
+    const float ms_per_update = 1000 / loop_data->updates_per_second;
 
-    int loops;
     float interpolation;
+    timepoint_type previous, current, lag;
+    timepoint_diff elapsed;
 
+    lag = 0;
+    previous = clock_msec();
     while (!loop_data->should_terminate) {
-        loops = 0;
-        while (clock_msec() > next_update && loops < loop_data->max_frameskip) {
-            loop_data->update_callback(loop_data->userdata, skip_ticks);
-            next_update += skip_ticks;
-            ++loops;
+        current = clock_msec();
+        elapsed = current - previous;
+        previous = current;
+        lag += elapsed;
+
+        while (lag > ms_per_update) {
+            loop_data->update_callback(loop_data->userdata, ms_per_update);
+            lag -= ms_per_update;
         }
 
-        timepoint_type rt = clock_msec();
-        interpolation = (rt + skip_ticks - next_update) / skip_ticks;
+        interpolation = lag / ms_per_update;
         loop_data->render_callback(loop_data->userdata, interpolation);
 
         if (loop_data->perf_callback) {
-            loop_data->perf_samples[loop_data->perf_cur_sample_cnt++] = clock_msec() - rt;
+            loop_data->perf_samples[loop_data->perf_cur_sample_cnt++] = elapsed;
             if (loop_data->perf_cur_sample_cnt >= ML_PERF_SAMPLES) {
                 float avgms = 0.0f;
                 for (unsigned int i = 0; i < ML_PERF_SAMPLES; ++i)

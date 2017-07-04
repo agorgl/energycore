@@ -45,7 +45,6 @@ int main(int argc, char* argv[])
     /* Setup mainloop parameters */
     struct mainloop_data mld;
     memset(&mld, 0, sizeof(struct mainloop_data));
-    mld.max_frameskip = 5;
     mld.updates_per_second = 60;
     mld.update_callback = game_update;
     mld.render_callback = game_render;
