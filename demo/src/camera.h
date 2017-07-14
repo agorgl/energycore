@@ -34,16 +34,19 @@
 #include <linalgb.h>
 
 struct camera {
+    /* Position and Orientation */
     vec3 pos;
-    vec3 front;
-    vec3 up;
+    quat rot;
     float yaw;
     float pitch;
+    /* Attributes */
     float move_speed;
     float sensitivity;
     float pitch_lim;
+    /* Cached values */
+    vec3 prev_pos;
+    quat prev_rot;
     mat4 view_mat;
-    mat4 prev_view_mat;
 };
 
 enum camera_move_dir {
@@ -57,6 +60,7 @@ void camera_defaults(struct camera* cam);
 void camera_move(struct camera* cam, int move_directions);
 void camera_look(struct camera* cam, float offx, float offy);
 void camera_update(struct camera* cam);
+void camera_setdir(struct camera* cam, vec3 dir);
 mat4 camera_interpolated_view(struct camera* cam, float interpolaton);
 
 #endif /* ! _CAMERA_H_ */

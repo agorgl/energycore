@@ -4,38 +4,43 @@
 
 void camera_defaults(struct camera* cam)
 {
-    cam->pos = vec3_new(0, 0, 0);
-    cam->front = vec3_new(0, 0, -1);
-    cam->up = vec3_new(0, 1, 0);
+    cam->pos = vec3_new(0.0f, 0.0f, 0.0f);
+    cam->prev_pos = cam->pos;
+    cam->rot = quat_id();
+    cam->prev_rot = cam->rot;
     cam->yaw = -90.0f;
     cam->pitch = 0.0f;
     cam->move_speed = 0.05f;
     cam->sensitivity = 0.05f;
     cam->pitch_lim = 89.0f;
-    cam->prev_view_mat = mat4_id();
     cam->view_mat = mat4_id();
 }
 
 void camera_move(struct camera* cam, int move_directions)
 {
+    mat4 v = mat4_rotation_quat(cam->rot);
+    vec3 forward = vec3_new(v.m2[0][2], v.m2[1][2], v.m2[2][2]);
+    vec3 strafe  = vec3_new(v.m2[0][0], v.m2[1][0], v.m2[2][0]);
+    float dx = 0.0f, dz = 0.0f;
     for (int mask = (1 << 3); mask != 0; mask >>= 1) {
         switch (move_directions & mask) {
             case cmd_forward:
-                cam->pos = vec3_add(cam->pos, vec3_mul(cam->front, cam->move_speed));
+                dz += cam->move_speed;
                 break;
             case cmd_left:
-                cam->pos = vec3_sub(cam->pos, (vec3_mul(vec3_normalize(vec3_cross(cam->front, cam->up)), cam->move_speed)));
+                dx += -cam->move_speed;
                 break;
             case cmd_backward:
-                cam->pos = vec3_sub(cam->pos, vec3_mul(cam->front, cam->move_speed));
+                dz += -cam->move_speed;
                 break;
             case cmd_right:
-                cam->pos = vec3_add(cam->pos, (vec3_mul(vec3_normalize(vec3_cross(cam->front, cam->up)), cam->move_speed)));
+                dx += cam->move_speed;
                 break;
             default:
                 break;
         }
     }
+    cam->pos = vec3_add(cam->pos, vec3_add(vec3_mul(forward, -dz), vec3_mul(strafe, dx)));
 }
 
 void camera_look(struct camera* cam, float offx, float offy)
@@ -44,33 +49,45 @@ void camera_look(struct camera* cam, float offx, float offy)
     offy *= cam->sensitivity;
 
     cam->yaw += offx;
-    cam->pitch -= offy;
+    cam->pitch += offy;
 
     if (cam->pitch > cam->pitch_lim)
         cam->pitch = cam->pitch_lim;
     if (cam->pitch < -cam->pitch_lim)
         cam->pitch = -cam->pitch_lim;
 
-    vec3 direction = vec3_new(
-        cos(radians(cam->pitch)) * cos(radians(cam->yaw)),
-        sin(radians(cam->pitch)),
-        cos(radians(cam->pitch)) * sin(radians(cam->yaw))
+    quat pq = quat_rotation_x(radians(cam->pitch));
+    quat yq = quat_rotation_y(radians(cam->yaw));
+    cam->rot = quat_mul_quat(pq, yq);
+}
+
+void camera_setdir(struct camera* cam, vec3 dir)
+{
+    dir = vec3_normalize(vec3_mul(dir, -1));
+    cam->pitch = degrees(asin(dir.y));
+    cam->yaw   = degrees(atan2f(dir.x, dir.z));
+
+    camera_look(cam, 0.0f, 0.0f);
+}
+
+static inline mat4 camera_view(vec3 pos, quat rot)
+{
+    return mat4_mul_mat4(
+        mat4_rotation_quat(rot),
+        mat4_translation(vec3_neg(pos))
     );
-    cam->front = vec3_normalize(direction);
 }
 
 void camera_update(struct camera* cam)
 {
-    memcpy(&cam->prev_view_mat, &cam->view_mat, sizeof(mat4));
-    cam->view_mat = mat4_view_look_at(cam->pos, vec3_add(cam->pos, cam->front), cam->up);
+    cam->prev_rot = cam->rot;
+    cam->prev_pos = cam->pos;
+    cam->view_mat = camera_view(cam->pos, cam->rot);
 }
 
 mat4 camera_interpolated_view(struct camera* cam, float interpolation)
 {
-    float (*prev)[4] = cam->prev_view_mat.m2, (*new)[4] = cam->view_mat.m2;
-    mat4 out;
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
-            out.m2[i][j] = prev[i][j] + (new[i][j] - prev[i][j]) * interpolation;
-    return out;
+    vec3 ipos = vec3_lerp(cam->prev_pos, cam->pos, interpolation);
+    quat irot = quat_slerp(cam->prev_rot, cam->rot, interpolation);
+    return camera_view(ipos, irot);
 }

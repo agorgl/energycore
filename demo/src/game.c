@@ -281,7 +281,7 @@ void game_init(struct game_context* ctx)
     /* Initialize camera */
     camera_defaults(&ctx->cam);
     ctx->cam.pos = vec3_new(0.0, 1.0, 3.0);
-    ctx->cam.front = vec3_normalize(vec3_mul(ctx->cam.pos, -1));
+    camera_setdir(&ctx->cam, vec3_normalize(vec3_mul(ctx->cam.pos, -1)));
     ctx->fast_move = 0;
 
     /* Initialize renderer */
@@ -302,6 +302,8 @@ void game_update(void* userdata, float dt)
 {
     (void) dt;
     struct game_context* ctx = userdata;
+    /* Update camera matrix */
+    camera_update(&ctx->cam);
     /* Update camera position */
     int cam_mov_flags = 0x0;
     if (window_key_state(ctx->wnd, KEY_W) == KEY_ACTION_PRESS)
@@ -326,8 +328,6 @@ void game_update(void* userdata, float dt)
     window_get_cursor_diff(ctx->wnd, &cur_diff_x, &cur_diff_y);
     if (window_is_cursor_grubbed(ctx->wnd))
         camera_look(&ctx->cam, cur_diff_x, cur_diff_y);
-    /* Update camera matrix */
-    camera_update(&ctx->cam);
     /* Process input events */
     window_update(ctx->wnd);
 }
