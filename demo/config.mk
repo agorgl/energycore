@@ -1,5 +1,5 @@
 PRJTYPE = Executable
-LIBS = json energycore envmapproc opencl assetloader physfs vorbis ogg freetype png jpeg tiff zlib gfxwnd glfw glad macu
+LIBS = json energycore envmapproc opencl assetloader orb physfs vorbis ogg freetype png jpeg tiff zlib gfxwnd glfw glad macu
 ifeq ($(TARGET_OS), Windows_NT)
 	LIBS += glu32 opengl32 gdi32 winmm ole32 user32 shell32
 else
@@ -8,5 +8,5 @@ endif
 ifeq ($(VARIANT), Debug)
 	MLDFLAGS = -export-dynamic
 endif
-EXTDEPS = gfxwnd::0.0.0dev macu::0.0.2dev assetloader::dev envmapproc::dev
+EXTDEPS = gfxwnd::0.0.0dev macu::0.0.2dev assetloader::dev orb::dev envmapproc::dev
 MOREDEPS = ..
