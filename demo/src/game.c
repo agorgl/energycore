@@ -11,6 +11,13 @@
 #include "ecs/world.h"
 #include "scene_file.h"
 
+#define bench(msg) \
+    for (timepoint_t _start_ms = millisecs(), _break = 1;         \
+         _break || (printf("%s %lu:%03lu\n", msg,                 \
+                           (millisecs() - _start_ms) / 1000,      \
+                           (millisecs() - _start_ms) % 1000), 0); \
+         _break = 0)
+
 #define SCENE_FILE "ext/scenes/sample_scene.json"
 
 /* Fw declarations */
@@ -86,6 +93,7 @@ static void load_data(struct game_context* ctx, struct scene* sc)
     hashmap_init(&ctx->mat_store, hm_str_hash, hm_str_eql);
 
     /* Load models */
+    bench("[+] Mdl time")
     for (size_t i = 0; i < sc->num_models; ++i) {
         struct scene_model* m = sc->models + i;
         hm_ptr* p = hashmap_get(&ctx->model_store, hm_cast(m->ref));
@@ -97,6 +105,7 @@ static void load_data(struct game_context* ctx, struct scene* sc)
     }
 
     /* Load textures */
+    bench("[+] Tex time")
     for (size_t i = 0; i < sc->num_textures; ++i) {
         struct scene_texture* t = sc->textures + i;
         hm_ptr* p = hashmap_get(&ctx->tex_store, hm_cast(t->ref));
@@ -269,10 +278,8 @@ void game_init(struct game_context* ctx)
     /* Load scene file */
     struct scene* sc = scene_from_file(scene_file);
     /* Load data into GPU and construct world entities */
-    timepoint_t t1 = millisecs();
-    load_data(ctx, sc);
-    timepoint_t t2 = millisecs();
-    printf("Total time: %lu:%lu\n", (t2 - t1) / 1000, (t2 - t1) % 1000);
+    bench("[+] Tot time")
+        load_data(ctx, sc);
     scene_destroy(sc);
 
     /* Load shaders */
