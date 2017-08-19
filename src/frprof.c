@@ -6,6 +6,7 @@
 struct frame_prof* frame_prof_init()
 {
     struct frame_prof* fp = calloc(1, sizeof(struct frame_prof));
+    fp->enabled = 0;
     fp->cur_buf = 0;
     fp->last_buf_rdy = 0;
     for (unsigned int i = 0; i < FP_MAX_TIMEPOINTS; ++i) {
@@ -30,6 +31,8 @@ void frame_prof_destroy(struct frame_prof* fp)
 
 unsigned int frame_prof_timepoint_start(struct frame_prof* fp)
 {
+    if (!fp->enabled)
+        return 0;
     assert(fp->num_timepoints + 1 <= FP_MAX_TIMEPOINTS);
     ++fp->num_timepoints;
     glQueryCounter(fp->timepoints[fp->num_timepoints - 1].query_ids[fp->cur_buf][0], GL_TIMESTAMP);
@@ -38,6 +41,8 @@ unsigned int frame_prof_timepoint_start(struct frame_prof* fp)
 
 void frame_prof_timepoint_end(struct frame_prof* fp)
 {
+    if (!fp->enabled)
+        return;
     glQueryCounter(fp->timepoints[fp->num_timepoints - 1].query_ids[fp->cur_buf][1], GL_TIMESTAMP);
 }
 

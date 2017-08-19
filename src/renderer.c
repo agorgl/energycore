@@ -326,9 +326,8 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
     GLint cur_fb;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &cur_fb);
     /* Geometry pass */
-    frame_prof_timepoint_start(rs->fprof);
-    geometry_pass(rs, ri, view->m, proj->m);
-    frame_prof_timepoint_end(rs->fprof);
+    frame_prof_timepoint(rs->fprof)
+        geometry_pass(rs, ri, view->m, proj->m);
     /* Copy depth to fb */
     gbuffer_blit_depth_to_fb(rs->gbuf, cur_fb);
     /* Shadowmap pass*/
@@ -347,9 +346,8 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
         }
     }
     /* Direct Light pass */
-    frame_prof_timepoint_start(rs->fprof);
-    light_pass(rs, ri, (mat4*)view, (mat4*)proj);
-    frame_prof_timepoint_end(rs->fprof);
+    frame_prof_timepoint(rs->fprof)
+        light_pass(rs, ri, (mat4*)view, (mat4*)proj);
     render_sky(rs, ri, view->m, proj->m);
 }
 
@@ -412,7 +410,8 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     }
 
     /* Render main scene */
-    render_scene(rs, ri, (mat4*)view, &rs->proj);
+    with_fprof(rs->fprof, 1)
+        render_scene(rs, ri, (mat4*)view, &rs->proj);
 
     /* Render GI */
 #ifdef WITH_GI

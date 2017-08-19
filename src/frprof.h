@@ -38,6 +38,7 @@
 #define FP_NUM_BUFFERS 2
 
 struct frame_prof {
+    unsigned int enabled;
     struct frame_prof_tp {
         unsigned int query_ids[FP_NUM_BUFFERS][2];
         unsigned long samples[FP_NUM_SAMPLES];
@@ -58,5 +59,13 @@ unsigned int frame_prof_timepoint_start(struct frame_prof* fp);
 void frame_prof_timepoint_end(struct frame_prof* fp);
 /* Queries nth timepoint msec value */
 float frame_prof_timepoint_msec(struct frame_prof* fp, unsigned int tp);
+
+/* Convenience macros */
+#define with_fprof(fp, state) \
+    for (int _break = (fp->enabled = state, 1); (_break || (fp->enabled = 0, 0)); _break = 0)
+
+#define frame_prof_timepoint(fp) \
+    for (int _break = (frame_prof_timepoint_start(fp), 1); \
+            (_break || (frame_prof_timepoint_end(fp), 0)); _break = 0)
 
 #endif /* ! _FRPROF_H_ */
