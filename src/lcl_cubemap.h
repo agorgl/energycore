@@ -38,21 +38,32 @@
 #define LCL_CM_SIZE 128
 
 /* Shared local cubemap renderer state */
-struct lc_renderer_state {
+struct lc_renderer {
     float* nsa_idx;
-    unsigned int fb;
-    unsigned int depth_rb;
+    struct {
+        unsigned int fb;
+        unsigned int depth_rb;
+    } glh;
     mat4 fproj;
+    struct {
+        int prev_vp[4];
+    } rs;
 };
 
-/* Callback function called to render the scene for a local cubemap's side */
-typedef void(*render_scene_fn)(mat4* view, mat4* proj, void* userdata);
-
 /* Local cubemap renderer interface */
-void lc_renderer_init(struct lc_renderer_state* lcrs);
-unsigned int lc_create_cm(struct lc_renderer_state* lcrs);
-void lc_render(struct lc_renderer_state* lcrs, unsigned int lcl_cubemap, vec3 pos, render_scene_fn rsf, void* userdata);
-void lc_extract_sh_coeffs(struct lc_renderer_state* lcrs, double sh_coef[SH_COEFF_NUM][3], unsigned int cm);
-void lc_renderer_destroy(struct lc_renderer_state* lcrs);
+void lc_renderer_init(struct lc_renderer* lcr);
+unsigned int lc_create_cm(struct lc_renderer* lcr);
+void lc_render_begin(struct lc_renderer* lcr);
+void lc_render_side_begin(struct lc_renderer* lcr, unsigned int side, unsigned int lcl_cubemap, vec3 pos, mat4* view, mat4* proj);
+void lc_render_side_end(struct lc_renderer* lcr, unsigned int side);
+void lc_render_end(struct lc_renderer* lcr);
+void lc_extract_sh_coeffs(struct lc_renderer* lcr, double sh_coef[SH_COEFF_NUM][3], unsigned int cm);
+void lc_renderer_destroy(struct lc_renderer* lcr);
+
+/* Convenience macros */
+#define lc_render_faces(lcr, lcl_cubemap, pos, fview, fproj) \
+    for (int _break = (lc_render_begin(lcr), 1); _break; lc_render_end(lcr), _break = 0) \
+        for (unsigned int side = 0; (side < 6 && (lc_render_side_begin(lcr, side, lcl_cubemap, pos, &fview, &fproj), 1)); \
+                (lc_render_side_end(lcr, side), ++side))
 
 #endif /* ! _LCL_CUBEMAP_H_ */

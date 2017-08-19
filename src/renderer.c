@@ -351,39 +351,6 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
     render_sky(rs, ri, view->m, proj->m);
 }
 
-#ifdef WITH_GI
-/* Local callback data bundle */
-struct sh_gi_render_scene_userdata {
-    struct renderer_state* rs;
-    struct renderer_input* ri;
-};
-
-/* Callback passed to local cubemap renderer, called when rendering each cubemap side */
-static void sh_gi_render_lcm_side(mat4* view, mat4* proj, void* userdata)
-{
-    /* Temporarily disable multisample */
-    glDisable(GL_MULTISAMPLE);
-    /* Cast userdata */
-    struct sh_gi_render_scene_userdata* ud = userdata;
-    /* HACK: Temporarily replace gbuffer reference in renderer state */
-    struct gbuffer* old_gbuf = ud->rs->gbuf;
-    ud->rs->gbuf = ud->rs->sh_gi_rs->lcr_gbuf;
-    /* Render scene */
-    render_scene(ud->rs, ud->ri, view, proj);
-    /* Restore original gbuffer reference */
-    ud->rs->gbuf = old_gbuf;
-    /* Re-enable multisample */
-    glEnable(GL_MULTISAMPLE);
-}
-
-/* Callback passed to sh gi renderer, called when making the full screen pass render */
-static void sh_gi_prepare_gi_render(mat4* view, mat4* proj, void* userdata)
-{
-    struct sh_gi_render_scene_userdata* ud = userdata;
-    bind_gbuffer_textures(ud->rs, ud->rs->sh_gi_rs->shdr, view, proj);
-}
-#endif
-
 /*-----------------------------------------------------------------
  * Visualizations
  *-----------------------------------------------------------------*/
@@ -415,12 +382,26 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
 
     /* Render GI */
 #ifdef WITH_GI
-    struct sh_gi_render_scene_userdata ud;
-    ud.rs = rs;
-    ud.ri = ri;
-    sh_gi_update(rs->sh_gi_rs, sh_gi_render_lcm_side, &ud);
-    sh_gi_render(rs->sh_gi_rs, view, rs->proj.m, sh_gi_prepare_gi_render, &ud);
-    sh_gi_vis_probes(rs->sh_gi_rs, view, rs->proj.m, 1);
+    /* Update probes */
+    mat4 pass_view, pass_proj;
+    sh_gi_render_passes(rs->sh_gi_rs, pass_view, pass_proj) {
+        /* Temporarily disable multisample */
+        glDisable(GL_MULTISAMPLE);
+        /* HACK: Temporarily replace gbuffer reference in renderer state */
+        struct gbuffer* old_gbuf = rs->gbuf;
+        rs->gbuf = rs->sh_gi_rs->lcr_gbuf;
+        /* Render scene */
+        render_scene(rs, ri, &pass_view, &pass_proj);
+        /* Restore original gbuffer reference */
+        rs->gbuf = old_gbuf;
+        /* Re-enable multisample */
+        glEnable(GL_MULTISAMPLE);
+    }
+    /* Use probes to render GI */
+    bind_gbuffer_textures(rs, rs->sh_gi_rs->shdr, (mat4*)view, &rs->proj);
+    sh_gi_render(rs->sh_gi_rs);
+    /* Visualize probes */
+    sh_gi_vis_probes(rs->sh_gi_rs, view, rs->proj.m, 0);
 #endif
 
     /* Visualize bboxes */
