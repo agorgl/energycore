@@ -158,10 +158,17 @@ static void load_data(struct game_context* ctx, struct scene* sc)
                 struct render_component* rendr_c = render_component_create(&ctx->world->render_comp_dbuf, e);
                 rendr_c->model = mhdl;
                 rendr_c->mesh_group_idx = mgroup_idx;
-                for (size_t j = 0; j < so->num_mat_refs && j < 16; ++j) {
-                    hm_ptr* p = hashmap_get(&ctx->mat_store, hm_cast(so->mat_refs[j]));
-                    if (p)
-                        rendr_c->materials[j] = (struct material*)hm_pcast(*p);
+                for (unsigned int j = 0, cur_mat = 0; j < rendr_c->model->num_meshes; ++j) {
+                    struct mesh_hndl* mh = rendr_c->model->meshes + j;
+                    if (mh->mgroup_idx == rendr_c->mesh_group_idx) {
+                        if (!(cur_mat < so->num_mat_refs && cur_mat < MAX_MATERIALS))
+                            break;
+                        if (!rendr_c->materials[mh->mat_idx]) {
+                            hm_ptr* p = hashmap_get(&ctx->mat_store, hm_cast(so->mat_refs[cur_mat++]));
+                            if (p)
+                                rendr_c->materials[mh->mat_idx] = (struct material*)hm_pcast(*p);
+                        }
+                    }
                 }
             } else {
                 printf("Mesh group offset not found for %s!\n", so->mgroup_name);
@@ -358,8 +365,11 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
         entity_t e = entity_mgr_at(&ctx->world->emgr, i);
         struct render_component* rc = render_component_lookup(&ctx->world->render_comp_dbuf, e);
         if (rc) {
-            struct mesh_group* mgroup = rc->model->mesh_groups[rc->mesh_group_idx];
-            ri->num_meshes += mgroup->num_mesh_offs;
+            for (unsigned int j = 0; j < rc->model->num_meshes; ++j) {
+                struct mesh_hndl* mh = rc->model->meshes + j;
+                if (mh->mgroup_idx == rc->mesh_group_idx)
+                    ++ri->num_meshes;
+            }
         }
     }
 
@@ -376,12 +386,12 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
             &ctx->world->transform_dbuf,
             transform_component_lookup(&ctx->world->transform_dbuf, e));
         struct model_hndl* mdlh = rc->model;
-        struct mesh_group* mgroup = mdlh->mesh_groups[rc->mesh_group_idx];
-        for (unsigned int j = 0; j < mgroup->num_mesh_offs; ++j) {
+        for (unsigned int j = 0; j < mdlh->num_meshes; ++j) {
             /* Source */
-            size_t mesh_ofs = mgroup->mesh_offsets[j];
-            assert(mesh_ofs < mdlh->num_meshes);
-            struct mesh_hndl* mh = mdlh->meshes + mesh_ofs;
+            struct mesh_hndl* mh = mdlh->meshes + j;
+            /* Skip meshes not in assigned mesh group */
+            if (mh->mgroup_idx != rc->mesh_group_idx)
+                continue;
             /* Target */
             struct renderer_mesh* rm = ri->meshes + cur_mesh;
             rm->vao = mh->vao;

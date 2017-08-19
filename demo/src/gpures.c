@@ -37,6 +37,7 @@ struct model_hndl* model_to_gpu(struct model* m)
         struct mesh* mesh = m->meshes[i];
         struct mesh_hndl* mh = model->meshes + i;
         mh->mat_idx = mesh->mat_index;
+        mh->mgroup_idx = mesh->mgroup_idx;
 
         /* Create vao */
         glGenVertexArrays(1, &mh->vao);
