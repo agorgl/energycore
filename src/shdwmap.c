@@ -211,7 +211,7 @@ static void shadowmap_setup_splits(struct shadowmap* sm, float light_pos[3], flo
     }
 }
 
-void shadowmap_render(struct shadowmap* sm, float light_pos[3], float view[16], float proj[16], render_sm_scene_fn render_scene, void* userdata)
+void shadowmap_render_begin(struct shadowmap* sm, float light_pos[3], float view[16], float proj[16])
 {
     /* Calculate split data */
     shadowmap_setup_splits(sm, light_pos, view, proj);
@@ -220,7 +220,7 @@ void shadowmap_render(struct shadowmap* sm, float light_pos[3], float view[16], 
     glEnable(GL_DEPTH_TEST);
 
     /* Store previous viewport and set the new one */
-    GLint viewport[4];
+    GLint* viewport = sm->rs.prev_vp;
     glGetIntegerv(GL_VIEWPORT, viewport);
     glViewport(0, 0, sm->width, sm->height);
 
@@ -255,8 +255,10 @@ void shadowmap_render(struct shadowmap* sm, float light_pos[3], float view[16], 
     /* Set cull face mode to front
      * in order to improve peter panning issues on solid objects */
     glCullFace(GL_FRONT);
-    /* Invoke callback to render scene */
-    render_scene(shdr, userdata);
+}
+
+void shadowmap_render_end(struct shadowmap* sm)
+{
     /* Revert cull face mode */
     glCullFace(GL_BACK);
 
@@ -265,6 +267,7 @@ void shadowmap_render(struct shadowmap* sm, float light_pos[3], float view[16], 
     glUseProgram(0);
 
     /* Restore viewport */
+    GLint* viewport = sm->rs.prev_vp;
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 }
 

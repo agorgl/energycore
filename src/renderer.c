@@ -317,20 +317,6 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     glDepthMask(GL_TRUE);
 }
 
-static void render_shadowmap_scene(GLuint shdr, void* userdata)
-{
-    struct renderer_input* ri = userdata;
-    for (size_t i = 0; i < ri->num_meshes; ++i) {
-        struct renderer_mesh* rm = ri->meshes + i;
-        glUniformMatrix4fv(glGetUniformLocation(shdr, "model"), 1, GL_FALSE, rm->model_mat);
-        glBindVertexArray(rm->vao);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rm->ebo);
-        glDrawElements(GL_TRIANGLES, rm->indice_count, GL_UNSIGNED_INT, 0);
-    }
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-}
-
 static void render_scene(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj)
 {
     /* Clear default buffers */
@@ -348,7 +334,17 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
     /* Shadowmap pass*/
     if (rs->options.use_shadows) {
         float* light_dir = ri->lights[0].type_data.dir.direction.xyz;
-        shadowmap_render(rs->shdwmap, light_dir, view->m, proj->m, render_shadowmap_scene, ri);
+        shadowmap_render(rs->shdwmap, light_dir, view->m, proj->m) {
+            for (size_t i = 0; i < ri->num_meshes; ++i) {
+                struct renderer_mesh* rm = ri->meshes + i;
+                glUniformMatrix4fv(glGetUniformLocation(shdr, "model"), 1, GL_FALSE, rm->model_mat);
+                glBindVertexArray(rm->vao);
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rm->ebo);
+                glDrawElements(GL_TRIANGLES, rm->indice_count, GL_UNSIGNED_INT, 0);
+            }
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+            glBindVertexArray(0);
+        }
     }
     /* Direct Light pass */
     frame_prof_timepoint_start(rs->fprof);

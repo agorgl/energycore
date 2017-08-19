@@ -51,14 +51,21 @@ struct shadowmap {
         vec2 plane;
         float near_plane, far_plane;
     } sd[SHADOWMAP_NSPLITS];
+    /* Render state */
+    struct {
+        int prev_vp[4];
+    } rs;
 };
 
-/* Callback function called to render the scene for the swadowmap */
-typedef void(*render_sm_scene_fn)(unsigned int shdr, void* userdata);
-
 void shadowmap_init(struct shadowmap* sm, int width, int height);
-void shadowmap_render(struct shadowmap* sm, float light_pos[3], float view[16], float proj[16], render_sm_scene_fn render_scene, void* userdata);
+void shadowmap_render_begin(struct shadowmap* sm, float light_pos[3], float view[16], float proj[16]);
+void shadowmap_render_end(struct shadowmap* sm);
 void shadowmap_bind(struct shadowmap* sm, unsigned int shdr);
 void shadowmap_destroy(struct shadowmap* sm);
+
+/* Convenience macros */
+#define shadowmap_render(sm, light_pos, view, proj) \
+    for (int _break = (shadowmap_render_begin(sm, light_pos, view, proj), 1), shdr = sm->glh.shdr; \
+            (_break || (shadowmap_render_end(sm), 0)); _break = 0)
 
 #endif /* ! _SHDWMAP_H_ */
