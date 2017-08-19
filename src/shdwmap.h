@@ -54,6 +54,7 @@ struct shadowmap {
     /* Render state */
     struct {
         int prev_vp[4];
+        unsigned int prev_fbo;
     } rs;
 };
 

@@ -224,7 +224,8 @@ void shadowmap_render_begin(struct shadowmap* sm, float light_pos[3], float view
     glGetIntegerv(GL_VIEWPORT, viewport);
     glViewport(0, 0, sm->width, sm->height);
 
-    /* Bind shadow map fbo */
+    /* Store previous fbo and bind shadow map fbo */
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&sm->rs.prev_fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, sm->glh.fbo_id);
     glClear(GL_DEPTH_BUFFER_BIT);
 
@@ -262,9 +263,11 @@ void shadowmap_render_end(struct shadowmap* sm)
     /* Revert cull face mode */
     glCullFace(GL_BACK);
 
-    /* Unbind shadowmap fbo and shader */
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    /* Unbind shader */
     glUseProgram(0);
+
+    /* Restore previously bound fbo */
+    glBindFramebuffer(GL_FRAMEBUFFER, sm->rs.prev_fbo);
 
     /* Restore viewport */
     GLint* viewport = sm->rs.prev_vp;
