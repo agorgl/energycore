@@ -252,10 +252,6 @@ void dbgtxt_prntnc(const char* text, size_t num_chars, float x, float y, float r
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, num_indices * sizeof(GLuint), indices, GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-    /* Store previous and prepare state */
-    unsigned int multisample_enabled = glIsEnabled(GL_MULTISAMPLE);
-    glDisable(GL_MULTISAMPLE);
-
     /* Disable depth testing for text, and enable blending using the passed color alpha value */
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
@@ -284,8 +280,6 @@ void dbgtxt_prntnc(const char* text, size_t num_chars, float x, float y, float r
     /* Restore state */
     glDisable(GL_BLEND);
     glEnable(GL_DEPTH_TEST);
-    if (multisample_enabled)
-        glEnable(GL_MULTISAMPLE);
 
     /* Free resources */
     free(indices);

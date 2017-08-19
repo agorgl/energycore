@@ -5,10 +5,9 @@
 
 #define array_length(a) (sizeof(a)/sizeof(a[0]))
 
-void gbuffer_init(struct gbuffer* gb, int width, int height, int multisample)
+void gbuffer_init(struct gbuffer* gb, int width, int height)
 {
     memset(gb, 0, sizeof(struct gbuffer));
-    gb->multisample = multisample;
 
     /* Store dimensions */
     gb->width = width;
@@ -66,19 +65,15 @@ void gbuffer_init(struct gbuffer* gb, int width, int height, int multisample)
     };
     for (size_t i = 0; i < array_length(data_texs); ++i) {
         glGenTextures(1, data_texs[i].id);
-        GLenum target = gb->multisample ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D;
+        GLenum target = GL_TEXTURE_2D;
         glBindTexture(target, *(data_texs[i].id));
-        if (gb->multisample) {
-            glTexImage2DMultisample(target, 4, data_texs[i].ifmt, width, height, GL_FALSE);
-        } else {
-            glTexImage2D(target, 0,
-                         data_texs[i].ifmt,
-                         width, height, 0,
-                         data_texs[i].fmt,
-                         data_texs[i].pix_dtype, 0);
-            glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        }
+        glTexImage2D(target, 0,
+                     data_texs[i].ifmt,
+                     width, height, 0,
+                     data_texs[i].fmt,
+                     data_texs[i].pix_dtype, 0);
+        glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glFramebufferTexture2D(GL_FRAMEBUFFER, data_texs[i].attachment, target, *(data_texs[i].id), 0);
     }
     assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
@@ -115,7 +110,7 @@ void gbuffer_bind_for_light_pass(struct gbuffer* gb)
     };
     for (unsigned int i = 0; i < array_length(geom_tex); ++i) {
         glActiveTexture(GL_TEXTURE0 + i);
-        GLenum target = gb->multisample ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D;
+        GLenum target = GL_TEXTURE_2D;
         glBindTexture(target, geom_tex[i]);
     }
 }

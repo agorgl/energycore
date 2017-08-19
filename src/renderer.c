@@ -35,7 +35,7 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
 
     /* Initialize gbuffer */
     rs->gbuf = malloc(sizeof(struct gbuffer));
-    gbuffer_init(rs->gbuf, width, height, 1);
+    gbuffer_init(rs->gbuf, width, height);
 
     /* Initial resize */
     renderer_resize(rs, width, height);
@@ -312,6 +312,12 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     }
     glUseProgram(0);
 
+    /* Reset bindings */
+    for (int i = 0; i < 4; ++i) {
+        glActiveTexture(GL_TEXTURE0 + i);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
     /* Restore gl values */
     glDisable(GL_BLEND);
     glDepthMask(GL_TRUE);
@@ -385,8 +391,6 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     /* Update probes */
     mat4 pass_view, pass_proj;
     sh_gi_render_passes(rs->sh_gi_rs, pass_view, pass_proj) {
-        /* Temporarily disable multisample */
-        glDisable(GL_MULTISAMPLE);
         /* HACK: Temporarily replace gbuffer reference in renderer state */
         struct gbuffer* old_gbuf = rs->gbuf;
         rs->gbuf = rs->sh_gi_rs->lcr_gbuf;
@@ -394,8 +398,6 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
         render_scene(rs, ri, &pass_view, &pass_proj);
         /* Restore original gbuffer reference */
         rs->gbuf = old_gbuf;
-        /* Re-enable multisample */
-        glEnable(GL_MULTISAMPLE);
     }
     /* Use probes to render GI */
     bind_gbuffer_textures(rs, rs->sh_gi_rs->shdr, (mat4*)view, &rs->proj);
@@ -460,7 +462,7 @@ void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int
     /* GBuf */
     gbuffer_destroy(rs->gbuf);
     memset(rs->gbuf, 0, sizeof(struct gbuffer));
-    gbuffer_init(rs->gbuf, width, height, 1);
+    gbuffer_init(rs->gbuf, width, height);
 }
 
 /*-----------------------------------------------------------------

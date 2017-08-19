@@ -34,8 +34,6 @@
 struct gbuffer {
     /* Framebuffer object */
     unsigned int fbo;
-    /* Indicates whether attachments are multisampled */
-    int multisample;
     /* Texture attachments */
 #ifdef WITH_ACCUM_BUF
     unsigned int accum_buf;
@@ -48,7 +46,7 @@ struct gbuffer {
     unsigned int width, height;
 };
 
-void gbuffer_init(struct gbuffer* gb, int width, int height, int multisample);
+void gbuffer_init(struct gbuffer* gb, int width, int height);
 void gbuffer_bind_for_geometry_pass(struct gbuffer* gb);
 void gbuffer_bind_for_light_pass(struct gbuffer* gb);
 #ifdef WITH_ACCUM_BUF

@@ -25,7 +25,7 @@ static const char* fs_src = GLSRCEXT(
 out vec4 color;
 in vec2 uv;
 
-uniform sampler2DMS tex;
+uniform sampler2D tex;
 uniform sampler2DArray tex_arr;
 uniform int array_mode;
 uniform int channel_mode;
@@ -33,17 +33,17 @@ uniform int layer;
 
 vec3 sampleSimple()
 {
-    ivec2 st = ivec2(textureSize(tex) * uv);
+    ivec2 st = ivec2(textureSize(tex, 0) * uv);
     vec3 tc = vec3(0.0);
     switch (channel_mode) {
         case 0:
-            tc = texelFetch(tex, st, gl_SampleID).rgb;
+            tc = texelFetch(tex, st, 0).rgb;
             break;
         case 1:
-            tc = texelFetch(tex, st, gl_SampleID).rrr;
+            tc = texelFetch(tex, st, 0).rrr;
             break;
         case 2:
-            tc = texelFetch(tex, st, gl_SampleID).aaa;
+            tc = texelFetch(tex, st, 0).aaa;
             break;
     }
     return tc;
@@ -153,7 +153,7 @@ static void show_texture_list(struct mrtdbg_tex_info* tex_infos, size_t num_text
             glUniform1i(glGetUniformLocation(st.shdr, "layer"), ti->layer);
         /* Draw texture */
         glActiveTexture(ti->type == 1 ? GL_TEXTURE1 : GL_TEXTURE0);
-        GLenum target = ti->type == 1 ? GL_TEXTURE_2D_ARRAY : GL_TEXTURE_2D_MULTISAMPLE;
+        GLenum target = ti->type == 1 ? GL_TEXTURE_2D_ARRAY : GL_TEXTURE_2D;
         glBindTexture(target, ti->handle);
         render_quad();
         glBindTexture(target, 0);

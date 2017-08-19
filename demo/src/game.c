@@ -53,12 +53,6 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         ctx->rndr_state.options.use_rough_met_maps = !ctx->rndr_state.options.use_rough_met_maps;
     else if (action == KEY_ACTION_RELEASE && key == KEY_O)
         ctx->rndr_state.options.use_shadows = !ctx->rndr_state.options.use_shadows;
-    else if (action == KEY_ACTION_RELEASE && key ==  KEY_U) {
-        if (glIsEnabled(GL_MULTISAMPLE))
-            glDisable(GL_MULTISAMPLE);
-        else
-            glEnable(GL_MULTISAMPLE);
-    }
 }
 
 static void on_mouse_button(struct window* wnd, int button, int action, int mods)
