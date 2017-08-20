@@ -89,12 +89,11 @@ void sh_gi_render(struct sh_gi_renderer* shgi_rndr)
     glBlendEquation(GL_FUNC_ADD);
     glBlendFunc(GL_ONE, GL_ONE);
 
-    /* Render environment light */
+    /* Upload coeffs */
     upload_sh_coeffs(shgi_rndr->shdr, shgi_rndr->probe.sh_coeffs);
-    glUseProgram(shgi_rndr->shdr);
-    glUniform3fv(glGetUniformLocation(shgi_rndr->shdr, "probe_pos"), 1, shgi_rndr->probe.pos.xyz);
 
-    /* Bind gbuffer textures and perform a full ndc quad render */
+    /* Perform a full ndc quad render */
+    glUseProgram(shgi_rndr->shdr);
     render_quad();
     glUseProgram(0);
 
