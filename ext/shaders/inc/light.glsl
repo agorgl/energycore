@@ -61,9 +61,6 @@ vec3 fresnel_schlick_roughness(float cos_theta, vec3 f0, float roughness)
 
 float point_light_attenuation(vec3 light_pos, vec3 frag_wpos, vec3 view_pos)
 {
-    vec3 V = normalize(view_pos - frag_wpos);
-    vec3 L = normalize(light_pos - frag_wpos);
-    vec3 H = normalize(V + L);
     float distance = length(light_pos - frag_wpos);
     float attenuation = 1.0 / (distance * distance);
     return attenuation;
