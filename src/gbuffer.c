@@ -101,6 +101,11 @@ void gbuffer_bind_for_light_pass(struct gbuffer* gb)
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
 #endif
 
+    gbuffer_bind_textures(gb);
+}
+
+void gbuffer_bind_textures(struct gbuffer* gb)
+{
     /* Bind geometry pass textures */
     GLuint geom_tex[] = {
         gb->depth_stencil_buf,
@@ -110,8 +115,16 @@ void gbuffer_bind_for_light_pass(struct gbuffer* gb)
     };
     for (unsigned int i = 0; i < array_length(geom_tex); ++i) {
         glActiveTexture(GL_TEXTURE0 + i);
-        GLenum target = GL_TEXTURE_2D;
-        glBindTexture(target, geom_tex[i]);
+        glBindTexture(GL_TEXTURE_2D, geom_tex[i]);
+    }
+}
+
+void gbuffer_unbind_textures(struct gbuffer* gb)
+{
+    (void) gb;
+    for (unsigned int i = 0; i < 4; ++i) {
+        glActiveTexture(GL_TEXTURE0 + i);
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
 }
 

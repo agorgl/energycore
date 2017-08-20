@@ -95,7 +95,6 @@ void sh_gi_render(struct sh_gi_renderer* shgi_rndr)
     glUniform3fv(glGetUniformLocation(shgi_rndr->shdr, "probe_pos"), 1, shgi_rndr->probe.pos.xyz);
 
     /* Bind gbuffer textures and perform a full ndc quad render */
-    glUseProgram(shgi_rndr->shdr);
     render_quad();
     glUseProgram(0);
 

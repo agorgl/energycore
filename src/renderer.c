@@ -102,6 +102,17 @@ void renderer_shdr_fetch(struct renderer_state* rs)
     rs->sh_gi_rs->probe_vis->shdr = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
 }
 
+static void upload_gbuffer_uniforms(GLuint shdr, float viewport[2], mat4* view, mat4* proj)
+{
+    glUniform1i(glGetUniformLocation(shdr, "gbuf.depth"), 0);
+    glUniform1i(glGetUniformLocation(shdr, "gbuf.normal"), 1);
+    glUniform1i(glGetUniformLocation(shdr, "gbuf.albedo"), 2);
+    glUniform1i(glGetUniformLocation(shdr, "gbuf.roughness_metallic"), 3);
+    glUniform2fv(glGetUniformLocation(shdr, "u_screen"), 1, viewport);
+    mat4 inv_view_proj = mat4_inverse(mat4_mul_mat4(*proj, *view));
+    glUniformMatrix4fv(glGetUniformLocation(shdr, "u_inv_view_proj"), 1, GL_FALSE, inv_view_proj.m);
+}
+
 /*-----------------------------------------------------------------
  * Geometry pass
  *-----------------------------------------------------------------*/
@@ -224,20 +235,6 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-static void bind_gbuffer_textures(struct renderer_state* rs, GLuint shdr, mat4* view, mat4* proj)
-{
-    gbuffer_bind_for_light_pass(rs->gbuf);
-    glUseProgram(shdr);
-    glUniform1i(glGetUniformLocation(shdr, "gbuf.depth"), 0);
-    glUniform1i(glGetUniformLocation(shdr, "gbuf.normal"), 1);
-    glUniform1i(glGetUniformLocation(shdr, "gbuf.albedo"), 2);
-    glUniform1i(glGetUniformLocation(shdr, "gbuf.roughness_metallic"), 3);
-    glUniform2fv(glGetUniformLocation(shdr, "u_screen"), 1, rs->viewport.xy);
-    mat4 inv_view_proj = mat4_inverse(mat4_mul_mat4(*proj, *view));
-    glUniformMatrix4fv(glGetUniformLocation(shdr, "u_inv_view_proj"), 1, GL_FALSE, inv_view_proj.m);
-    glUseProgram(0);
-}
-
 /*-----------------------------------------------------------------
  * Light pass
  *-----------------------------------------------------------------*/
@@ -262,6 +259,9 @@ static void render_sky(struct renderer_state* rs, struct renderer_input* ri, flo
 
 static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj)
 {
+    /* Bind gbuffer input textures and target fbo */
+    gbuffer_bind_for_light_pass(rs->gbuf);
+
     /* Clear */
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -273,12 +273,11 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     glBlendEquation(GL_FUNC_ADD);
     glBlendFunc(GL_ONE, GL_ONE);
 
-    /* Setup gbuffer input textures */
-    GLuint shdr = rs->shdrs.light_pass;
-    bind_gbuffer_textures(rs, shdr, view, proj);
-
     /* Setup common uniforms */
+    GLuint shdr = rs->shdrs.light_pass;
     glUseProgram(shdr);
+    upload_gbuffer_uniforms(shdr, rs->viewport.xy, view, proj);
+
     mat4 inverse_view = mat4_inverse(*(mat4*)view);
     vec3 view_pos = vec3_new(inverse_view.xw, inverse_view.yw, inverse_view.zw);
     glUniform3f(glGetUniformLocation(shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
@@ -312,15 +311,10 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     }
     glUseProgram(0);
 
-    /* Reset bindings */
-    for (int i = 0; i < 4; ++i) {
-        glActiveTexture(GL_TEXTURE0 + i);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-
     /* Restore gl values */
     glDisable(GL_BLEND);
     glDepthMask(GL_TRUE);
+    gbuffer_unbind_textures(rs->gbuf);
 }
 
 static void render_scene(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj)
@@ -400,8 +394,11 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
         rs->gbuf = old_gbuf;
     }
     /* Use probes to render GI */
-    bind_gbuffer_textures(rs, rs->sh_gi_rs->shdr, (mat4*)view, &rs->proj);
+    glUseProgram(rs->sh_gi_rs->shdr);
+    upload_gbuffer_uniforms(rs->sh_gi_rs->shdr, rs->viewport.xy, (mat4*)view, &rs->proj);
+    gbuffer_bind_textures(rs->gbuf);
     sh_gi_render(rs->sh_gi_rs);
+    gbuffer_unbind_textures(rs->gbuf);
     /* Visualize probes */
     sh_gi_vis_probes(rs->sh_gi_rs, view, rs->proj.m, 0);
 #endif
