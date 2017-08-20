@@ -25,7 +25,6 @@ void gbuffer_init(struct gbuffer* gb, int width, int height)
         GLenum pix_dtype;
         GLenum attachment;
     } data_texs[] = {
-#ifdef WITH_ACCUM_BUF
         {
             &gb->accum_buf,
             GL_RGB16F,
@@ -33,7 +32,6 @@ void gbuffer_init(struct gbuffer* gb, int width, int height)
             GL_FLOAT,
             GL_COLOR_ATTACHMENT0
         },
-#endif
         {
             &gb->normal_buf,
             GL_RGB16F,
@@ -96,11 +94,8 @@ void gbuffer_bind_for_geometry_pass(struct gbuffer* gb)
 
 void gbuffer_bind_for_light_pass(struct gbuffer* gb)
 {
-#ifdef WITH_ACCUM_BUF
     glBindFramebuffer(GL_FRAMEBUFFER, gb->fbo);
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
-#endif
-
     gbuffer_bind_textures(gb);
 }
 
@@ -128,7 +123,6 @@ void gbuffer_unbind_textures(struct gbuffer* gb)
     }
 }
 
-#ifdef WITH_ACCUM_BUF
 void gbuffer_blit_accum_to_fb(struct gbuffer* gb, unsigned int fb)
 {
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb);
@@ -141,7 +135,6 @@ void gbuffer_blit_accum_to_fb(struct gbuffer* gb, unsigned int fb)
     );
     glBindFramebuffer(GL_FRAMEBUFFER, fb);
 }
-#endif
 
 void gbuffer_blit_depth_to_fb(struct gbuffer* gb, unsigned int fb)
 {

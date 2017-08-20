@@ -35,9 +35,7 @@ struct gbuffer {
     /* Framebuffer object */
     unsigned int fbo;
     /* Texture attachments */
-#ifdef WITH_ACCUM_BUF
     unsigned int accum_buf;
-#endif
     unsigned int depth_stencil_buf;
     unsigned int normal_buf;
     unsigned int albedo_buf;
@@ -51,9 +49,7 @@ void gbuffer_bind_for_geometry_pass(struct gbuffer* gb);
 void gbuffer_bind_for_light_pass(struct gbuffer* gb);
 void gbuffer_bind_textures(struct gbuffer* gb);
 void gbuffer_unbind_textures(struct gbuffer* gb);
-#ifdef WITH_ACCUM_BUF
 void gbuffer_blit_accum_to_fb(struct gbuffer* gb, unsigned int fb);
-#endif
 void gbuffer_blit_depth_to_fb(struct gbuffer* gb, unsigned int fb);
 void gbuffer_destroy(struct gbuffer* gb);
 
