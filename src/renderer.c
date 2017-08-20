@@ -17,6 +17,7 @@
 #include "frprof.h"
 #include "dbgtxt.h"
 #include "mrtdbg.h"
+#include "postfx.h"
 #include "panicscr.h"
 
 /*-----------------------------------------------------------------
@@ -67,6 +68,10 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     rs->shdwmap = malloc(sizeof(struct shadowmap));
     const GLuint shmap_res = 2048;
     shadowmap_init(rs->shdwmap, shmap_res, shmap_res);
+
+    /* Initialize internal postfx renderer */
+    rs->postfx = malloc(sizeof(struct postfx));
+    postfx_init(rs->postfx, width, height);
 
     /* Initialize internal panic screen state */
     rs->ps_rndr = malloc(sizeof(struct panicscr_rndr));
@@ -471,6 +476,8 @@ void renderer_destroy(struct renderer_state* rs)
 {
     panicscr_destroy(rs->ps_rndr);
     free(rs->ps_rndr);
+    postfx_destroy(rs->postfx);
+    free(rs->postfx);
     mrtdbg_destroy();
     dbgtxt_destroy();
     frame_prof_destroy(rs->fprof);
