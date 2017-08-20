@@ -94,6 +94,8 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     rs->options.use_occlusion_culling = 0;
     rs->options.use_rough_met_maps = 1;
     rs->options.use_shadows = 0;
+    rs->options.use_tonemapping = 0;
+    rs->options.use_gamma_correction = 0;
     rs->options.show_bboxes = 0;
     rs->options.show_fprof = 1;
     rs->options.show_gbuf_textures = 0;
@@ -103,6 +105,8 @@ void renderer_shdr_fetch(struct renderer_state* rs)
 {
     rs->shdrs.geom_pass  = rs->shdr_fetch_cb("geom_pass", rs->shdr_fetch_userdata);
     rs->shdrs.light_pass = rs->shdr_fetch_cb("light_pass", rs->shdr_fetch_userdata);
+    rs->shdrs.fx.tonemap = rs->shdr_fetch_cb("tonemap_fx", rs->shdr_fetch_userdata);
+    rs->shdrs.fx.gamma   = rs->shdr_fetch_cb("gamma_fx", rs->shdr_fetch_userdata);
     rs->sh_gi_rs->shdr   = rs->shdr_fetch_cb("env_pass", rs->shdr_fetch_userdata);
     rs->sh_gi_rs->probe_vis->shdr = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
 }
@@ -322,6 +326,24 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     gbuffer_unbind_textures(rs->gbuf);
 }
 
+static void postprocess_pass(struct renderer_state* rs, unsigned int cur_fb)
+{
+    GLuint shdr = 0;
+    postfx_blit_fb_to_read(rs->postfx, rs->gbuf->fbo);
+    if (rs->options.use_tonemapping) {
+        shdr = rs->shdrs.fx.tonemap;
+        glUseProgram(shdr);
+        postfx_pass(rs->postfx);
+    }
+    if (rs->options.use_gamma_correction) {
+        shdr = rs->shdrs.fx.gamma;
+        glUseProgram(shdr);
+        postfx_pass(rs->postfx);
+    }
+    glUseProgram(0);
+    postfx_blit_read_to_fb(rs->postfx, cur_fb);
+}
+
 static void render_scene(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj)
 {
     /* Clear default buffers */
@@ -353,7 +375,8 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
     /* Direct Light pass */
     frame_prof_timepoint(rs->fprof)
         light_pass(rs, ri, (mat4*)view, (mat4*)proj);
-    gbuffer_blit_accum_to_fb(rs->gbuf, cur_fb);
+    /* PostFX pass */
+    postprocess_pass(rs, cur_fb);
     /* Sky */
     render_sky(rs, ri, view->m, proj->m);
 }

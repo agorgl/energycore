@@ -129,6 +129,10 @@ struct renderer_state {
     struct {
         unsigned int geom_pass;
         unsigned int light_pass;
+        struct {
+            unsigned int tonemap;
+            unsigned int gamma;
+        } fx;
     } shdrs;
     /* GBuffer */
     struct gbuffer* gbuf;
@@ -153,6 +157,8 @@ struct renderer_state {
         unsigned int use_normal_mapping;
         unsigned int use_rough_met_maps;
         unsigned int use_shadows;
+        unsigned int use_tonemapping;
+        unsigned int use_gamma_correction;
     } options;
 };
 

@@ -36,6 +36,9 @@ void main()
     vec4 tex_roughn = texture(mat.rough_tex,  uv * mat.rough_scl);
     vec4 tex_metal  = texture(mat.metal_tex,  uv * mat.metal_scl);
 
+    const float gamma = 2.2;
+    tex_albedo = vec4(pow(tex_albedo.rgb, vec3(gamma)), tex_albedo.a);
+
     // Normal output
     if (use_nm == 1)
         g_normal = normalize(fs_in.TBN * (tex_normal * 2.0 - 1.0));
