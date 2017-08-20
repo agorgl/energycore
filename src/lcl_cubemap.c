@@ -69,7 +69,8 @@ unsigned int lc_create_cm(struct lc_renderer* lcr)
 
 void lc_render_begin(struct lc_renderer* lcr)
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, lcr->glh.fb);
+    /* Store previous framebuffer */
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&lcr->rs.prev_fb);
     /* Store previous viewport and set the new one */
     int fbwidth = LCL_CM_SIZE, fbheight = LCL_CM_SIZE;
     GLint* viewport = lcr->rs.prev_vp;
@@ -79,8 +80,8 @@ void lc_render_begin(struct lc_renderer* lcr)
 
 void lc_render_side_begin(struct lc_renderer* lcr, unsigned int side, unsigned int lcl_cubemap, vec3 pos, mat4* view, mat4* proj)
 {
-    (void) lcr;
-    /* Create and set texture face */
+    /* Set framebuffer and bind side texture */
+    glBindFramebuffer(GL_FRAMEBUFFER, lcr->glh.fb);
     glBindTexture(GL_TEXTURE_CUBE_MAP, lcl_cubemap);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + side, lcl_cubemap, 0);
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
@@ -101,7 +102,7 @@ void lc_render_side_begin(struct lc_renderer* lcr, unsigned int side, unsigned i
 
 void lc_render_side_end(struct lc_renderer* lcr, unsigned int side)
 {
-    (void) lcr;
+    glBindFramebuffer(GL_FRAMEBUFFER, lcr->glh.fb);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + side, 0, 0);
 }
 
@@ -110,7 +111,8 @@ void lc_render_end(struct lc_renderer* lcr)
     /* Restore viewport */
     GLint* viewport = lcr->rs.prev_vp;
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    /* Restore framebuffer */
+    glBindFramebuffer(GL_FRAMEBUFFER, lcr->rs.prev_fb);
 }
 
 void lc_extract_sh_coeffs(struct lc_renderer* lcr, double sh_coef[25][3], unsigned int cm)

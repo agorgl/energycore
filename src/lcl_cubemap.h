@@ -47,6 +47,7 @@ struct lc_renderer {
     mat4 fproj;
     struct {
         int prev_vp[4];
+        unsigned int prev_fb;
     } rs;
 };
 
