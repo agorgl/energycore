@@ -17,6 +17,15 @@ void postfx_init(struct postfx* pfx, unsigned int width, unsigned int height)
     glGenTextures(2, (GLuint*)&pfx->glh.color);
     glGenTextures(2, (GLuint*)&pfx->glh.depth);
 
+    glGenTextures(1, (GLuint*)&pfx->glh.original);
+    glBindTexture(GL_TEXTURE_2D, pfx->glh.original);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     struct {
         GLuint* tex_arr;
         GLint ifmt;
@@ -85,6 +94,9 @@ void postfx_blit_fb_to_read(struct postfx* pfx, unsigned int fb)
         0, 0, pfx->width, pfx->height,
         GL_COLOR_BUFFER_BIT, GL_NEAREST
     );
+    glBindTexture(GL_TEXTURE_2D, pfx->glh.original);
+    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, pfx->width, pfx->height);
+    glBindTexture(GL_TEXTURE_2D, 0);
     glBindFramebuffer(GL_FRAMEBUFFER, pfx->glh.fbo[pfx->cur_fbo]);
 }
 
@@ -100,8 +112,14 @@ void postfx_blit_read_to_fb(struct postfx* pfx, unsigned int fb)
     glBindFramebuffer(GL_FRAMEBUFFER, fb);
 }
 
+unsigned int postfx_orig_tex(struct postfx* pfx)
+{
+    return pfx->glh.original;
+}
+
 void postfx_destroy(struct postfx* pfx)
 {
+    glDeleteTextures(1, &pfx->glh.original);
     glDeleteTextures(2, pfx->glh.depth);
     glDeleteTextures(2, pfx->glh.color);
     glDeleteFramebuffers(2, pfx->glh.fbo);
