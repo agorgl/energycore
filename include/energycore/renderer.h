@@ -147,6 +147,7 @@ struct renderer_state {
         unsigned int num_visible_objs;
         float gpass_msec;
         float lpass_msec;
+        float ppass_msec;
     } dbginfo;
     /* Options */
     struct {

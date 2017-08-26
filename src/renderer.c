@@ -376,7 +376,8 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
     frame_prof_timepoint(rs->fprof)
         light_pass(rs, ri, (mat4*)view, (mat4*)proj);
     /* PostFX pass */
-    postprocess_pass(rs, cur_fb);
+    frame_prof_timepoint(rs->fprof)
+        postprocess_pass(rs, cur_fb);
     /* Sky */
     render_sky(rs, ri, view->m, proj->m);
 }
@@ -466,12 +467,13 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     frame_prof_flush(rs->fprof);
     rs->dbginfo.gpass_msec = frame_prof_timepoint_msec(rs->fprof, 0);
     rs->dbginfo.lpass_msec = frame_prof_timepoint_msec(rs->fprof, 1);
+    rs->dbginfo.ppass_msec = frame_prof_timepoint_msec(rs->fprof, 2);
 
     /* Show debug info */
     if (rs->options.show_fprof) {
         char buf[128];
-        snprintf(buf, sizeof(buf), "GPass: %.3f\nLPass: %.3f\nVis/Tot: %u/%u",
-                 rs->dbginfo.gpass_msec, rs->dbginfo.lpass_msec,
+        snprintf(buf, sizeof(buf), "GPass: %.3f\nLPass: %.3f\nPPass: %.3f\nVis/Tot: %u/%u",
+                 rs->dbginfo.gpass_msec, rs->dbginfo.lpass_msec, rs->dbginfo.ppass_msec,
                  rs->dbginfo.num_visible_objs, ri->num_meshes);
         dbgtxt_setfnt(FNT_GOHU);
         dbgtxt_prnt(buf, 5, 15);
