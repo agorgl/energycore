@@ -26,8 +26,8 @@ void postfx_init(struct postfx* pfx, unsigned int width, unsigned int height)
     } tex_types[] = {
         {
             pfx->glh.color,
-            GL_RGB16F,
-            GL_RGB,
+            GL_RGBA16F,
+            GL_RGBA,
             GL_FLOAT,
             GL_COLOR_ATTACHMENT0
         },
@@ -49,8 +49,10 @@ void postfx_init(struct postfx* pfx, unsigned int width, unsigned int height)
                          width, height, 0,
                          tex_types[j].fmt,
                          tex_types[j].pix_dtype, 0);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glFramebufferTexture2D(GL_FRAMEBUFFER, tex_types[j].attachment, GL_TEXTURE_2D, tex, 0);
         }
         assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
