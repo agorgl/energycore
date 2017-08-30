@@ -132,8 +132,16 @@ struct renderer_state {
         struct {
             unsigned int tonemap;
             unsigned int gamma;
+            unsigned int smaa;
         } fx;
     } shdrs;
+    /* Internal textures (Luts etc.) */
+    struct {
+        struct {
+            unsigned int area;
+            unsigned int search;
+        } smaa;
+    } textures;
     /* GBuffer */
     struct gbuffer* gbuf;
     /* Occlusion culling */
@@ -160,6 +168,7 @@ struct renderer_state {
         unsigned int use_shadows;
         unsigned int use_tonemapping;
         unsigned int use_gamma_correction;
+        unsigned int use_antialiasing;
     } options;
 };
 

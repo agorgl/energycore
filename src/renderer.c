@@ -19,6 +19,8 @@
 #include "mrtdbg.h"
 #include "postfx.h"
 #include "panicscr.h"
+#include "smaa_area_tex.h"
+#include "smaa_search_tex.h"
 
 /*-----------------------------------------------------------------
  * Initialization
@@ -90,6 +92,23 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     /* Initialize multiple render targets debugger */
     mrtdbg_init();
 
+    /* Load internal textures */
+    glGenTextures(1, &rs->textures.smaa.area);
+    glBindTexture(GL_TEXTURE_2D, rs->textures.smaa.area);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, AREATEX_WIDTH, AREATEX_HEIGHT, 0, GL_RG, GL_UNSIGNED_BYTE, areaTexBytes);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glGenTextures(1, &rs->textures.smaa.search);
+    glBindTexture(GL_TEXTURE_2D, rs->textures.smaa.search);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, SEARCHTEX_WIDTH, SEARCHTEX_HEIGHT, 0, GL_RED, GL_UNSIGNED_BYTE, searchTexBytes);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     /* Default options */
     rs->options.use_occlusion_culling = 0;
     rs->options.use_rough_met_maps = 1;
@@ -107,6 +126,7 @@ void renderer_shdr_fetch(struct renderer_state* rs)
     rs->shdrs.light_pass = rs->shdr_fetch_cb("light_pass", rs->shdr_fetch_userdata);
     rs->shdrs.fx.tonemap = rs->shdr_fetch_cb("tonemap_fx", rs->shdr_fetch_userdata);
     rs->shdrs.fx.gamma   = rs->shdr_fetch_cb("gamma_fx", rs->shdr_fetch_userdata);
+    rs->shdrs.fx.smaa    = rs->shdr_fetch_cb("smaa_fx", rs->shdr_fetch_userdata);
     rs->sh_gi_rs->shdr   = rs->shdr_fetch_cb("env_pass", rs->shdr_fetch_userdata);
     rs->sh_gi_rs->probe_vis->shdr = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
 }
@@ -330,6 +350,33 @@ static void postprocess_pass(struct renderer_state* rs, unsigned int cur_fb)
 {
     GLuint shdr = 0;
     postfx_blit_fb_to_read(rs->postfx, rs->gbuf->fbo);
+    if (rs->options.use_antialiasing) {
+        shdr = rs->shdrs.fx.smaa;
+        glDisable(GL_BLEND);
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        glUseProgram(shdr);
+        glUniform1i(glGetUniformLocation(shdr, "input_tex"),  0);
+        glUniform1i(glGetUniformLocation(shdr, "input_tex2"), 1);
+        glUniform1i(glGetUniformLocation(shdr, "input_tex3"), 2);
+
+        /* Edge detection step */
+        glUniform1i(glGetUniformLocation(shdr, "ustep"), 0);
+        postfx_pass(rs->postfx);
+
+        /* Blend weight calculation step */
+        glUniform1i(glGetUniformLocation(shdr, "ustep"), 1);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, rs->textures.smaa.area);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, rs->textures.smaa.search);
+        postfx_pass(rs->postfx);
+
+        /* Neighborhood blending step */
+        glUniform1i(glGetUniformLocation(shdr, "ustep"), 2);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, postfx_orig_tex(rs->postfx));
+        postfx_pass(rs->postfx);
+    }
     if (rs->options.use_tonemapping) {
         shdr = rs->shdrs.fx.tonemap;
         glUseProgram(shdr);

@@ -57,6 +57,8 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         ctx->rndr_state.options.use_tonemapping = !ctx->rndr_state.options.use_tonemapping;
     else if (action == KEY_ACTION_RELEASE && key == KEY_G)
         ctx->rndr_state.options.use_gamma_correction = !ctx->rndr_state.options.use_gamma_correction;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_V)
+        ctx->rndr_state.options.use_antialiasing = !ctx->rndr_state.options.use_antialiasing;
 }
 
 static void on_mouse_button(struct window* wnd, int button, int action, int mods)
@@ -244,6 +246,12 @@ static const struct shdr_info {
         .vs_loc = "../ext/shaders/passthrough_vs.glsl",
         .gs_loc = 0,
         .fs_loc = "../ext/shaders/fx/gamma.glsl"
+    },
+    {
+        .name = "smaa_fx",
+        .vs_loc = "../ext/shaders/fx/smaa_pass_vs.glsl",
+        .gs_loc = 0,
+        .fs_loc = "../ext/shaders/fx/smaa_pass_fs.glsl"
     }
 };
 
