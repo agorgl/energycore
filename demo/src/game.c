@@ -34,7 +34,7 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
     else if (key == KEY_LEFT_SHIFT)
         ctx->fast_move = action != KEY_ACTION_RELEASE;
     else if (action == KEY_ACTION_RELEASE && key == KEY_N)
-        ctx->visualize_normals = !ctx->visualize_normals;
+        ctx->rndr_state.options.show_normals = !ctx->rndr_state.options.show_normals;
     else if (action == KEY_ACTION_RELEASE && key == KEY_M)
         ctx->dynamic_sky = !ctx->dynamic_sky;
     else if (action == KEY_ACTION_RELEASE && key == KEY_KP_ADD)
@@ -227,13 +227,13 @@ static const struct shdr_info {
         .name = "probe_vis",
         .vs_loc = "../ext/shaders/static_vs.glsl",
         .gs_loc = 0,
-        .fs_loc = "../ext/shaders/probe_vis_fs.glsl"
+        .fs_loc = "../ext/shaders/vis/probe_fs.glsl"
     },
     {
         .name = "norm_vis",
-        .vs_loc = "ext/shaders/nm_vis_vs.glsl",
-        .gs_loc = "ext/shaders/nm_vis_gs.glsl",
-        .fs_loc = "ext/shaders/nm_vis_fs.glsl"
+        .vs_loc = "../ext/shaders/vis/normal_vs.glsl",
+        .gs_loc = "../ext/shaders/vis/normal_gs.glsl",
+        .fs_loc = "../ext/shaders/vis/normal_fs.glsl"
     },
     {
         .name = "tonemap_fx",
@@ -322,9 +322,6 @@ void game_init(struct game_context* ctx)
     /* Load sky texture from file into the GPU */
     ctx->sky_tex = tex_env_from_file_to_gpu("ext/envmaps/stormydays_large.jpg");
     ctx->dynamic_sky = 0;
-
-    /* Visualizations setup */
-    ctx->visualize_normals = 0;
 
     /* Build initial renderer input */
     prepare_renderer_input(ctx, &ctx->cached_ri);
@@ -448,39 +445,6 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
     prepare_renderer_input_lights(ri);
 }
 
-static void visualize_normals(struct game_context* ctx, mat4* view, mat4* proj)
-{
-    const GLuint shdr = *hashmap_get(&ctx->shdr_store, hm_cast("norm_vis"));
-    glUseProgram(shdr);
-    GLuint proj_mat_loc = glGetUniformLocation(shdr, "proj");
-    GLuint view_mat_loc = glGetUniformLocation(shdr, "view");
-    GLuint modl_mat_loc = glGetUniformLocation(shdr, "model");
-    glUniformMatrix4fv(proj_mat_loc, 1, GL_FALSE, proj->m);
-    glUniformMatrix4fv(view_mat_loc, 1, GL_FALSE, view->m);
-
-    const size_t num_ents = entity_mgr_size(&ctx->world->emgr);
-    for (unsigned int i = 0; i < num_ents; ++i) {
-        entity_t e = entity_mgr_at(&ctx->world->emgr, i);
-        struct render_component* rc = render_component_lookup(&ctx->world->render_comp_dbuf, e);
-        if (!rc)
-            continue;
-        mat4* transform = transform_world_mat(
-            &ctx->world->transform_dbuf,
-            transform_component_lookup(&ctx->world->transform_dbuf, e));
-        struct model_hndl* mdlh = rc->model;
-        for (unsigned int j = 0; j < mdlh->num_meshes; ++j) {
-            struct mesh_hndl* mh = mdlh->meshes + j;
-            glUniformMatrix4fv(modl_mat_loc, 1, GL_FALSE, transform->m);
-            glBindVertexArray(mh->vao);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mh->ebo);
-            glDrawElements(GL_TRIANGLES, mh->indice_count, GL_UNSIGNED_INT, (void*)0);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-            glBindVertexArray(0);
-        }
-    }
-    glUseProgram(0);
-}
-
 void game_render(void* userdata, float interpolation)
 {
     struct game_context* ctx = userdata;
@@ -492,9 +456,6 @@ void game_render(void* userdata, float interpolation)
     /* Render */
     mat4 iview = camera_interpolated_view(&ctx->cam, interpolation);
     renderer_render(&ctx->rndr_state, &ctx->cached_ri, (float*)&iview);
-
-    if (ctx->visualize_normals)
-        visualize_normals(ctx, &iview, &ctx->rndr_state.proj);
 
     /* Show rendered contents from the backbuffer */
     window_swap_buffers(ctx->wnd);

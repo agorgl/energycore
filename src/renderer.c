@@ -116,6 +116,7 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     rs->options.use_tonemapping = 0;
     rs->options.use_gamma_correction = 0;
     rs->options.show_bboxes = 0;
+    rs->options.show_normals = 0;
     rs->options.show_fprof = 1;
     rs->options.show_gbuf_textures = 0;
 }
@@ -127,6 +128,7 @@ void renderer_shdr_fetch(struct renderer_state* rs)
     rs->shdrs.fx.tonemap = rs->shdr_fetch_cb("tonemap_fx", rs->shdr_fetch_userdata);
     rs->shdrs.fx.gamma   = rs->shdr_fetch_cb("gamma_fx", rs->shdr_fetch_userdata);
     rs->shdrs.fx.smaa    = rs->shdr_fetch_cb("smaa_fx", rs->shdr_fetch_userdata);
+    rs->shdrs.nm_vis     = rs->shdr_fetch_cb("norm_vis", rs->shdr_fetch_userdata);
     rs->sh_gi_rs->shdr   = rs->shdr_fetch_cb("env_pass", rs->shdr_fetch_userdata);
     rs->sh_gi_rs->probe_vis->shdr = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
 }
@@ -443,6 +445,26 @@ static void visualize_bboxes(struct renderer_state* rs, struct renderer_input* r
     }
 }
 
+static void visualize_normals(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj)
+{
+    const GLuint shdr = rs->shdrs.nm_vis;
+    glUseProgram(shdr);
+    glUniformMatrix4fv(glGetUniformLocation(shdr, "proj"), 1, GL_FALSE, proj->m);
+    glUniformMatrix4fv(glGetUniformLocation(shdr, "view"), 1, GL_FALSE, view->m);
+    GLuint mdl_mat_loc = glGetUniformLocation(shdr, "model");
+    for (unsigned int i = 0; i < ri->num_meshes; ++i) {
+        /* Setup mesh to be rendered */
+        struct renderer_mesh* rm = ri->meshes + i;
+        glUniformMatrix4fv(mdl_mat_loc, 1, GL_FALSE, rm->model_mat);
+        glBindVertexArray(rm->vao);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rm->ebo);
+        glDrawElements(GL_TRIANGLES, rm->indice_count, GL_UNSIGNED_INT, (void*)0);
+    }
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    glUseProgram(0);
+}
+
 /*-----------------------------------------------------------------
  * Public interface
  *-----------------------------------------------------------------*/
@@ -480,6 +502,10 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     /* Visualize probes */
     sh_gi_vis_probes(rs->sh_gi_rs, view, rs->proj.m, 0);
 #endif
+
+    /* Visualize normals */
+    if (rs->options.show_normals)
+        visualize_normals(rs, ri, (mat4*)view, &rs->proj);
 
     /* Visualize bboxes */
     if (rs->options.show_bboxes)

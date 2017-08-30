@@ -1,5 +1,5 @@
 #version 330 core
-#include "inc/sh.glsl"
+#include "../inc/sh.glsl"
 out vec4 color;
 
 in VS_OUT {

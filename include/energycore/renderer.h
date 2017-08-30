@@ -134,6 +134,7 @@ struct renderer_state {
             unsigned int gamma;
             unsigned int smaa;
         } fx;
+        unsigned int nm_vis;
     } shdrs;
     /* Internal textures (Luts etc.) */
     struct {
@@ -162,6 +163,7 @@ struct renderer_state {
         unsigned int show_bboxes;
         unsigned int show_fprof;
         unsigned int show_gbuf_textures;
+        unsigned int show_normals;
         unsigned int use_occlusion_culling;
         unsigned int use_normal_mapping;
         unsigned int use_rough_met_maps;
