@@ -375,11 +375,11 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
     /* Direct Light pass */
     frame_prof_timepoint(rs->fprof)
         light_pass(rs, ri, (mat4*)view, (mat4*)proj);
+    /* Sky */
+    render_sky(rs, ri, view->m, proj->m);
     /* PostFX pass */
     frame_prof_timepoint(rs->fprof)
         postprocess_pass(rs, cur_fb);
-    /* Sky */
-    render_sky(rs, ri, view->m, proj->m);
 }
 
 /*-----------------------------------------------------------------

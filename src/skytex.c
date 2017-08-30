@@ -21,7 +21,7 @@ void main()
 );
 
 static const char* skybox_fs_src = GLSRC(
-out vec4 color;
+out vec4 fcolor;
 
 in VS_OUT {
     vec3 tex_coords;
@@ -31,7 +31,10 @@ uniform samplerCube sky_tex;
 
 void main()
 {
-    color = texture(sky_tex, fs_in.tex_coords);
+    const float gamma = 2.2;
+    vec3 color = texture(sky_tex, fs_in.tex_coords).rgb;
+    color = pow(color, vec3(gamma));
+    fcolor = vec4(color, 1.0);
 }
 );
 
