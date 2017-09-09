@@ -45,6 +45,8 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         ctx->rndr_state.options.use_rough_met_maps = !ctx->rndr_state.options.use_rough_met_maps;
     else if (action == KEY_ACTION_RELEASE && key == KEY_O)
         ctx->rndr_state.options.use_shadows = !ctx->rndr_state.options.use_shadows;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_X)
+        ctx->rndr_state.options.use_envlight = !ctx->rndr_state.options.use_envlight;
     else if (action == KEY_ACTION_RELEASE && key == KEY_H)
         ctx->rndr_state.options.use_tonemapping = !ctx->rndr_state.options.use_tonemapping;
     else if (action == KEY_ACTION_RELEASE && key == KEY_G)
@@ -81,16 +83,22 @@ static const struct shdr_info {
         .fs_loc = "../ext/shaders/geom_pass_fs.glsl"
     },
     {
-        .name = "light_pass",
+        .name = "dir_light",
         .vs_loc = "../ext/shaders/passthrough_vs.glsl",
         .gs_loc = 0,
         .fs_loc = "../ext/shaders/dir_light_fs.glsl"
     },
     {
-        .name = "env_pass",
+        .name = "env_light",
         .vs_loc = "../ext/shaders/passthrough_vs.glsl",
         .gs_loc = 0,
         .fs_loc = "../ext/shaders/env_light_fs.glsl"
+    },
+    {
+        .name = "env_probe",
+        .vs_loc = "../ext/shaders/passthrough_vs.glsl",
+        .gs_loc = 0,
+        .fs_loc = "../ext/shaders/env_probe_fs.glsl"
     },
     {
         .name = "probe_vis",

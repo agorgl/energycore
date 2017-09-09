@@ -113,6 +113,7 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     rs->options.use_occlusion_culling = 0;
     rs->options.use_rough_met_maps = 1;
     rs->options.use_shadows = 0;
+    rs->options.use_envlight = 1;
     rs->options.use_tonemapping = 0;
     rs->options.use_gamma_correction = 0;
     rs->options.show_bboxes = 0;
@@ -124,12 +125,13 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
 void renderer_shdr_fetch(struct renderer_state* rs)
 {
     rs->shdrs.geom_pass  = rs->shdr_fetch_cb("geom_pass", rs->shdr_fetch_userdata);
-    rs->shdrs.light_pass = rs->shdr_fetch_cb("light_pass", rs->shdr_fetch_userdata);
+    rs->shdrs.dir_light  = rs->shdr_fetch_cb("dir_light", rs->shdr_fetch_userdata);
+    rs->shdrs.env_light  = rs->shdr_fetch_cb("env_light", rs->shdr_fetch_userdata);
     rs->shdrs.fx.tonemap = rs->shdr_fetch_cb("tonemap_fx", rs->shdr_fetch_userdata);
     rs->shdrs.fx.gamma   = rs->shdr_fetch_cb("gamma_fx", rs->shdr_fetch_userdata);
     rs->shdrs.fx.smaa    = rs->shdr_fetch_cb("smaa_fx", rs->shdr_fetch_userdata);
     rs->shdrs.nm_vis     = rs->shdr_fetch_cb("norm_vis", rs->shdr_fetch_userdata);
-    rs->sh_gi_rs->shdr   = rs->shdr_fetch_cb("env_pass", rs->shdr_fetch_userdata);
+    rs->sh_gi_rs->shdr   = rs->shdr_fetch_cb("env_probe", rs->shdr_fetch_userdata);
     rs->sh_gi_rs->probe_vis->shdr = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
 }
 
@@ -305,7 +307,7 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     glBlendFunc(GL_ONE, GL_ONE);
 
     /* Setup common uniforms */
-    GLuint shdr = rs->shdrs.light_pass;
+    GLuint shdr = rs->shdrs.dir_light;
     glUseProgram(shdr);
     upload_gbuffer_uniforms(shdr, rs->viewport.xy, view, proj);
 
@@ -339,6 +341,14 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
                 /* Unimplemented */
                 break;
         }
+    }
+
+    /* Environmental lighting */
+    if (rs->options.use_envlight) {
+        GLuint shdr = rs->shdrs.env_light;
+        glUseProgram(shdr);
+        upload_gbuffer_uniforms(shdr, rs->viewport.xy, view, proj);
+        render_quad();
     }
     glUseProgram(0);
 
@@ -421,7 +431,7 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
             glBindVertexArray(0);
         }
     }
-    /* Direct Light pass */
+    /* Light pass */
     frame_prof_timepoint(rs->fprof)
         light_pass(rs, ri, (mat4*)view, (mat4*)proj);
     /* Sky */

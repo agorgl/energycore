@@ -43,13 +43,7 @@ void main()
         ? shadow_coef(shadowmap, cascades, d.ws_pos, d.normal, L, view)
         : 0.0;
 
-    // Ambient
-    vec3 ao = vec3(1.0);       // TODO
-    vec3 amb_col = vec3(0.03); // TODO
-    vec3 ambient = amb_col * albedo * ao;
-
     // Final
-    vec3 result = ambient + Lo * (1.0 - shadow);
-
+    vec3 result = Lo * (1.0 - shadow);
     color = vec4(result, 1.0);
 }

@@ -1,19 +1,22 @@
 #version 330 core
 #include "inc/deferred.glsl"
-#include "inc/sh.glsl"
-
+#include "inc/light.glsl"
 out vec4 color;
-
-uniform vec3 sh_coeffs[SH_COEFF_NUM];
 
 void main()
 {
     // Prologue
     fetch_gbuffer_data();
 
-    // SH Lighting
-    if (d.normal == vec3(0.0))
-        discard;
-    vec3 env_col = sh_irradiance(d.normal, sh_coeffs);
-    color = vec4(env_col, 1.0);
+    // Material
+    vec3 albedo = d.albedo;
+    float metallic = d.metallic;
+    float roughness = d.roughness;
+
+    // Ambient
+    vec3 ao = vec3(1.0);       // TODO
+    vec3 amb_col = vec3(0.03); // TODO
+    vec3 ambient = amb_col * albedo * ao;
+
+    color = vec4(ambient, 1.0);
 }
