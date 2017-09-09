@@ -572,6 +572,8 @@ void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int
  *-----------------------------------------------------------------*/
 void renderer_destroy(struct renderer_state* rs)
 {
+    glDeleteTextures(1, &rs->textures.smaa.area);
+    glDeleteTextures(1, &rs->textures.smaa.search);
     panicscr_destroy(rs->ps_rndr);
     free(rs->ps_rndr);
     postfx_destroy(rs->postfx);
