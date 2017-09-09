@@ -1,22 +1,14 @@
 #include "game.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include <math.h>
-#include <prof.h>
 #include <glad/glad.h>
 #include <gfxwnd/window.h>
 #include "gpures.h"
+#include "util.h"
 #include "ecs/world.h"
 #include "scene_file.h"
-
-#define bench(msg) \
-    for (timepoint_t _start_ms = millisecs(), _break = 1;         \
-         _break || (printf("%s %lu:%03lu\n", msg,                 \
-                           (millisecs() - _start_ms) / 1000,      \
-                           (millisecs() - _start_ms) % 1000), 0); \
-         _break = 0)
 
 #define SCENE_FILE "ext/scenes/sample_scene.json"
 
