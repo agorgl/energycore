@@ -17,7 +17,7 @@ static void free_material(struct scene_material* m);
 static void free_texture(struct scene_texture* t);
 static void free_model(struct scene_model* m);
 static void free_scene_object(struct scene_object* o);
-static void scene_cleanup(struct scene* sc);
+static void scene_file_cleanup(struct scene_file* sc);
 
 static void json_parse_float_arr(float* out, struct json_array_element_s* arr_e, int lim)
 {
@@ -139,7 +139,7 @@ static const char* complex_ref(const char* guid, const char* file_id)
     return nr;
 }
 
-struct scene* scene_from_file(const char* filepath)
+struct scene_file* scene_file_load(const char* filepath)
 {
     /* Load file data */
     long data_buf_sz = filesize(filepath);
@@ -175,7 +175,7 @@ struct scene* scene_from_file(const char* filepath)
     }
 
     /* Allocate empty scene object */
-    struct scene* sc = calloc(1, sizeof(struct scene));
+    struct scene_file* sc = calloc(1, sizeof(struct scene_file));
     size_t i;
 
     /* Fill in models */
@@ -315,11 +315,11 @@ struct scene* scene_from_file(const char* filepath)
     free(data_buf);
 
     /* Remove unused stuff from scene */
-    scene_cleanup(sc);
+    scene_file_cleanup(sc);
     return sc;
 }
 
-static void scene_cleanup(struct scene* sc)
+static void scene_file_cleanup(struct scene_file* sc)
 {
     struct hashmap used_materials, used_models, used_textures;
     hashmap_init(&used_materials, hm_str_hash, hm_str_eql);
@@ -441,7 +441,7 @@ static void free_scene_object(struct scene_object* o)
         free((void*)o->name);
 }
 
-void scene_destroy(struct scene* sc)
+void scene_file_destroy(struct scene_file* sc)
 {
     for (size_t i = 0; i < sc->num_objects; ++i)
         free_scene_object(sc->objects + i);

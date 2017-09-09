@@ -31,8 +31,6 @@
 #ifndef _GAME_H_
 #define _GAME_H_
 
-#include <vector.h>
-#include <hashmap.h>
 #include <linalgb.h>
 #include <energycore/renderer.h>
 #include "camera.h"
@@ -43,13 +41,12 @@ struct game_context
     struct window* wnd;
     /* Master run flag, indicates when the game should exit */
     int* should_terminate;
-    /* GPU resource stores */
-    struct hashmap model_store;
-    struct hashmap tex_store;
-    struct hashmap mat_store;
-    struct hashmap shdr_store;
-    /* World */
-    struct world* world;
+    /* GPU Resource Manager */
+    struct res_mngr* rmgr;
+    /* Scene list */
+    struct scene* main_scene;
+    /* Active scene pointer */
+    struct scene* active_scene;
     /* Camera */
     struct camera cam;
     int fast_move;

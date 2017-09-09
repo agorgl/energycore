@@ -8,7 +8,7 @@
 #include "gpures.h"
 #include "util.h"
 #include "ecs/world.h"
-#include "scene_file.h"
+#include "scene_ext.h"
 
 #define SCENE_FILE "ext/scenes/sample_scene.json"
 
@@ -67,129 +67,6 @@ static void on_fb_size(struct window* wnd, unsigned int width, unsigned int heig
     renderer_resize(&ctx->rndr_state, width, height);
 }
 
-static int mesh_group_offset_from_name(struct model_hndl* m, const char* mgroup_name)
-{
-    for (unsigned int i = 0; i <m->num_mesh_groups; ++i) {
-        if (strcmp(m->mesh_groups[i]->name, mgroup_name) == 0) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-static void load_data(struct game_context* ctx, struct scene* sc)
-{
-    /* Initialize model, texture and material stores */
-    hashmap_init(&ctx->model_store, hm_str_hash, hm_str_eql);
-    hashmap_init(&ctx->tex_store, hm_str_hash, hm_str_eql);
-    hashmap_init(&ctx->mat_store, hm_str_hash, hm_str_eql);
-
-    /* Load models */
-    bench("[+] Mdl time")
-    for (size_t i = 0; i < sc->num_models; ++i) {
-        struct scene_model* m = sc->models + i;
-        hm_ptr* p = hashmap_get(&ctx->model_store, hm_cast(m->ref));
-        if (!p) {
-            /* Load, parse and upload model */
-            struct model_hndl* model = model_from_file_to_gpu(m->path);
-            hashmap_put(&ctx->model_store, hm_cast(m->ref), hm_cast(model));
-        }
-    }
-
-    /* Load textures */
-    bench("[+] Tex time")
-    for (size_t i = 0; i < sc->num_textures; ++i) {
-        struct scene_texture* t = sc->textures + i;
-        hm_ptr* p = hashmap_get(&ctx->tex_store, hm_cast(t->ref));
-        if (!p) {
-            /* Load, parse and upload texture */
-            struct tex_hndl* tex = tex_from_file_to_gpu(t->path);
-            hashmap_put(&ctx->tex_store, hm_cast(t->ref), hm_cast(tex));
-        }
-    }
-
-    /* Load materials */
-    for (size_t i = 0; i < sc->num_materials; ++i) {
-        struct scene_material* m = sc->materials + i;
-        hm_ptr* p = hashmap_get(&ctx->mat_store, hm_cast(m->ref));
-        if (!p) {
-            /* Store material */
-            struct material* mat = calloc(1, sizeof(struct material));
-            /* Set texture parameters */
-            for (int j = 0; j < MAT_MAX; ++j) {
-                const char* tex_ref = m->textures[j].tex_ref;
-                if (tex_ref) {
-                    hm_ptr* p = hashmap_get(&ctx->tex_store, hm_cast(tex_ref));
-                    if (p)
-                        mat->tex[j].hndl = *(struct tex_hndl*)hm_pcast(*p);
-                    mat->tex[j].scl[0] = m->textures[j].scale[0];
-                    mat->tex[j].scl[1] = m->textures[j].scale[1];
-                }
-            }
-            hashmap_put(&ctx->mat_store, hm_cast(m->ref), hm_cast(mat));
-        }
-    }
-
-    /* Initialize world */
-    ctx->world = world_create();
-    /* Add all scene objects */
-    struct hashmap transform_handles; /* Used to later populate parent relations */
-    hashmap_init(&transform_handles, hm_str_hash, hm_str_eql);
-    for (size_t i = 0; i < sc->num_objects; ++i) {
-        /* Scene object refering to */
-        struct scene_object* so = sc->objects + i;
-        /* Create entity */
-        entity_t e = entity_create(&ctx->world->emgr);
-        /* Create and set render component */
-        if (so->mdl_ref) {
-            struct model_hndl* mhdl = (struct model_hndl*)hm_pcast(*hashmap_get(&ctx->model_store, hm_cast(so->mdl_ref)));
-            int mgroup_idx = -1;
-            if (so->mgroup_name)
-                mgroup_idx = mesh_group_offset_from_name(mhdl, so->mgroup_name);
-            if (mgroup_idx != -1) {
-                struct render_component* rendr_c = render_component_create(&ctx->world->render_comp_dbuf, e);
-                rendr_c->model = mhdl;
-                rendr_c->mesh_group_idx = mgroup_idx;
-                for (unsigned int j = 0, cur_mat = 0; j < rendr_c->model->num_meshes; ++j) {
-                    struct mesh_hndl* mh = rendr_c->model->meshes + j;
-                    if (mh->mgroup_idx == rendr_c->mesh_group_idx) {
-                        if (!(cur_mat < so->num_mat_refs && cur_mat < MAX_MATERIALS))
-                            break;
-                        if (!rendr_c->materials[mh->mat_idx]) {
-                            hm_ptr* p = hashmap_get(&ctx->mat_store, hm_cast(so->mat_refs[cur_mat++]));
-                            if (p)
-                                rendr_c->materials[mh->mat_idx] = (struct material*)hm_pcast(*p);
-                        }
-                    }
-                }
-            } else {
-                printf("Mesh group offset not found for %s!\n", so->mgroup_name);
-            }
-        }
-        /* Create and set transform component */
-        float* pos = so->transform.translation;
-        float* rot = so->transform.rotation;
-        float* scl = so->transform.scaling;
-        struct transform_handle th = transform_component_create(&ctx->world->transform_dbuf, e);
-        transform_set_pose_data(&ctx->world->transform_dbuf, th,
-            vec3_new(scl[0], scl[1], scl[2]),
-            quat_new(rot[0], rot[1], rot[2], rot[3]),
-            vec3_new(pos[0], pos[1], pos[2]));
-        /* Store transform handle for later parent relations */
-        hashmap_put(&transform_handles, hm_cast(so->ref), hm_cast(th.offs));
-    }
-
-    /* Populate parent links */
-    for (size_t i = 0; i < sc->num_objects; ++i) {
-        struct scene_object* so = sc->objects + i;
-        if (so->parent_ref) {
-            struct transform_handle th_child = *(struct transform_handle*)hashmap_get(&transform_handles, hm_cast(so->ref));
-            struct transform_handle th_parnt = *(struct transform_handle*)hashmap_get(&transform_handles, hm_cast(so->parent_ref));
-            transform_set_parent(&ctx->world->transform_dbuf, th_child, th_parnt);
-        }
-    }
-    hashmap_destroy(&transform_handles);
-}
 
 static const struct shdr_info {
     const char* name;
@@ -247,25 +124,10 @@ static const struct shdr_info {
     }
 };
 
-static void load_shdrs(struct game_context* ctx)
-{
-    hashmap_init(&ctx->shdr_store, hm_str_hash, hm_str_eql);
-    /* Load shader from files into the GPU */
-    for (unsigned int i = 0; i < sizeof(shdrs) / sizeof(struct shdr_info); ++i) {
-        const struct shdr_info* si = shdrs + i;
-        const char* name = si->name;
-        unsigned int shdr = shader_from_files(si->vs_loc, si->gs_loc, si->fs_loc);
-        hashmap_put(&ctx->shdr_store, hm_cast(name), hm_cast(shdr));
-    }
-}
-
 static unsigned int rndr_shdr_fetch(const char* shdr_name, void* userdata)
 {
     struct game_context* ctx = userdata;
-    hm_ptr* p = hashmap_get(&ctx->shdr_store, hm_cast(shdr_name));
-    unsigned int shdr = 0;
-    if (p)
-        shdr = (unsigned int)(*p);
+    unsigned int shdr = res_mngr_shdr_get(ctx->rmgr, shdr_name);
     return shdr;
 }
 
@@ -287,20 +149,26 @@ void game_init(struct game_context* ctx)
     wnd_callbacks.fb_size_cb = on_fb_size;
     window_set_callbacks(ctx->wnd, &wnd_callbacks);
 
+    /* Create resource manager */
+    ctx->rmgr = res_mngr_create();
+
     /* Pick scene file, try environment variable first */
     const char* scene_file = getenv("EC_SCENE");
     if (!scene_file) /* Fallback to default */
         scene_file = SCENE_FILE;
 
-    /* Load scene file */
-    struct scene* sc = scene_from_file(scene_file);
     /* Load data into GPU and construct world entities */
     bench("[+] Tot time")
-        load_data(ctx, sc);
-    scene_destroy(sc);
+        ctx->main_scene = scene_external(scene_file, ctx->rmgr);
+    ctx->active_scene = ctx->main_scene;
 
-    /* Load shaders */
-    load_shdrs(ctx);
+    /* Internal shaders */
+    for (unsigned int i = 0; i < sizeof(shdrs) / sizeof(struct shdr_info); ++i) {
+        const struct shdr_info* si = shdrs + i;
+        const char* name = si->name;
+        unsigned int shdr = shader_from_files(si->vs_loc, si->gs_loc, si->fs_loc);
+        res_mngr_shdr_put(ctx->rmgr, name, shdr);
+    }
 
     /* Initialize camera */
     camera_defaults(&ctx->cam);
@@ -365,12 +233,13 @@ static void prepare_renderer_input_lights(struct renderer_input* ri)
 
 static void prepare_renderer_input(struct game_context* ctx, struct renderer_input* ri)
 {
+    struct world* world = ctx->active_scene->world;
     /* Count total meshes */
-    const size_t num_ents = entity_mgr_size(&ctx->world->emgr);
+    const size_t num_ents = entity_mgr_size(&world->emgr);
     ri->num_meshes = 0;
     for (unsigned int i = 0; i < num_ents; ++i) {
-        entity_t e = entity_mgr_at(&ctx->world->emgr, i);
-        struct render_component* rc = render_component_lookup(&ctx->world->render_comp_dbuf, e);
+        entity_t e = entity_mgr_at(&world->emgr, i);
+        struct render_component* rc = render_component_lookup(&world->render_comp_dbuf, e);
         if (rc) {
             for (unsigned int j = 0; j < rc->model->num_meshes; ++j) {
                 struct mesh_hndl* mh = rc->model->meshes + j;
@@ -385,13 +254,13 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
     memset(ri->meshes, 0, ri->num_meshes * sizeof(struct renderer_mesh));
     unsigned int cur_mesh = 0;
     for (unsigned int i = 0; i < num_ents; ++i) {
-        entity_t e = entity_mgr_at(&ctx->world->emgr, i);
-        struct render_component* rc = render_component_lookup(&ctx->world->render_comp_dbuf, e);
+        entity_t e = entity_mgr_at(&world->emgr, i);
+        struct render_component* rc = render_component_lookup(&world->render_comp_dbuf, e);
         if (!rc)
             continue;
         mat4* transform = transform_world_mat(
-            &ctx->world->transform_dbuf,
-            transform_component_lookup(&ctx->world->transform_dbuf, e));
+            &world->transform_dbuf,
+            transform_component_lookup(&world->transform_dbuf, e));
         struct model_hndl* mdlh = rc->model;
         for (unsigned int j = 0; j < mdlh->num_meshes; ++j) {
             /* Source */
@@ -463,8 +332,6 @@ void game_perf_update(void* userdata, float msec, float fps)
 
 void game_shutdown(struct game_context* ctx)
 {
-    struct hashmap_iter it;
-
     /* Free cached renderer input */
     free(ctx->cached_ri.lights);
     free(ctx->cached_ri.meshes);
@@ -481,37 +348,11 @@ void game_shutdown(struct game_context* ctx)
     /* Destroy renderer */
     renderer_destroy(&ctx->rndr_state);
 
-    /* Destroy world */
-    world_destroy(ctx->world);
+    /* Destroy main scene */
+    scene_destroy(ctx->main_scene);
 
-    /* Free shaders */
-    hashmap_for(ctx->shdr_store, it) {
-        GLuint shdr = it.p->value;
-        glDeleteProgram(shdr);
-    }
-
-    /* Free model store data */
-    hashmap_for(ctx->model_store, it) {
-        struct model_hndl* mh = hm_pcast(it.p->value);
-        model_free_from_gpu(mh);
-    }
-
-    /* Free texture store data */
-    hashmap_for(ctx->tex_store, it) {
-        struct tex_hndl* th = hm_pcast(it.p->value);
-        tex_free_from_gpu(th);
-    }
-
-    /* Free material store data */
-    hashmap_for(ctx->mat_store, it) {
-        free((void*)hm_pcast(it.p->value));
-    }
-
-    /* Free stores */
-    hashmap_destroy(&ctx->shdr_store);
-    hashmap_destroy(&ctx->model_store);
-    hashmap_destroy(&ctx->mat_store);
-    hashmap_destroy(&ctx->tex_store);
+    /* Destroy resource manager */
+    res_mngr_destroy(ctx->rmgr);
 
     /* Close window */
     window_destroy(ctx->wnd);

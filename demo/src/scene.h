@@ -28,59 +28,14 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _SCENE_FILE_H_
-#define _SCENE_FILE_H_
+#ifndef _SCENE_H_
+#define _SCENE_H_
 
-#include <stdlib.h>
-
-struct scene_file {
-    /* Models */
-    struct scene_model {
-        const char* ref;
-        const char* path;
-    }* models;
-    size_t num_models;
-    /* Textures */
-    struct scene_texture {
-        const char* ref;
-        const char* path;
-    }* textures;
-    size_t num_textures;
-    /* Materials */
-    struct scene_material {
-        const char* ref;
-        struct {
-            const char* tex_ref;
-            enum {
-                STT_ALBEDO = 0,
-                STT_NORMAL,
-                STT_ROUGHNESS,
-                STT_METALLIC,
-                STT_MAX
-            } type;
-            float scale[2];
-        } textures[4];
-    }* materials;
-    size_t num_materials;
-    /* Objects */
-    struct scene_object {
-        const char* ref;
-        const char* name;
-        struct {
-            float translation[3];
-            float rotation[4];
-            float scaling[3];
-        } transform;
-        const char* mdl_ref;
-        const char* mgroup_name;
-        const char** mat_refs;
-        size_t num_mat_refs;
-        const char* parent_ref;
-    }* objects;
-    size_t num_objects;
+struct scene {
+    struct world* world;
 };
 
-struct scene_file* scene_file_load(const char* filepath);
-void scene_file_destroy(struct scene_file* sc);
+struct scene* scene_create();
+void scene_destroy(struct scene* sc);
 
-#endif /* ! _SCENE_FILE_H_ */
+#endif /* ! _SCENE_H_ */
