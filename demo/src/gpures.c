@@ -327,3 +327,87 @@ unsigned int shader_from_files(const char* vsp, const char* gsp, const char* fsp
     free((void*)fs_src);
     return shdr;
 }
+
+struct res_mngr* res_mngr_create()
+{
+    struct res_mngr* rmgr = calloc(1, sizeof(struct res_mngr));
+    hashmap_init(&rmgr->mdl_store, hm_str_hash, hm_str_eql);
+    hashmap_init(&rmgr->tex_store, hm_str_hash, hm_str_eql);
+    hashmap_init(&rmgr->mat_store, hm_str_hash, hm_str_eql);
+    hashmap_init(&rmgr->shdr_store, hm_str_hash, hm_str_eql);
+    return rmgr;
+}
+
+struct model_hndl* res_mngr_mdl_get(struct res_mngr* rmgr, const char* mdl_name)
+{
+    hm_ptr* p = hashmap_get(&rmgr->mdl_store, hm_cast(mdl_name));
+    return p == 0 ? 0 : hm_pcast(*p);
+}
+
+struct tex_hndl* res_mngr_tex_get(struct res_mngr* rmgr, const char* tex_name)
+{
+    hm_ptr* p = hashmap_get(&rmgr->tex_store, hm_cast(tex_name));
+    return p == 0 ? 0 : hm_pcast(*p);
+}
+
+struct material* res_mngr_mat_get(struct res_mngr* rmgr, const char* mat_name)
+{
+    hm_ptr* p = hashmap_get(&rmgr->mat_store, hm_cast(mat_name));
+    return p == 0 ? 0 : hm_pcast(*p);
+}
+
+unsigned int res_mngr_shdr_get(struct res_mngr* rmgr, const char* shdr_name)
+{
+    hm_ptr* p = hashmap_get(&rmgr->shdr_store, hm_cast(shdr_name));
+    return p == 0 ? 0 : *p;
+}
+
+void res_mngr_mdl_put(struct res_mngr* rmgr, const char* mdl_name, struct model_hndl* m)
+{
+    hashmap_put(&rmgr->mdl_store, hm_cast(mdl_name), hm_cast(m));
+}
+
+void res_mngr_tex_put(struct res_mngr* rmgr, const char* tex_name, struct tex_hndl* t)
+{
+    hashmap_put(&rmgr->tex_store, hm_cast(tex_name), hm_cast(t));
+}
+
+void res_mngr_mat_put(struct res_mngr* rmgr, const char* mat_name, struct material* mat)
+{
+    hashmap_put(&rmgr->mat_store, hm_cast(mat_name), hm_cast(mat));
+}
+
+void res_mngr_shdr_put(struct res_mngr* rmgr, const char* shdr_name, unsigned int shdr)
+{
+    hashmap_put(&rmgr->shdr_store, hm_cast(shdr_name), hm_cast(shdr));
+}
+
+void res_mngr_destroy(struct res_mngr* rmgr)
+{
+    struct hashmap_iter it;
+    /* Free shaders */
+    hashmap_for(rmgr->shdr_store, it) {
+        GLuint shdr = it.p->value;
+        glDeleteProgram(shdr);
+    }
+    /* Free model store data */
+    hashmap_for(rmgr->mdl_store, it) {
+        struct model_hndl* mh = hm_pcast(it.p->value);
+        model_free_from_gpu(mh);
+    }
+    /* Free texture store data */
+    hashmap_for(rmgr->tex_store, it) {
+        struct tex_hndl* th = hm_pcast(it.p->value);
+        tex_free_from_gpu(th);
+    }
+    /* Free material store data */
+    hashmap_for(rmgr->mat_store, it) {
+        free((void*)hm_pcast(it.p->value));
+    }
+    /* Free stores */
+    hashmap_destroy(&rmgr->shdr_store);
+    hashmap_destroy(&rmgr->mdl_store);
+    hashmap_destroy(&rmgr->mat_store);
+    hashmap_destroy(&rmgr->tex_store);
+    free(rmgr);
+}
