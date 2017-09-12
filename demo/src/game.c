@@ -281,29 +281,47 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
             rm->vao = mh->vao;
             rm->ebo = mh->ebo;
             rm->indice_count = mh->indice_count;
+            /* Material properties */
             struct material* mat = rc->materials[mh->mat_idx];
             if (mat) {
-                rm->material.diff_tex = mat->tex[MAT_ALBEDO].hndl.id;
-                float* scl = mat->tex[MAT_ALBEDO].scl;
-                rm->material.diff_tex_scl[0] = scl[0];
-                rm->material.diff_tex_scl[1] = scl[1];
-                scl = mat->tex[MAT_NORMAL].scl;
-                rm->material.norm_tex = mat->tex[MAT_NORMAL].hndl.id;
-                rm->material.norm_tex_scl[0] = scl[0];
-                rm->material.norm_tex_scl[1] = scl[1];
-                scl = mat->tex[MAT_ROUGHNESS].scl;
-                rm->material.rough_tex = mat->tex[MAT_ROUGHNESS].hndl.id;
-                rm->material.rough_tex_scl[0] = scl[0];
-                rm->material.rough_tex_scl[1] = scl[1];
-                scl = mat->tex[MAT_METALLIC].scl;
-                rm->material.metal_tex = mat->tex[MAT_METALLIC].hndl.id;
-                rm->material.metal_tex_scl[0] = scl[0];
-                rm->material.metal_tex_scl[1] = scl[1];
+                for (unsigned int k = 0; k < MAT_MAX; ++k) {
+                    struct material_attr* ma = mat->attrs + k;
+                    /* Defaults */
+                    struct {unsigned int id; float* scl;} tex = {0, (float[]){1.0f, 1.0f}};
+                    float valf = 0.0f; float val3f[3] = {0.0f, 0.0f, 0.0f};
+                    /* Fill in local */
+                    switch (ma->dtype) {
+                        case MAT_DTYPE_VALF:
+                            valf = ma->d.valf;
+                            break;
+                        case MAT_DTYPE_VAL3F:
+                            val3f[0] = ma->d.val3f[0];
+                            val3f[1] = ma->d.val3f[1];
+                            val3f[2] = ma->d.val3f[2];
+                            break;
+                        case MAT_DTYPE_TEX:
+                            tex.id  = ma->d.tex.hndl.id;
+                            tex.scl = ma->d.tex.scl;
+                            break;
+                    }
+                    /* Copy to target */
+                    struct renderer_material_attr* rma = rm->material.attrs + k; /* Implicit mapping MAT_TYPE <-> RMAT_TYPE */
+                    rma->dtype = ma->dtype;
+                    rma->d.tex.id = tex.id;
+                    rma->d.valf = valf;
+                    memcpy(rma->d.tex.scl, tex.scl, 2 * sizeof(float));
+                    memcpy(rma->d.val3f, val3f, sizeof(val3f));
+                }
             } else {
                 /* Default to white color */
-                rm->material.diff_col[0] = 1.0f;
-                rm->material.diff_col[1] = 1.0f;
-                rm->material.diff_col[2] = 1.0f;
+                struct renderer_material_attr* rma = rm->material.attrs + RMAT_ALBEDO;
+                rma->dtype = RMAT_DT_VAL3F;
+                rma->d.val3f[0] = 1.0f;
+                rma->d.val3f[1] = 1.0f;
+                rma->d.val3f[2] = 1.0f;
+                rma = rm->material.attrs + RMAT_ROUGHNESS;
+                rma->dtype = RMAT_DT_VALF;
+                rma->d.valf = 0.8f;
             }
             memcpy(rm->aabb.min, mh->aabb_min, 3 * sizeof(float));
             memcpy(rm->aabb.max, mh->aabb_max, 3 * sizeof(float));

@@ -59,7 +59,7 @@ struct model_hndl
 
 struct tex_hndl { unsigned int id; };
 
-enum material_attr {
+enum material_attr_type {
     MAT_ALBEDO = 0,
     MAT_NORMAL,
     MAT_ROUGHNESS,
@@ -68,10 +68,21 @@ enum material_attr {
 };
 
 struct material {
-    struct {
-        struct tex_hndl hndl;
-        float scl[2];
-    } tex[MAT_MAX];
+    struct material_attr {
+        struct {
+            float valf;
+            float val3f[3];
+            struct {
+                struct tex_hndl hndl;
+                float scl[2];
+            } tex;
+        } d;
+        enum {
+            MAT_DTYPE_VALF = 0,
+            MAT_DTYPE_VAL3F,
+            MAT_DTYPE_TEX
+        } dtype;
+    } attrs[MAT_MAX];
 };
 
 struct res_mngr {

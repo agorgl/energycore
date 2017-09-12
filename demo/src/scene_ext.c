@@ -54,14 +54,36 @@ struct scene* scene_external(const char* scene_file, struct res_mngr* rmgr)
             /* Store material */
             struct material* mat = calloc(1, sizeof(struct material));
             /* Set texture parameters */
-            for (int j = 0; j < MAT_MAX; ++j) {
+            for (int j = 0; j < STT_MAX; ++j) {
+                struct material_attr* mattr = mat->attrs + j; /* Implicit mapping STT_TYPE <-> MAT_TYPE */
                 const char* tex_ref = m->textures[j].tex_ref;
-                if (tex_ref) {
-                    struct tex_hndl* p = res_mngr_tex_get(rmgr, tex_ref);
-                    if (p)
-                        mat->tex[j].hndl = *p;
-                    mat->tex[j].scl[0] = m->textures[j].scale[0];
-                    mat->tex[j].scl[1] = m->textures[j].scale[1];
+                struct tex_hndl* p = tex_ref ? res_mngr_tex_get(rmgr, tex_ref) : 0;
+                if (p) {
+                    mattr->dtype = MAT_DTYPE_TEX;
+                    mattr->d.tex.hndl.id = p->id;
+                    mattr->d.tex.scl[0]  = m->textures[j].scale[0];
+                    mattr->d.tex.scl[1]  = m->textures[j].scale[1];
+                } else {
+                    switch (j) {
+                        case MAT_ALBEDO:
+                            mattr->dtype = MAT_DTYPE_VAL3F;
+                            mattr->d.val3f[0] = 0.0f;
+                            mattr->d.val3f[1] = 0.0f;
+                            mattr->d.val3f[2] = 0.0f;
+                            break;
+                        case MAT_ROUGHNESS:
+                            mattr->dtype = MAT_DTYPE_VALF;
+                            mattr->d.valf = 0.8f;
+                            break;
+                        case MAT_METALLIC:
+                            mattr->dtype = MAT_DTYPE_VALF;
+                            mattr->d.valf = 0.0f;
+                            break;
+                        default:
+                            mattr->dtype = MAT_DTYPE_VALF;
+                            mattr->d.valf = 0.0f;
+                            break;
+                    }
                 }
             }
             res_mngr_mat_put(rmgr, m->ref, mat);

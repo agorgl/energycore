@@ -36,6 +36,32 @@
 /*-----------------------------------------------------------------
  * Renderer input
  *-----------------------------------------------------------------*/
+enum renderer_material_attr_type {
+    RMAT_ALBEDO = 0,
+    RMAT_NORMAL,
+    RMAT_ROUGHNESS,
+    RMAT_METALLIC,
+    RMAT_MAX
+};
+
+struct renderer_material {
+    struct renderer_material_attr {
+        struct {
+            float valf;
+            float val3f[3];
+            struct {
+                unsigned int id;
+                float scl[2];
+            } tex;
+        } d;
+        enum {
+            RMAT_DT_VALF = 0,
+            RMAT_DT_VAL3F,
+            RMAT_DT_TEX
+        } dtype;
+    } attrs[RMAT_MAX];
+};
+
 struct renderer_mesh {
     /* Geometry handles */
     unsigned int vao;
@@ -44,17 +70,7 @@ struct renderer_mesh {
     /* Model matrix */
     float model_mat[16];
     /* Material parameters */
-    struct {
-        float diff_col[3];
-        unsigned int diff_tex;
-        float diff_tex_scl[2];
-        unsigned int norm_tex;
-        float norm_tex_scl[2];
-        unsigned int rough_tex;
-        float rough_tex_scl[2];
-        unsigned int metal_tex;
-        float metal_tex_scl[2];
-    } material;
+    struct renderer_material material;
     /* AABB */
     struct {
         float min[3], max[3];
