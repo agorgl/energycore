@@ -297,7 +297,7 @@ static void render_sky(struct renderer_state* rs, struct renderer_input* ri, flo
     }
 }
 
-static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj)
+static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj, int direct_only)
 {
     /* Bind gbuffer input textures and target fbo */
     gbuffer_bind_for_light_pass(rs->gbuf);
@@ -351,11 +351,20 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     }
 
     /* Environmental lighting */
-    if (rs->options.use_envlight) {
+    if (rs->options.use_envlight && !direct_only) {
+#ifdef WITH_GI
+        /* Use probes to render GI */
+        GLuint shdr = rs->sh_gi_rs->shdr;
+        glUseProgram(shdr);
+        upload_gbuffer_uniforms(rs->sh_gi_rs->shdr, rs->viewport.xy, (mat4*)view, &rs->proj);
+        glUniform3f(glGetUniformLocation(rs->sh_gi_rs->shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
+        sh_gi_render(rs->sh_gi_rs);
+#else
         GLuint shdr = rs->shdrs.env_light;
         glUseProgram(shdr);
         upload_gbuffer_uniforms(shdr, rs->viewport.xy, view, proj);
         render_quad();
+#endif
     }
     glUseProgram(0);
 
@@ -410,7 +419,7 @@ static void postprocess_pass(struct renderer_state* rs, unsigned int cur_fb)
     postfx_blit_read_to_fb(rs->postfx, cur_fb);
 }
 
-static void render_scene(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj)
+static void render_scene(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj, int direct_only)
 {
     /* Clear default buffers */
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -424,7 +433,7 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
     /* Copy depth to fb */
     gbuffer_blit_depth_to_fb(rs->gbuf, cur_fb);
     /* Shadowmap pass*/
-    if (rs->options.use_shadows) {
+    if (rs->options.use_shadows && !direct_only) {
         float* light_dir = ri->lights[0].type_data.dir.direction.xyz;
         shadowmap_render(rs->shdwmap, light_dir, view->m, proj->m) {
             for (size_t i = 0; i < ri->num_meshes; ++i) {
@@ -440,12 +449,16 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
     }
     /* Light pass */
     frame_prof_timepoint(rs->fprof)
-        light_pass(rs, ri, (mat4*)view, (mat4*)proj);
+        light_pass(rs, ri, (mat4*)view, (mat4*)proj, direct_only);
     /* Sky */
     render_sky(rs, ri, view->m, proj->m);
     /* PostFX pass */
-    frame_prof_timepoint(rs->fprof)
-        postprocess_pass(rs, cur_fb);
+    frame_prof_timepoint(rs->fprof) {
+        if (!direct_only)
+            postprocess_pass(rs, cur_fb);
+        else
+            gbuffer_blit_accum_to_fb(rs->gbuf, cur_fb);
+    }
 }
 
 /*-----------------------------------------------------------------
@@ -493,32 +506,25 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
         return;
     }
 
-    /* Render main scene */
-    with_fprof(rs->fprof, 1)
-        render_scene(rs, ri, (mat4*)view, &rs->proj);
-
-    /* Render GI */
 #ifdef WITH_GI
     /* Update probes */
-    mat4 pass_view, pass_proj;
-    sh_gi_render_passes(rs->sh_gi_rs, pass_view, pass_proj) {
-        /* HACK: Temporarily replace gbuffer reference in renderer state */
-        struct gbuffer* old_gbuf = rs->gbuf;
-        rs->gbuf = rs->sh_gi_rs->lcr_gbuf;
-        /* Render scene */
-        render_scene(rs, ri, &pass_view, &pass_proj);
-        /* Restore original gbuffer reference */
-        rs->gbuf = old_gbuf;
+    if (rs->options.use_envlight) {
+        mat4 pass_view, pass_proj;
+        sh_gi_render_passes(rs->sh_gi_rs, pass_view, pass_proj) {
+            /* HACK: Temporarily replace gbuffer reference in renderer state */
+            struct gbuffer* old_gbuf = rs->gbuf;
+            rs->gbuf = rs->sh_gi_rs->lcr_gbuf;
+            /* Render scene */
+            render_scene(rs, ri, &pass_view, &pass_proj, 1);
+            /* Restore original gbuffer reference */
+            rs->gbuf = old_gbuf;
+        }
     }
-    /* Use probes to render GI */
-    glUseProgram(rs->sh_gi_rs->shdr);
-    upload_gbuffer_uniforms(rs->sh_gi_rs->shdr, rs->viewport.xy, (mat4*)view, &rs->proj);
-    gbuffer_bind_textures(rs->gbuf);
-    sh_gi_render(rs->sh_gi_rs);
-    gbuffer_unbind_textures(rs->gbuf);
-    /* Visualize probes */
-    sh_gi_vis_probes(rs->sh_gi_rs, view, rs->proj.m, 0);
 #endif
+
+    /* Render main scene */
+    with_fprof(rs->fprof, 1)
+        render_scene(rs, ri, (mat4*)view, &rs->proj, 0);
 
     /* Visualize normals */
     if (rs->options.show_normals)
@@ -527,6 +533,12 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     /* Visualize bboxes */
     if (rs->options.show_bboxes)
         visualize_bboxes(rs, ri, view);
+
+#ifdef WITH_GI
+    /* Visualize probes */
+    if (rs->options.use_envlight)
+        sh_gi_vis_probes(rs->sh_gi_rs, view, rs->proj.m, 0);
+#endif
 
     /* Show gbuffer textures */
     if (rs->options.show_gbuf_textures) {

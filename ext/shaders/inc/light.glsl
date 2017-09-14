@@ -109,7 +109,7 @@ vec3 radiance(vec3 N, vec3 V, vec3 L, vec3 light_col, float attenuation, vec3 al
     return Lo;
 }
 
-vec3 env_radiance(vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, samplerCube irr_map, samplerCube pf_map, sampler2D brdf_lut)
+vec3 env_radiance(vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, vec3 diffuse_irr)
 {
     // Calculate reflectance at normal incidence; if dia-electric (like plastic) use f0
     // of 0.04 and if it's a metal, use their albedo color as f0 (metallic workflow)
@@ -134,7 +134,8 @@ vec3 env_radiance(vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, 
     kD *= 1.0 - metallic;
 
     // Calculate diffuse ambient component
-    vec3 irradiance = texture(irr_map, N).rgb;
+    //vec3 irradiance = texture(irr_map, N).rgb;
+    vec3 irradiance = diffuse_irr;
     vec3 diffuse = irradiance * albedo;
 
     // Calculate specular ambient component
