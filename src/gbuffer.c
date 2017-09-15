@@ -151,7 +151,7 @@ void gbuffer_blit_depth_to_fb(struct gbuffer* gb, unsigned int fb)
 
 void gbuffer_destroy(struct gbuffer* gb)
 {
-    GLuint textures[] = { gb->normal_buf, gb->albedo_buf, gb->roughness_metallic_buf, gb->depth_stencil_buf };
+    GLuint textures[] = { gb->accum_buf, gb->normal_buf, gb->albedo_buf, gb->roughness_metallic_buf, gb->depth_stencil_buf };
     glDeleteTextures(array_length(textures), textures);
     glDeleteFramebuffers(1, &gb->fbo);
 }
