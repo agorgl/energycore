@@ -364,22 +364,22 @@ unsigned int res_mngr_shdr_get(struct res_mngr* rmgr, const char* shdr_name)
 
 void res_mngr_mdl_put(struct res_mngr* rmgr, const char* mdl_name, struct model_hndl* m)
 {
-    hashmap_put(&rmgr->mdl_store, hm_cast(mdl_name), hm_cast(m));
+    hashmap_put(&rmgr->mdl_store, hm_cast(strdup(mdl_name)), hm_cast(m));
 }
 
 void res_mngr_tex_put(struct res_mngr* rmgr, const char* tex_name, struct tex_hndl* t)
 {
-    hashmap_put(&rmgr->tex_store, hm_cast(tex_name), hm_cast(t));
+    hashmap_put(&rmgr->tex_store, hm_cast(strdup(tex_name)), hm_cast(t));
 }
 
 void res_mngr_mat_put(struct res_mngr* rmgr, const char* mat_name, struct material* mat)
 {
-    hashmap_put(&rmgr->mat_store, hm_cast(mat_name), hm_cast(mat));
+    hashmap_put(&rmgr->mat_store, hm_cast(strdup(mat_name)), hm_cast(mat));
 }
 
 void res_mngr_shdr_put(struct res_mngr* rmgr, const char* shdr_name, unsigned int shdr)
 {
-    hashmap_put(&rmgr->shdr_store, hm_cast(shdr_name), hm_cast(shdr));
+    hashmap_put(&rmgr->shdr_store, hm_cast(strdup(shdr_name)), hm_cast(shdr));
 }
 
 void res_mngr_destroy(struct res_mngr* rmgr)
@@ -387,21 +387,25 @@ void res_mngr_destroy(struct res_mngr* rmgr)
     struct hashmap_iter it;
     /* Free shaders */
     hashmap_for(rmgr->shdr_store, it) {
+        free((void*)hm_pcast(it.p->key));
         GLuint shdr = it.p->value;
         glDeleteProgram(shdr);
     }
     /* Free model store data */
     hashmap_for(rmgr->mdl_store, it) {
+        free((void*)hm_pcast(it.p->key));
         struct model_hndl* mh = hm_pcast(it.p->value);
         model_free_from_gpu(mh);
     }
     /* Free texture store data */
     hashmap_for(rmgr->tex_store, it) {
+        free((void*)hm_pcast(it.p->key));
         struct tex_hndl* th = hm_pcast(it.p->value);
         tex_free_from_gpu(th);
     }
     /* Free material store data */
     hashmap_for(rmgr->mat_store, it) {
+        free((void*)hm_pcast(it.p->key));
         free((void*)hm_pcast(it.p->value));
     }
     /* Free stores */
