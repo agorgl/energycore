@@ -45,7 +45,7 @@ size_t entity_mgr_size(struct entity_mgr* emgr)
 
 size_t entity_mgr_at(struct entity_mgr* emgr, size_t idx)
 {
-    uint64_t gen = *(uint64_t*)vector_at(&emgr->generation, idx);
+    uint64_t gen = *(uint16_t*)vector_at(&emgr->generation, idx);
     entity_t e = entity_make(idx, gen);
     return e;
 }
