@@ -233,8 +233,8 @@ void sky_preetham_default_params(struct sky_preetham_params* params)
     params->rayleigh = 1.0f;
     params->mie_coef = 0.005;
     params->mie_dirg = 0.8;
-    params->inclination = 0.49;
-    params->azimuth = 0.25;
+    params->inclination = 0.76;
+    params->azimuth = 0.625;
 }
 
 void sky_preetham_render(struct sky_preetham* sp, struct sky_preetham_params* params, mat4* proj, mat4* view)
@@ -258,11 +258,11 @@ void sky_preetham_render(struct sky_preetham* sp, struct sky_preetham_params* pa
 
     /* Calculate sun position according to inclination and azimuth params */
     const unsigned int distance = 400000;
-    const float theta = M_PI * (params->inclination - 0.5);
-    const float phi = 2.0f * M_PI * (params->azimuth - 0.5);
+    const float theta = 2.0f * M_PI * (params->azimuth - 0.5);
+    const float phi = M_PI * (params->inclination - 0.5);
     vec3 sun_pos = vec3_new(
-        distance * cos(phi),
         distance * sin(phi) * sin(theta),
+        distance * cos(phi),
         distance * sin(phi) * cos(theta)
     );
     glUniform3f(glGetUniformLocation(sp->shdr, "sun_position"), sun_pos.x, sun_pos.y, sun_pos.z);
