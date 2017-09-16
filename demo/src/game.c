@@ -95,6 +95,12 @@ static const struct shdr_info {
         .fs_loc = "../ext/shaders/env_light_fs.glsl"
     },
     {
+        .name = "sky_prth",
+        .vs_loc = "../ext/shaders/sky_prth_vs.glsl",
+        .gs_loc = 0,
+        .fs_loc = "../ext/shaders/sky_prth_fs.glsl"
+    },
+    {
         .name = "env_probe",
         .vs_loc = "../ext/shaders/passthrough_vs.glsl",
         .gs_loc = 0,

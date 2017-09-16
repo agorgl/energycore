@@ -34,7 +34,6 @@
 #include <linalgb.h>
 
 struct sky_preetham {
-    unsigned int vao, vbo;
     unsigned int shdr;
 };
 

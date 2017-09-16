@@ -133,6 +133,7 @@ void renderer_shdr_fetch(struct renderer_state* rs)
     rs->shdrs.nm_vis     = rs->shdr_fetch_cb("norm_vis", rs->shdr_fetch_userdata);
     rs->sh_gi_rs->shdr   = rs->shdr_fetch_cb("env_probe", rs->shdr_fetch_userdata);
     rs->sh_gi_rs->probe_vis->shdr = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
+    rs->sky_rs.preeth->shdr = rs->shdr_fetch_cb("sky_prth", rs->shdr_fetch_userdata);
 }
 
 static void upload_gbuffer_uniforms(GLuint shdr, float viewport[2], mat4* view, mat4* proj)
