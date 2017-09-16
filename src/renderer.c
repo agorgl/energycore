@@ -366,6 +366,7 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
         GLuint shdr = rs->shdrs.env_light;
         glUseProgram(shdr);
         upload_gbuffer_uniforms(shdr, rs->viewport.xy, view, proj);
+        glUniform3f(glGetUniformLocation(shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
         render_quad();
 #endif
     }

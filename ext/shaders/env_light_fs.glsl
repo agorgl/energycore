@@ -3,6 +3,8 @@
 #include "inc/light.glsl"
 out vec4 color;
 
+uniform vec3 view_pos;
+
 void main()
 {
     // Prologue
@@ -13,10 +15,19 @@ void main()
     float metallic = d.metallic;
     float roughness = d.roughness;
 
-    // Ambient
-    vec3 ao = vec3(1.0);       // TODO
-    vec3 amb_col = vec3(0.03); // TODO
-    vec3 ambient = amb_col * albedo * ao;
+    // Unset gbuf fragments
+    if (d.normal == vec3(0.0))
+        discard;
 
-    color = vec4(ambient, 1.0);
+    // View vector
+    vec3 V = normalize(view_pos - d.ws_pos);
+
+    // Ambient
+    vec3 ao = vec3(1.0); // TODO
+    vec3 env_col = vec3(0.05);
+    vec3 environ = env_radiance(
+        d.normal, V, d.albedo, d.metallic,
+        d.roughness, env_col) * ao;
+
+    color = vec4(environ, 1.0);
 }
