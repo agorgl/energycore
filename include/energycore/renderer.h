@@ -111,6 +111,10 @@ struct renderer_input {
     /* Sky type and parameters */
     enum renderer_sky_type sky_type;
     unsigned int sky_tex; /* Used if sky_type is RST_TEXTURE */
+    struct {
+        float inclination;
+        float azimuth;
+    } sky_pp; /* Used if sky_type  is RST_PREETHAM */
     /* Lighting parameters */
     struct renderer_light* lights;
     unsigned int num_lights;

@@ -288,6 +288,8 @@ static void render_sky(struct renderer_state* rs, struct renderer_input* ri, flo
         case RST_PREETHAM: {
             struct sky_preetham_params sp_params;
             sky_preetham_default_params(&sp_params);
+            sp_params.inclination = ri->sky_pp.inclination;
+            sp_params.azimuth     = ri->sky_pp.azimuth;
             sky_preetham_render(rs->sky_rs.preeth, &sp_params, (mat4*)proj, (mat4*)view);
             break;
         }

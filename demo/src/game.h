@@ -52,7 +52,6 @@ struct game_context
     int fast_move;
     /* Sky */
     struct tex_hndl* sky_tex;
-    int dynamic_sky;
     /* Renderer state and his cached input */
     struct renderer_state rndr_state;
     struct renderer_input cached_ri;

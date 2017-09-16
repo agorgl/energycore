@@ -28,7 +28,7 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
     else if (action == KEY_ACTION_RELEASE && key == KEY_N)
         ctx->rndr_state.options.show_normals = !ctx->rndr_state.options.show_normals;
     else if (action == KEY_ACTION_RELEASE && key == KEY_M)
-        ctx->dynamic_sky = !ctx->dynamic_sky;
+        ctx->cached_ri.sky_type = !ctx->cached_ri.sky_type;
     else if (action == KEY_ACTION_RELEASE && key == KEY_KP_ADD)
         ctx->cam.move_speed *= (ctx->cam.move_speed < 10e2) ? 2.0f : 1.0f;
     else if (action == KEY_ACTION_RELEASE && key == KEY_KP_SUBTRACT)
@@ -189,10 +189,24 @@ void game_init(struct game_context* ctx)
 
     /* Load sky texture from file into the GPU */
     ctx->sky_tex = tex_env_from_file_to_gpu("ext/envmaps/stormydays_large.jpg");
-    ctx->dynamic_sky = 0;
+    ctx->cached_ri.sky_type = RST_TEXTURE;
+    ctx->cached_ri.sky_tex = ctx->sky_tex->id;
+    ctx->cached_ri.sky_pp.inclination = 0.8f;
+    ctx->cached_ri.sky_pp.azimuth = 0.6f;
 
     /* Build initial renderer input */
     prepare_renderer_input(ctx, &ctx->cached_ri);
+}
+
+static vec3 sun_dir_from_params(float inclination, float azimuth)
+{
+    const float theta = 2.0f * M_PI * (azimuth - 0.5);
+    const float phi = M_PI * (inclination - 0.5);
+    return vec3_new(
+        sin(phi) * sin(theta),
+        cos(phi),
+        sin(phi) * cos(theta)
+    );
 }
 
 void game_update(void* userdata, float dt)
@@ -225,6 +239,16 @@ void game_update(void* userdata, float dt)
     window_get_cursor_diff(ctx->wnd, &cur_diff_x, &cur_diff_y);
     if (window_is_cursor_grubbed(ctx->wnd))
         camera_look(&ctx->cam, cur_diff_x, cur_diff_y);
+    /* Update sun position */
+    if (window_key_state(ctx->wnd, KEY_KP2) == KEY_ACTION_PRESS)
+        ctx->cached_ri.sky_pp.inclination = clamp(ctx->cached_ri.sky_pp.inclination + 10e-3f, 0.0f, 1.0f);
+    if (window_key_state(ctx->wnd, KEY_KP8) == KEY_ACTION_PRESS)
+        ctx->cached_ri.sky_pp.inclination = clamp(ctx->cached_ri.sky_pp.inclination - 10e-3f, 0.0f, 1.0f);
+    if (window_key_state(ctx->wnd, KEY_KP4) == KEY_ACTION_PRESS)
+        ctx->cached_ri.sky_pp.azimuth = clamp(ctx->cached_ri.sky_pp.azimuth + 10e-3f, 0.0f, 1.0f);
+    if (window_key_state(ctx->wnd, KEY_KP6) == KEY_ACTION_PRESS)
+        ctx->cached_ri.sky_pp.azimuth = clamp(ctx->cached_ri.sky_pp.azimuth - 10e-3f, 0.0f, 1.0f);
+    ctx->cached_ri.lights[0].type_data.dir.direction = sun_dir_from_params(ctx->cached_ri.sky_pp.inclination, ctx->cached_ri.sky_pp.azimuth);
     /* Process input events */
     window_update(ctx->wnd);
 }
@@ -335,10 +359,6 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
 void game_render(void* userdata, float interpolation)
 {
     struct game_context* ctx = userdata;
-
-    /* Update renderer input dynamic parameters */
-    ctx->cached_ri.sky_tex = ctx->sky_tex->id;
-    ctx->cached_ri.sky_type = ctx->dynamic_sky ? RST_PREETHAM : RST_TEXTURE;
 
     /* Render */
     mat4 iview = camera_interpolated_view(&ctx->cam, interpolation);
