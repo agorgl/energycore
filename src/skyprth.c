@@ -43,7 +43,7 @@ void sky_preetham_render(struct sky_preetham* sp, struct sky_preetham_params* pa
     glUniform1f(glGetUniformLocation(sp->shdr, "turbidity"), params->turbidity);
     glUniform1f(glGetUniformLocation(sp->shdr, "rayleigh"), params->rayleigh);
     glUniform1f(glGetUniformLocation(sp->shdr, "mie_coef"), params->mie_coef);
-    glUniform1f(glGetUniformLocation(sp->shdr, "mie_dirg"), params->mie_dirg);
+    glUniform1f(glGetUniformLocation(sp->shdr, "mie_directional_g"), params->mie_dirg);
 
     /* Calculate sun position according to inclination and azimuth params */
     const unsigned int distance = 400000;
@@ -54,7 +54,7 @@ void sky_preetham_render(struct sky_preetham* sp, struct sky_preetham_params* pa
         distance * cos(phi),
         distance * sin(phi) * cos(theta)
     );
-    glUniform3f(glGetUniformLocation(sp->shdr, "sun_position"), sun_pos.x, sun_pos.y, sun_pos.z);
+    glUniform3f(glGetUniformLocation(sp->shdr, "sun_pos"), sun_pos.x, sun_pos.y, sun_pos.z);
 
     render_quad();
     glUseProgram(0);
