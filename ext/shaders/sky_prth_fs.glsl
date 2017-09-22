@@ -18,9 +18,10 @@ const float e = 2.71828182845904523536028747135266249775724709369995957;
 const float pi = 3.141592653589793238462643383279502884197169;
 const vec3  up = vec3(0.0, 1.0, 0.0);
 
-// Constants for atmospheric scattering
+// Atmospheric scattering constants (SI units unless otherwise noted)
 // const float n = 1.0003;   // Refractive index of air
 // const float N = 2.545E25; // Number of molecules per unit volume for air at 288.15K and 1013mb (sea level -45 celsius)
+// const float pn = 0.035;   // Depolatization factor for standard air
 
 // Wavelength of used primaries, according to preetham
 // const vec3 lambda = vec3(680E-9, 550E-9, 450E-9);
@@ -33,14 +34,14 @@ const vec3 total_rayleigh = vec3(5.804542996261093E-6, 1.3562911419845635E-5, 3.
 const float rayleigh_zenith_length = 8.4E3;
 const float mie_zenith_length = 1.25E3;
 
+// Sun intensity
+const float EE = 1000.0;
 // 66 arc seconds -> degrees, and the cosine of that
 const float sun_angular_diameter_cos = 0.999956676946448443553574619906976478926848692873900859324;
 
 // Earth shadow hack
-const float cutoff_angle = 1.6110731556870734; // pi / 1.95;
-const float steepness = 1.5;
-// Sun intensity
-const float EE = 1000.0;
+const float cutoff_angle = 1.6110731556870734; // pi / 1.95; (original: pi / 2.0)
+const float steepness = 1.5; // (original 0.5)
 
 float sun_intensity(float zenith_angle_cos)
 {
@@ -59,12 +60,15 @@ vec3 total_mie(float T)
     return 0.434 * c * mie_const;
 }
 
+/* Rayleigh phase function as a function of cos(theta) */
 float rayleigh_phase(float cos_theta)
 {
     const float THREE_OVER_SIXTEENPI = 0.05968310365946075; // 3.0 / (16.0 * pi)
     return THREE_OVER_SIXTEENPI * (1.0 + pow(cos_theta, 2.0));
 }
 
+/* Henyey-Greenstein approximation as a function of cos(theta)
+   - g goemetric constant that defines the shape of the ellipse. */
 float hg_phase(float cos_theta, float g)
 {
     const float ONE_OVER_FOURPI = 0.07957747154594767; // 1.0 / (4.0 * pi)
@@ -110,16 +114,16 @@ vec3 dir_from_pvdr(mat4 proj, vec3 view_dir, vec2 st)
 
 void main()
 {
-    // Calc look direction
+    // Look direction
     vec2 st = uv.xy;
     vec3 ldir = dir_from_pvdr(proj, cam_dir, st); // normalize(ws_pos - cam_pos)
 
-    // Sun intensity based on how high the sun is
+    // Sun intensity with earth shadow hack and based on how high the sun is
     vec3 sun_dir = normalize(sun_pos);
     float sun_e = sun_intensity(dot(sun_dir, up));
     float sun_fade = 1.0 - clamp(1.0 - exp((sun_pos.y / 450000.0)), 0.0, 1.0);
 
-    // Extinction (absorbtion + out scattering)
+    // Extinction (absorption + out scattering)
     // Rayleigh coefficients
     float rayleigh_coef = rayleigh - (1.0 * (1.0 - sun_fade));
     vec3 beta_r = total_rayleigh * rayleigh_coef;
@@ -148,8 +152,8 @@ void main()
                clamp(pow(1.0 - dot(up, sun_dir), 5.0), 0.0, 1.0));
 
     // Nightsky
-    float theta = acos(ldir.y);       // elevation --> y-axis [-pi/2, pi/2]
-    float phi = atan(ldir.z, ldir.x); // azimuth   --> x-axis [-pi/2, pi/2]
+    float theta = acos(ldir.y);       // Elevation --> y-axis [-pi/2, pi/2]
+    float phi = atan(ldir.z, ldir.x); // Azimuth   --> x-axis [-pi/2, pi/2]
     vec2 uv = vec2(phi, theta) / vec2(2.0 * pi, pi) + vec2(0.5, 0.0);
     vec3 L0 = vec3(0.1) * fex;
 
