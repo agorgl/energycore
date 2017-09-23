@@ -40,6 +40,10 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     rs->gbuf = malloc(sizeof(struct gbuffer));
     gbuffer_init(rs->gbuf, width, height);
 
+    /* Initialize internal postfx renderer */
+    rs->postfx = malloc(sizeof(struct postfx));
+    postfx_init(rs->postfx, width, height);
+
     /* Initial resize */
     renderer_resize(rs, width, height);
 
@@ -70,10 +74,6 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     rs->shdwmap = malloc(sizeof(struct shadowmap));
     const GLuint shmap_res = 2048;
     shadowmap_init(rs->shdwmap, shmap_res, shmap_res);
-
-    /* Initialize internal postfx renderer */
-    rs->postfx = malloc(sizeof(struct postfx));
-    postfx_init(rs->postfx, width, height);
 
     /* Initialize internal panic screen state */
     rs->ps_rndr = malloc(sizeof(struct panicscr_rndr));
@@ -594,10 +594,11 @@ void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int
     rs->viewport.x = width;
     rs->viewport.y = height;
     rs->proj = mat4_perspective(radians(60.0f), 0.1f, 30000.0f, ((float)width / height));
-    /* GBuf */
+    /* Recreate all fb textures */
     gbuffer_destroy(rs->gbuf);
-    memset(rs->gbuf, 0, sizeof(struct gbuffer));
     gbuffer_init(rs->gbuf, width, height);
+    postfx_destroy(rs->postfx);
+    postfx_init(rs->postfx, width, height);
 }
 
 /*-----------------------------------------------------------------
@@ -609,8 +610,6 @@ void renderer_destroy(struct renderer_state* rs)
     glDeleteTextures(1, &rs->textures.smaa.search);
     panicscr_destroy(rs->ps_rndr);
     free(rs->ps_rndr);
-    postfx_destroy(rs->postfx);
-    free(rs->postfx);
     mrtdbg_destroy();
     dbgtxt_destroy();
     frame_prof_destroy(rs->fprof);
@@ -627,6 +626,8 @@ void renderer_destroy(struct renderer_state* rs)
     sky_texture_destroy(rs->sky_rs.tex);
     free(rs->sky_rs.tex);
     glutils_deinit();
+    postfx_destroy(rs->postfx);
+    free(rs->postfx);
     gbuffer_destroy(rs->gbuf);
     free(rs->gbuf);
 }
