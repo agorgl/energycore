@@ -19,16 +19,15 @@ const float pi = 3.141592653589793238462643383279502884197169;
 const vec3  up = vec3(0.0, 1.0, 0.0);
 
 // Atmospheric scattering constants (SI units unless otherwise noted)
-// const float n = 1.0003;   // Refractive index of air
-// const float N = 2.545E25; // Number of molecules per unit volume for air at 288.15K and 1013mb (sea level -45 celsius)
-// const float pn = 0.035;   // Depolatization factor for standard air
+const float n = 1.0003;   // Refractive index of air
+const float N = 2.545E25; // Number of molecules per unit volume for air at 288.15K and 1013mb (sea level -45 celsius)
+const float pn = 0.035;   // Depolatization factor for standard air
 
 // Wavelength of used primaries, according to preetham
-// const vec3 lambda = vec3(680E-9, 550E-9, 450E-9);
+const vec3 lambda = vec3(680E-9, 550E-9, 450E-9);
 
-// This pre-calcuation replaces older total_rayleigh(vec3 lambda) function:
-// (8.0 * pow(pi, 3.0) * pow(pow(n, 2.0) - 1.0, 2.0) * (6.0 + 3.0 * pn)) / (3.0 * N * pow(lambda, vec3(4.0)) * (6.0 - 7.0 * pn))
-const vec3 total_rayleigh = vec3(5.804542996261093E-6, 1.3562911419845635E-5, 3.0265902468824876E-5);
+// Mie stuff
+const vec3 K = vec3(0.686, 0.678, 0.666); // K coefficient for the primaries
 
 // Optical length at zenith for molecules
 const float rayleigh_zenith_length = 8.4E3;
@@ -43,19 +42,41 @@ const float sun_angular_diameter_cos = 0.999956676946448443553574619906976478926
 const float cutoff_angle = 1.6110731556870734; // pi / 1.95; (original: pi / 2.0)
 const float steepness = 1.5; // (original 0.5)
 
+#define PRECALC
+
 float sun_intensity(float zenith_angle_cos)
 {
+#ifdef PRECALC
     zenith_angle_cos = clamp(zenith_angle_cos, -1.0, 1.0);
     return EE * max(0.0, 1.0 - pow(e, -((cutoff_angle - acos(zenith_angle_cos)) / steepness)));
+#else
+    return EE * max(0.0, 1.0 - exp(-((cutoff_angle - acos(zenith_angle_cos)) / steepness)));
+#endif
 }
 
-vec3 total_mie(float T)
+/* Total rayleigh coefficient for a set of wavelengths (usually the tree primaries) */
+vec3 total_rayleigh(vec3 lambda)
 {
-    // K coefficient for the primaries
-    // const float v = 4.0;
-    // const vec3 K = vec3(0.686, 0.678, 0.666);
-    // mie_const = pi * pow((2.0 * pi) / lambda, vec3(v - 2.0)) * K
+#ifdef PRECALC
+    return vec3(5.804542996261093E-6, 1.3562911419845635E-5, 3.0265902468824876E-5);
+#else
+    return (8.0 * pow(pi, 3.0) * pow(pow(n, 2.0) - 1.0, 2.0) * (6.0 + 3.0 * pn)) / (3.0 * N * pow(lambda, vec3(4.0)) * (6.0 - 7.0 * pn));
+#endif
+}
+
+/* Total mie scattering coefficient
+   - lambda set of wavelengths in m
+   - K corresponding scattering param
+   - T turbidity, somewhere in the range of 0 to 20 */
+vec3 total_mie(vec3 lambda, vec3 K, float T)
+{
+#ifdef PRECALC
     const vec3 mie_const = vec3(1.8399918514433978E14, 2.7798023919660528E14, 4.0790479543861094E14);
+#else
+    const float v = 4.0;
+    vec3 mie_const = pi * pow((2.0 * pi) / lambda, vec3(v - 2.0)) * K;
+#endif
+    // Not the formula given py Preetham.
     float c = (0.2 * T) * 10E-18;
     return 0.434 * c * mie_const;
 }
@@ -63,18 +84,32 @@ vec3 total_mie(float T)
 /* Rayleigh phase function as a function of cos(theta) */
 float rayleigh_phase(float cos_theta)
 {
+#ifdef PRECALC
     const float THREE_OVER_SIXTEENPI = 0.05968310365946075; // 3.0 / (16.0 * pi)
     return THREE_OVER_SIXTEENPI * (1.0 + pow(cos_theta, 2.0));
+#else
+    /* NOTE: There are a few scale factors for the phase funtion
+       (1) as given by Preetham, normalized over the sphere with 4pi sr
+       (2) normalized to integral = 1
+       (3) nasa: integrates to 9pi / 4, looks best */
+    return (3.0 / (16.0 * pi)) * (1.0 + pow(cos_theta, 2));
+    //return (1.0 / (3.0 * pi)) * (1.0 + pow(cos_theta, 2));
+    //return (3.0 / 4.0) * (1.0 + pow(cos_theta, 2));
+#endif
 }
 
 /* Henyey-Greenstein approximation as a function of cos(theta)
    - g goemetric constant that defines the shape of the ellipse. */
 float hg_phase(float cos_theta, float g)
 {
+#ifdef PRECALC
     const float ONE_OVER_FOURPI = 0.07957747154594767; // 1.0 / (4.0 * pi)
     float g2 = pow(g, 2.0);
     float inv = 1.0 / pow(1.0 - 2.0 * g * cos_theta + g2, 1.5);
     return ONE_OVER_FOURPI * ((1.0 - g2) * inv);
+#else
+    return (1.0 / (4.0 * pi)) * ((1.0 - pow(g, 2)) / pow(1.0 - 2.0 * g * cos_theta + pow(g, 2), 1.5));
+#endif
 }
 
 // Filmic ToneMapping http://filmicgames.com/archives/75
@@ -126,9 +161,9 @@ void main()
     // Extinction (absorption + out scattering)
     // Rayleigh coefficients
     float rayleigh_coef = rayleigh - (1.0 * (1.0 - sun_fade));
-    vec3 beta_r = total_rayleigh * rayleigh_coef;
+    vec3 beta_r = total_rayleigh(lambda) * rayleigh_coef;
     // Mie coefficients
-    vec3 beta_m = total_mie(turbidity) * mie_coef;
+    vec3 beta_m = total_mie(lambda, K, turbidity) * mie_coef;
 
     // Optical length
     // Cutoff angle at 90 to avoid singularity in next formula.
@@ -147,6 +182,7 @@ void main()
     float m_phase = hg_phase(cos_theta, mie_directional_g);
     vec3 beta_m_theta = beta_m * m_phase;
 
+    // Daysky
     vec3 Lin = pow(sun_e * ((beta_r_theta + beta_m_theta) / (beta_r + beta_m)) * (1.0 - fex), vec3(1.5));
     Lin *= mix(vec3(1.0), pow(sun_e * ((beta_r_theta + beta_m_theta) / (beta_r + beta_m)) * fex, vec3(1.0 / 2.0)),
                clamp(pow(1.0 - dot(up, sun_dir), 5.0), 0.0, 1.0));
