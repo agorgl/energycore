@@ -7,8 +7,8 @@
 #include <glad/glad.h>
 #include "skytex.h"
 #include "skyprth.h"
-#include "probe_vis.h"
-#include "sh_gi.h"
+#include "girndr.h"
+#include "probe.h"
 #include "bbrndr.h"
 #include "gbuffer.h"
 #include "occull.h"
@@ -58,9 +58,11 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     rs->sky_rs.preeth = malloc(sizeof(struct sky_preetham));
     sky_preetham_init(rs->sky_rs.preeth);
 
-    /* Initialize internal sh_gi renderer state */
-    rs->sh_gi_rs = malloc(sizeof(struct sh_gi_renderer));
-    sh_gi_init(rs->sh_gi_rs);
+    /* Initialize internal Global Illumination renderer state */
+    rs->gi_rndr = malloc(sizeof(struct gi_rndr));
+    gi_rndr_init(rs->gi_rndr);
+    /* Add sample probe */
+    gi_add_probe(rs->gi_rndr, vec3_zero());
 
     /* Initialize internal bbox renderer state */
     rs->bbox_rs = malloc(sizeof(struct bbox_rndr));
@@ -131,8 +133,8 @@ void renderer_shdr_fetch(struct renderer_state* rs)
     rs->shdrs.fx.gamma   = rs->shdr_fetch_cb("gamma_fx", rs->shdr_fetch_userdata);
     rs->shdrs.fx.smaa    = rs->shdr_fetch_cb("smaa_fx", rs->shdr_fetch_userdata);
     rs->shdrs.nm_vis     = rs->shdr_fetch_cb("norm_vis", rs->shdr_fetch_userdata);
-    rs->sh_gi_rs->shdr   = rs->shdr_fetch_cb("env_probe", rs->shdr_fetch_userdata);
-    rs->sh_gi_rs->probe_vis->shdr = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
+    rs->gi_rndr->shdr    = rs->shdr_fetch_cb("env_probe", rs->shdr_fetch_userdata);
+    rs->gi_rndr->probe_vis->shdr = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
     rs->sky_rs.preeth->shdr = rs->shdr_fetch_cb("sky_prth", rs->shdr_fetch_userdata);
 }
 
@@ -357,11 +359,11 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     if (rs->options.use_envlight && !direct_only) {
 #ifdef WITH_GI
         /* Use probes to render GI */
-        GLuint shdr = rs->sh_gi_rs->shdr;
+        GLuint shdr = rs->gi_rndr->shdr;
         glUseProgram(shdr);
-        upload_gbuffer_uniforms(rs->sh_gi_rs->shdr, rs->viewport.xy, (mat4*)view, &rs->proj);
-        glUniform3f(glGetUniformLocation(rs->sh_gi_rs->shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
-        sh_gi_render(rs->sh_gi_rs);
+        upload_gbuffer_uniforms(rs->gi_rndr->shdr, rs->viewport.xy, (mat4*)view, &rs->proj);
+        glUniform3f(glGetUniformLocation(rs->gi_rndr->shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
+        gi_render(rs->gi_rndr);
 #else
         GLuint shdr = rs->shdrs.env_light;
         glUseProgram(shdr);
@@ -511,13 +513,17 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     }
 
 #ifdef WITH_GI
-    /* Update probes */
     if (rs->options.use_envlight) {
+        /* Debug move first probe */
+        static float angle = 0.0f; /* Time varying variable for debuging purposes */
+        angle += 0.01f;
+        rs->gi_rndr->pdata[0].pos = vec3_new(cosf(angle), 1.0f, sinf(angle));
+        /* Update probes */
         mat4 pass_view, pass_proj;
-        sh_gi_render_passes(rs->sh_gi_rs, pass_view, pass_proj) {
+        gi_render_passes(rs->gi_rndr, pass_view, pass_proj) {
             /* HACK: Temporarily replace gbuffer reference in renderer state */
             struct gbuffer* old_gbuf = rs->gbuf;
-            rs->gbuf = rs->sh_gi_rs->lcr_gbuf;
+            rs->gbuf = rs->gi_rndr->probe_gbuf;
             /* Render scene */
             render_scene(rs, ri, &pass_view, &pass_proj, 1);
             /* Restore original gbuffer reference */
@@ -541,7 +547,7 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
 #ifdef WITH_GI
     /* Visualize probes */
     if (rs->options.use_envlight)
-        sh_gi_vis_probes(rs->sh_gi_rs, view, rs->proj.m, 0);
+        gi_vis_probes(rs->gi_rndr, view, rs->proj.m, 1);
 #endif
 
     /* Show gbuffer textures */
@@ -619,8 +625,8 @@ void renderer_destroy(struct renderer_state* rs)
     free(rs->occl_st);
     bbox_rndr_destroy(rs->bbox_rs);
     free(rs->bbox_rs);
-    sh_gi_destroy(rs->sh_gi_rs);
-    free(rs->sh_gi_rs);
+    gi_rndr_destroy(rs->gi_rndr);
+    free(rs->gi_rndr);
     sky_preetham_destroy(rs->sky_rs.preeth);
     free(rs->sky_rs.preeth);
     sky_texture_destroy(rs->sky_rs.tex);

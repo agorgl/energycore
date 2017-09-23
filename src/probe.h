@@ -28,18 +28,16 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _LCL_CUBEMAP_H_
-#define _LCL_CUBEMAP_H_
+#ifndef _PROBE_H_
+#define _PROBE_H_
 
 #include <linalgb.h>
-#include <emproc/sh.h>
 
-/* Local cubemap side dimension */
-#define LCL_CM_SIZE 128
+struct probe {
+    unsigned int cm;
+};
 
-/* Shared local cubemap renderer state */
-struct lc_renderer {
-    float* nsa_idx;
+struct probe_rndr {
     struct {
         unsigned int fb;
         unsigned int depth_rb;
@@ -51,20 +49,42 @@ struct lc_renderer {
     } rs;
 };
 
-/* Local cubemap renderer interface */
-void lc_renderer_init(struct lc_renderer* lcr);
-unsigned int lc_create_cm(struct lc_renderer* lcr);
-void lc_render_begin(struct lc_renderer* lcr);
-void lc_render_side_begin(struct lc_renderer* lcr, unsigned int side, unsigned int lcl_cubemap, vec3 pos, mat4* view, mat4* proj);
-void lc_render_side_end(struct lc_renderer* lcr, unsigned int side);
-void lc_render_end(struct lc_renderer* lcr);
-void lc_extract_sh_coeffs(struct lc_renderer* lcr, double sh_coef[SH_COEFF_NUM][3], unsigned int cm);
-void lc_renderer_destroy(struct lc_renderer* lcr);
+struct probe_proc {
+    float* nsa_idx;
+};
+
+struct probe_vis {
+    unsigned int vao, vbo, ebo;
+    unsigned int num_indices;
+    unsigned int shdr;
+};
+
+/* Probe interface */
+void probe_init(struct probe* p);
+void probe_destroy(struct probe* p);
+
+/* Probe renderer interface */
+void probe_rndr_init(struct probe_rndr* pr);
+void probe_rndr_destroy(struct probe_rndr* pr);
+void probe_render_begin(struct probe_rndr* pr);
+void probe_render_side_begin(struct probe_rndr* pr, unsigned int side, struct probe* p, vec3 pos, mat4* view, mat4* proj);
+void probe_render_side_end(struct probe_rndr* pr, unsigned int side);
+void probe_render_end(struct probe_rndr* pr);
+
+/* Probe processing interface */
+void probe_proc_init(struct probe_proc* pp);
+void probe_extract_shcoeffs(struct probe_proc* pp, double sh_coef[25][3], struct probe* p);
+void probe_proc_destroy(struct probe_proc* pp);
+
+/* Probe visualizer interface */
+void probe_vis_init(struct probe_vis* pv);
+void probe_vis_render(struct probe_vis* pv, struct probe*, vec3 probe_pos, mat4 view, mat4 proj, int mode);
+void probe_vis_destroy(struct probe_vis* pv);
 
 /* Convenience macros */
-#define lc_render_faces(lcr, lcl_cubemap, pos, fview, fproj) \
-    for (int _break = (lc_render_begin(lcr), 1); _break; lc_render_end(lcr), _break = 0) \
-        for (unsigned int side = 0; (side < 6 && (lc_render_side_begin(lcr, side, lcl_cubemap, pos, &fview, &fproj), 1)); \
-                (lc_render_side_end(lcr, side), ++side))
+#define probe_render_faces(pr, p, pos, fview, fproj) \
+    for (int _break = (probe_render_begin(pr), 1); _break; probe_render_end(pr), _break = 0) \
+        for (unsigned int side = 0; (side < 6 && (probe_render_side_begin(pr, side, p, pos, &fview, &fproj), 1)); \
+                (probe_render_side_end(pr, side), ++side))
 
-#endif /* ! _LCL_CUBEMAP_H_ */
+#endif /* ! _PROBE_H_ */

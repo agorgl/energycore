@@ -137,7 +137,7 @@ struct sky_renderer_state {
 struct renderer_state {
     /* Internal subrenderers */
     struct sky_renderer_state sky_rs;
-    struct sh_gi_renderer* sh_gi_rs;
+    struct gi_rndr* gi_rndr;
     struct bbox_rndr* bbox_rs;
     struct shadowmap* shdwmap;
     struct postfx* postfx;
