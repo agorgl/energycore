@@ -42,6 +42,7 @@ void glutils_deinit();
 
 /* Rendering utils */
 void render_quad();
+void render_cube();
 
 /* Shader utils */
 unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char* fs_src);

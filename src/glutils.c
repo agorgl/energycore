@@ -10,18 +10,67 @@
 struct {
     GLuint quad_vao;
     GLuint quad_vbo;
+    GLuint cube_vao;
+    GLuint cube_vbo;
 } g_glutils_state;
 
-static void quad_create(GLuint* vao, GLuint *vbo)
+static const GLfloat quad_verts[] =
 {
-    static const GLfloat quad_vert[] =
-    {
-       -1.0f,  1.0f, 0.0f,
-       -1.0f, -1.0f, 0.0f,
-        1.0f,  1.0f, 0.0f,
-        1.0f, -1.0f, 0.0f
-    };
+   -1.0f,  1.0f, 0.0f,
+   -1.0f, -1.0f, 0.0f,
+    1.0f,  1.0f, 0.0f,
+    1.0f, -1.0f, 0.0f
+};
+static const size_t quad_verts_sz = sizeof(quad_verts);
 
+static const GLfloat cube_verts[] =
+{
+    -1.0f,  1.0f, -1.0f,
+    -1.0f, -1.0f, -1.0f,
+     1.0f, -1.0f, -1.0f,
+     1.0f, -1.0f, -1.0f,
+     1.0f,  1.0f, -1.0f,
+    -1.0f,  1.0f, -1.0f,
+
+    -1.0f, -1.0f,  1.0f,
+    -1.0f, -1.0f, -1.0f,
+    -1.0f,  1.0f, -1.0f,
+    -1.0f,  1.0f, -1.0f,
+    -1.0f,  1.0f,  1.0f,
+    -1.0f, -1.0f,  1.0f,
+
+     1.0f, -1.0f, -1.0f,
+     1.0f, -1.0f,  1.0f,
+     1.0f,  1.0f,  1.0f,
+     1.0f,  1.0f,  1.0f,
+     1.0f,  1.0f, -1.0f,
+     1.0f, -1.0f, -1.0f,
+
+    -1.0f, -1.0f,  1.0f,
+    -1.0f,  1.0f,  1.0f,
+     1.0f,  1.0f,  1.0f,
+     1.0f,  1.0f,  1.0f,
+     1.0f, -1.0f,  1.0f,
+    -1.0f, -1.0f,  1.0f,
+
+    -1.0f,  1.0f, -1.0f,
+     1.0f,  1.0f, -1.0f,
+     1.0f,  1.0f,  1.0f,
+     1.0f,  1.0f,  1.0f,
+    -1.0f,  1.0f,  1.0f,
+    -1.0f,  1.0f, -1.0f,
+
+    -1.0f, -1.0f, -1.0f,
+    -1.0f, -1.0f,  1.0f,
+     1.0f, -1.0f, -1.0f,
+     1.0f, -1.0f, -1.0f,
+    -1.0f, -1.0f,  1.0f,
+     1.0f, -1.0f,  1.0f
+};
+static const size_t cube_verts_sz = sizeof(cube_verts);
+
+static void mesh_create(GLuint* vao, GLuint *vbo, GLfloat* verts, GLuint verts_sz)
+{
     GLuint quad_vao;
     glGenVertexArrays(1, &quad_vao);
     glBindVertexArray(quad_vao);
@@ -29,7 +78,7 @@ static void quad_create(GLuint* vao, GLuint *vbo)
     GLuint quad_vbo;
     glGenBuffers(1, &quad_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, quad_vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(quad_vert), &quad_vert, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, verts_sz, verts, GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0);
@@ -41,7 +90,7 @@ static void quad_create(GLuint* vao, GLuint *vbo)
     *vbo = quad_vbo;
 }
 
-static void quad_destroy(GLuint* vao, GLuint* vbo)
+static void mesh_destroy(GLuint* vao, GLuint* vbo)
 {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
@@ -54,18 +103,27 @@ static void quad_destroy(GLuint* vao, GLuint* vbo)
 void glutils_init()
 {
     memset(&g_glutils_state, 0, sizeof(g_glutils_state));
-    quad_create(&g_glutils_state.quad_vao, &g_glutils_state.quad_vbo);
+    mesh_create(&g_glutils_state.quad_vao, &g_glutils_state.quad_vbo, (GLfloat*)quad_verts, quad_verts_sz);
+    mesh_create(&g_glutils_state.cube_vao, &g_glutils_state.cube_vbo, (GLfloat*)cube_verts, cube_verts_sz);
 }
 
 void glutils_deinit()
 {
-    quad_destroy(&g_glutils_state.quad_vao, &g_glutils_state.quad_vbo);
+    mesh_destroy(&g_glutils_state.cube_vao, &g_glutils_state.cube_vbo);
+    mesh_destroy(&g_glutils_state.quad_vao, &g_glutils_state.quad_vbo);
 }
 
 void render_quad()
 {
     glBindVertexArray(g_glutils_state.quad_vao);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
+}
+
+void render_cube()
+{
+    glBindVertexArray(g_glutils_state.cube_vao);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
     glBindVertexArray(0);
 }
 
