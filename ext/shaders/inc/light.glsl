@@ -28,12 +28,33 @@ float geometry_schlick_ggx(float NdotV, float roughness)
     return nom / denom;
 }
 
+float geometry_schlick_ggx_ibl(float NdotV, float roughness)
+{
+    // Note that we use a different k for IBL
+    float a = roughness;
+    float k = (a*a) / 2.0;
+
+    float nom = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+
+    return nom / denom;
+}
+
 float geometry_smith(vec3 N, vec3 V, vec3 L, float roughness)
 {
     float NdotV = max(dot(N, V), 0.0);
     float NdotL = max(dot(N, L), 0.0);
     float ggx2 = geometry_schlick_ggx(NdotV, roughness);
     float ggx1 = geometry_schlick_ggx(NdotL, roughness);
+    return ggx1 * ggx2;
+}
+
+float geometry_smith_ibl(vec3 N, vec3 V, vec3 L, float roughness)
+{
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = geometry_schlick_ggx_ibl(NdotV, roughness);
+    float ggx1 = geometry_schlick_ggx_ibl(NdotL, roughness);
     return ggx1 * ggx2;
 }
 
@@ -109,7 +130,7 @@ vec3 radiance(vec3 N, vec3 V, vec3 L, vec3 light_col, float attenuation, vec3 al
     return Lo;
 }
 
-vec3 env_radiance(vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, vec3 diffuse_irr)
+vec3 env_radiance(vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, samplerCube irr_map, samplerCube pf_map, sampler2D brdf_lut)
 {
     // Calculate reflectance at normal incidence; if dia-electric (like plastic) use f0
     // of 0.04 and if it's a metal, use their albedo color as f0 (metallic workflow)
@@ -134,18 +155,16 @@ vec3 env_radiance(vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, 
     kD *= 1.0 - metallic;
 
     // Calculate diffuse ambient component
-    //vec3 irradiance = texture(irr_map, N).rgb;
-    vec3 irradiance = diffuse_irr;
+    vec3 irradiance = texture(irr_map, N).rgb;
     vec3 diffuse = irradiance * albedo;
 
     // Calculate specular ambient component
     // Sample both the pre-filter map and the BRDF lut and combine them together
     // as per the Split-Sum approximation to get the IBL specular part.
-    //const float MAX_REFLECTION_LOD = 4.0;
-    //vec3 prefiltered_color = textureLod(pf_map, R, roughness * MAX_REFLECTION_LOD).rgb;
-    //vec2 brdf = texture(brdf_lut, vec2(max(dot(N, V), 0.0), roughness)).rg;
-    //vec3 specular = prefiltered_color * (F * brdf.x + brdf.y);
-    vec3 specular = vec3(0.0);
+    const float MAX_REFLECTION_LOD = 4.0;
+    vec3 prefiltered_color = textureLod(pf_map, R, roughness * MAX_REFLECTION_LOD).rgb;
+    vec2 brdf = texture(brdf_lut, vec2(max(dot(N, V), 0.0), roughness)).rg;
+    vec3 specular = prefiltered_color * (F * brdf.x + brdf.y);
 
     // Ambient light sum
     vec3 ambient = (kD * diffuse + specular);

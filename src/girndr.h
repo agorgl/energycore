@@ -42,14 +42,12 @@ struct gi_rndr {
     struct probe_proc* probe_proc;
     /* Mini gbuffer used when updating probes */
     struct gbuffer* probe_gbuf;
-    /* Env light pass shader */
-    unsigned int shdr;
     /* Probes */
     struct gi_probe_data {
         vec3 pos;
         double sh_coeffs[25][3];
         struct probe* p;
-    }* pdata;
+    }* pdata, fallback_probe;
     size_t num_probes;
     /* Running state */
     struct {
@@ -67,8 +65,8 @@ void gi_update_begin(struct gi_rndr* r);
 int  gi_update_pass_begin(struct gi_rndr* r, mat4* view, mat4* proj);
 void gi_update_pass_end(struct gi_rndr* r);
 void gi_update_end(struct gi_rndr* r);
-/* Makes full screen pass to render gi light */
-void gi_render(struct gi_rndr* r);
+void gi_preprocess(struct gi_rndr* r, unsigned int irr_conv_shdr, unsigned int prefilter_shdr);
+void gi_upload_sh_coeffs(unsigned int shdr, double sh_coef[25][3]);
 /* Visualizes light probes, for debugging purposes */
 void gi_vis_probes(struct gi_rndr* r, float view[16], float proj[16], unsigned int mode);
 

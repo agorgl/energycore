@@ -61,8 +61,6 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     /* Initialize internal Global Illumination renderer state */
     rs->gi_rndr = malloc(sizeof(struct gi_rndr));
     gi_rndr_init(rs->gi_rndr);
-    /* Add sample probe */
-    gi_add_probe(rs->gi_rndr, vec3_zero());
 
     /* Initialize internal bbox renderer state */
     rs->bbox_rs = malloc(sizeof(struct bbox_rndr));
@@ -111,6 +109,9 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    /* Setup IBL */
+    rs->textures.brdf_lut = brdf_lut_generate(rs->shdrs.ibl.brdf_lut);
+
     /* Default options */
     rs->options.use_occlusion_culling = 0;
     rs->options.use_rough_met_maps = 1;
@@ -122,6 +123,7 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     rs->options.show_normals = 0;
     rs->options.show_fprof = 1;
     rs->options.show_gbuf_textures = 0;
+    rs->options.show_gidata = 0;
 }
 
 void renderer_shdr_fetch(struct renderer_state* rs)
@@ -133,7 +135,9 @@ void renderer_shdr_fetch(struct renderer_state* rs)
     rs->shdrs.fx.gamma   = rs->shdr_fetch_cb("gamma_fx", rs->shdr_fetch_userdata);
     rs->shdrs.fx.smaa    = rs->shdr_fetch_cb("smaa_fx", rs->shdr_fetch_userdata);
     rs->shdrs.nm_vis     = rs->shdr_fetch_cb("norm_vis", rs->shdr_fetch_userdata);
-    rs->gi_rndr->shdr    = rs->shdr_fetch_cb("env_probe", rs->shdr_fetch_userdata);
+    rs->shdrs.ibl.irr_gen = rs->shdr_fetch_cb("irr_conv", rs->shdr_fetch_userdata);
+    rs->shdrs.ibl.brdf_lut = rs->shdr_fetch_cb("brdf_lut", rs->shdr_fetch_userdata);
+    rs->shdrs.ibl.prefilter = rs->shdr_fetch_cb("prefilter", rs->shdr_fetch_userdata);
     rs->gi_rndr->probe_vis->shdr = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
     rs->sky_rs.preeth->shdr = rs->shdr_fetch_cb("sky_prth", rs->shdr_fetch_userdata);
 }
@@ -357,20 +361,27 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
 
     /* Environmental lighting */
     if (rs->options.use_envlight && !direct_only) {
-#ifdef WITH_GI
-        /* Use probes to render GI */
-        GLuint shdr = rs->gi_rndr->shdr;
-        glUseProgram(shdr);
-        upload_gbuffer_uniforms(rs->gi_rndr->shdr, rs->viewport.xy, (mat4*)view, &rs->proj);
-        glUniform3f(glGetUniformLocation(rs->gi_rndr->shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
-        gi_render(rs->gi_rndr);
-#else
+        /* Pick probe */
+        struct probe* pb = rs->gi_rndr->fallback_probe.p;
+        /* Setup environment light shader */
         GLuint shdr = rs->shdrs.env_light;
         glUseProgram(shdr);
         upload_gbuffer_uniforms(shdr, rs->viewport.xy, view, proj);
         glUniform3f(glGetUniformLocation(shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
+        /* Diffuse irradiance map */
+        glUniform1i(glGetUniformLocation(shdr, "irr_map"), 5);
+        glActiveTexture(GL_TEXTURE5);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, pb->irr_diffuse_cm);
+        /* Specular irradiance map */
+        glUniform1i(glGetUniformLocation(shdr, "pf_map"), 6);
+        glActiveTexture(GL_TEXTURE6);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, pb->prefiltered_cm);
+        /* Brdf Lut */
+        glUniform1i(glGetUniformLocation(shdr, "brdf_lut"), 7);
+        glActiveTexture(GL_TEXTURE7);
+        glBindTexture(GL_TEXTURE_2D, rs->textures.brdf_lut);
+        /* Screen pass */
         render_quad();
-#endif
     }
     glUseProgram(0);
 
@@ -501,6 +512,28 @@ static void visualize_normals(struct renderer_state* rs, struct renderer_input* 
     glUseProgram(0);
 }
 
+void renderer_gi_update(struct renderer_state* rs, struct renderer_input* ri)
+{
+    /* Update fallback probe */
+    mat4 pass_view, pass_proj;
+    probe_render_faces(rs->gi_rndr->probe_rndr, rs->gi_rndr->fallback_probe.p, vec3_zero(), pass_view, pass_proj)
+        render_sky(rs, ri, pass_view.m, pass_proj.m);
+
+    /* Update probes */
+    gi_render_passes(rs->gi_rndr, pass_view, pass_proj) {
+        /* HACK: Temporarily replace gbuffer reference in renderer state */
+        struct gbuffer* old_gbuf = rs->gbuf;
+        rs->gbuf = rs->gi_rndr->probe_gbuf;
+        /* Render scene */
+        render_scene(rs, ri, &pass_view, &pass_proj, 1);
+        /* Restore original gbuffer reference */
+        rs->gbuf = old_gbuf;
+    }
+
+    /* Preprocess probes */
+    gi_preprocess(rs->gi_rndr, rs->shdrs.ibl.irr_gen, rs->shdrs.ibl.prefilter);
+}
+
 /*-----------------------------------------------------------------
  * Public interface
  *-----------------------------------------------------------------*/
@@ -511,26 +544,6 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
         panicscr_show(rs->ps_rndr);
         return;
     }
-
-#ifdef WITH_GI
-    if (rs->options.use_envlight) {
-        /* Debug move first probe */
-        static float angle = 0.0f; /* Time varying variable for debuging purposes */
-        angle += 0.01f;
-        rs->gi_rndr->pdata[0].pos = vec3_new(cosf(angle), 1.0f, sinf(angle));
-        /* Update probes */
-        mat4 pass_view, pass_proj;
-        gi_render_passes(rs->gi_rndr, pass_view, pass_proj) {
-            /* HACK: Temporarily replace gbuffer reference in renderer state */
-            struct gbuffer* old_gbuf = rs->gbuf;
-            rs->gbuf = rs->gi_rndr->probe_gbuf;
-            /* Render scene */
-            render_scene(rs, ri, &pass_view, &pass_proj, 1);
-            /* Restore original gbuffer reference */
-            rs->gbuf = old_gbuf;
-        }
-    }
-#endif
 
     /* Render main scene */
     with_fprof(rs->fprof, 1)
@@ -544,11 +557,9 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     if (rs->options.show_bboxes)
         visualize_bboxes(rs, ri, view);
 
-#ifdef WITH_GI
-    /* Visualize probes */
-    if (rs->options.use_envlight)
+    /* Visualize GI probes */
+    if (rs->options.show_gidata)
         gi_vis_probes(rs->gi_rndr, view, rs->proj.m, 1);
-#endif
 
     /* Show gbuffer textures */
     if (rs->options.show_gbuf_textures) {
@@ -612,6 +623,7 @@ void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int
  *-----------------------------------------------------------------*/
 void renderer_destroy(struct renderer_state* rs)
 {
+    glDeleteTextures(1, &rs->textures.brdf_lut);
     glDeleteTextures(1, &rs->textures.smaa.area);
     glDeleteTextures(1, &rs->textures.smaa.search);
     panicscr_destroy(rs->ps_rndr);

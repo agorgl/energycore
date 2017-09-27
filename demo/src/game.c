@@ -53,6 +53,8 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         ctx->rndr_state.options.use_gamma_correction = !ctx->rndr_state.options.use_gamma_correction;
     else if (action == KEY_ACTION_RELEASE && key == KEY_V)
         ctx->rndr_state.options.use_antialiasing = !ctx->rndr_state.options.use_antialiasing;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_Y)
+        ctx->rndr_state.options.show_gidata = !ctx->rndr_state.options.show_gidata;
 }
 
 static void on_mouse_button(struct window* wnd, int button, int action, int mods)
@@ -68,7 +70,6 @@ static void on_fb_size(struct window* wnd, unsigned int width, unsigned int heig
     struct game_context* ctx = window_get_userdata(wnd);
     renderer_resize(&ctx->rndr_state, width, height);
 }
-
 
 static const struct shdr_info {
     const char* name;
@@ -101,10 +102,22 @@ static const struct shdr_info {
         .fs_loc = "../ext/shaders/sky_prth_fs.glsl"
     },
     {
-        .name = "env_probe",
+        .name = "irr_conv",
+        .vs_loc = "../ext/shaders/ibl/cubemap_vs.glsl",
+        .gs_loc = 0,
+        .fs_loc = "../ext/shaders/ibl/convolution_fs.glsl"
+    },
+    {
+        .name = "brdf_lut",
         .vs_loc = "../ext/shaders/passthrough_vs.glsl",
         .gs_loc = 0,
-        .fs_loc = "../ext/shaders/env_probe_fs.glsl"
+        .fs_loc = "../ext/shaders/ibl/brdf_lut_fs.glsl"
+    },
+    {
+        .name = "prefilter",
+        .vs_loc = "../ext/shaders/ibl/cubemap_vs.glsl",
+        .gs_loc = 0,
+        .fs_loc = "../ext/shaders/ibl/prefilter_fs.glsl"
     },
     {
         .name = "probe_vis",
@@ -365,6 +378,13 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
 void game_render(void* userdata, float interpolation)
 {
     struct game_context* ctx = userdata;
+
+    /* Update GI */
+    static int gi_dirty = 1;
+    if (gi_dirty) {
+        renderer_gi_update(&ctx->rndr_state, &ctx->cached_ri);
+        gi_dirty = 0;
+    }
 
     /* Render */
     mat4 iview = camera_interpolated_view(&ctx->cam, interpolation);

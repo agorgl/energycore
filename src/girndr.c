@@ -20,8 +20,12 @@ void gi_rndr_init(struct gi_rndr* r)
     /* Initialize probe processing */
     r->probe_proc = calloc(1, sizeof(struct probe_proc));
     probe_proc_init(r->probe_proc);
+    /* Fallback probe */
+    struct probe* fp = calloc(1, sizeof(struct probe));
+    probe_init(fp);
+    r->fallback_probe.p = fp;
     /* Allocate probe array */
-    r->pdata = calloc(1, sizeof(*(r->pdata)));
+    r->pdata = malloc(0);
     /* Create mini gbuffer to update probes */
     r->probe_gbuf = malloc(sizeof(struct gbuffer));
     gbuffer_init(r->probe_gbuf, 128, 128);
@@ -31,6 +35,8 @@ void gi_rndr_destroy(struct gi_rndr* r)
 {
     gbuffer_destroy(r->probe_gbuf);
     free(r->probe_gbuf);
+    probe_destroy(r->fallback_probe.p);
+    free(r->fallback_probe.p);
     for (unsigned int i = 0; i < r->num_probes; ++i) {
         struct probe* p = r->pdata[i].p;
         probe_destroy(p);
@@ -94,11 +100,18 @@ void gi_update_end(struct gi_rndr* r)
     probe_render_end(r->probe_rndr);
 }
 
-static void upload_sh_coeffs(GLuint prog, double sh_coef[SH_COEFF_NUM][3])
+void gi_preprocess(struct gi_rndr* r, unsigned int irr_conv_shdr, unsigned int prefilter_shdr)
+{
+    probe_preprocess(r->probe_proc, r->fallback_probe.p, irr_conv_shdr, prefilter_shdr);
+    for (unsigned int i = 0; i < r->num_probes; ++i)
+        probe_preprocess(r->probe_proc, r->pdata[i].p, irr_conv_shdr, prefilter_shdr);
+}
+
+void gi_upload_sh_coeffs(unsigned int shdr, double sh_coef[25][3])
 {
     const char* uniform_name = "sh_coeffs";
     size_t uniform_name_len = strlen(uniform_name);
-    glUseProgram(prog);
+    glUseProgram(shdr);
     for (unsigned int i = 0; i < SH_COEFF_NUM; ++i) {
         /* Construct uniform name ("sh_coeffs" + "[" + i + "]" + '\0') */
         size_t uname_sz = uniform_name_len + 1 + 2 + 1 + 1;
@@ -108,22 +121,11 @@ static void upload_sh_coeffs(GLuint prog, double sh_coef[SH_COEFF_NUM][3])
         snprintf(uname + uniform_name_len + 1, 3, "%u", i);
         strcat(uname, "]");
         /* Upload */
-        GLuint uloc = glGetUniformLocation(prog, uname);
+        GLuint uloc = glGetUniformLocation(shdr, uname);
         float c[3] = { (float)sh_coef[i][0], (float)sh_coef[i][1], (float)sh_coef[i][2] };
         glUniform3f(uloc, c[0], c[1], c[2]);
         free(uname);
     }
-    glUseProgram(0);
-}
-
-void gi_render(struct gi_rndr* r)
-{
-    struct gi_probe_data* pd = r->pdata + 0; // TODO
-    /* Upload coeffs */
-    upload_sh_coeffs(r->shdr, pd->sh_coeffs);
-    /* Perform a full ndc quad render */
-    glUseProgram(r->shdr);
-    render_quad();
     glUseProgram(0);
 }
 
@@ -132,7 +134,7 @@ void gi_vis_probes(struct gi_rndr* r, float view[16], float proj[16], unsigned i
     for (unsigned int i = 0; i < r->num_probes; ++i) {
         struct gi_probe_data* pd = r->pdata + i;
         /* Visualize sample probe */
-        upload_sh_coeffs(r->probe_vis->shdr, pd->sh_coeffs);
+        gi_upload_sh_coeffs(r->probe_vis->shdr, pd->sh_coeffs);
         probe_vis_render(r->probe_vis, pd->p, pd->pos, *(mat4*)view, *(mat4*)proj, mode);
     }
 }

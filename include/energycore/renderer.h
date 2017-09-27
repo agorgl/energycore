@@ -156,6 +156,11 @@ struct renderer_state {
             unsigned int smaa;
         } fx;
         unsigned int nm_vis;
+        struct {
+            unsigned int irr_gen;
+            unsigned int brdf_lut;
+            unsigned int prefilter;
+        } ibl;
     } shdrs;
     /* Internal textures (Luts etc.) */
     struct {
@@ -163,6 +168,7 @@ struct renderer_state {
             unsigned int area;
             unsigned int search;
         } smaa;
+        unsigned int brdf_lut;
     } textures;
     /* GBuffer */
     struct gbuffer* gbuf;
@@ -185,6 +191,7 @@ struct renderer_state {
         unsigned int show_fprof;
         unsigned int show_gbuf_textures;
         unsigned int show_normals;
+        unsigned int show_gidata;
         unsigned int use_occlusion_culling;
         unsigned int use_normal_mapping;
         unsigned int use_rough_met_maps;
@@ -199,6 +206,7 @@ struct renderer_state {
 /* Public interface */
 void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sf_ud);
 void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view_mat[16]);
+void renderer_gi_update(struct renderer_state* rs, struct renderer_input* ri);
 void renderer_shdr_fetch(struct renderer_state* rs);
 void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height);
 void renderer_destroy(struct renderer_state* rs);

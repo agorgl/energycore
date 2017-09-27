@@ -35,6 +35,8 @@
 
 struct probe {
     unsigned int cm;
+    unsigned int irr_diffuse_cm;
+    unsigned int prefiltered_cm;
 };
 
 struct probe_rndr {
@@ -74,12 +76,16 @@ void probe_render_end(struct probe_rndr* pr);
 /* Probe processing interface */
 void probe_proc_init(struct probe_proc* pp);
 void probe_extract_shcoeffs(struct probe_proc* pp, double sh_coef[25][3], struct probe* p);
+void probe_preprocess(struct probe_proc* pp, struct probe* p, unsigned int irr_conv_shdr, unsigned int prefilt_shdr);
 void probe_proc_destroy(struct probe_proc* pp);
 
 /* Probe visualizer interface */
 void probe_vis_init(struct probe_vis* pv);
 void probe_vis_render(struct probe_vis* pv, struct probe*, vec3 probe_pos, mat4 view, mat4 proj, int mode);
 void probe_vis_destroy(struct probe_vis* pv);
+
+/* Misc */
+unsigned int brdf_lut_generate(unsigned int brdf_lut_shdr);
 
 /* Convenience macros */
 #define probe_render_faces(pr, p, pos, fview, fproj) \
