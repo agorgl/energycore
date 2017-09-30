@@ -23,94 +23,130 @@
 #include "smaa_search_tex.h"
 
 /*-----------------------------------------------------------------
+ * Internal state
+ *-----------------------------------------------------------------*/
+struct renderer_internal_state {
+    /* Internal subrenderers */
+    struct sky_renderer_state {
+        struct sky_texture tex;
+        struct sky_preetham preeth;
+    } sky_rndr;
+    struct gi_rndr gi_rndr;
+    struct bbox_rndr bbox_rs;
+    struct shadowmap shdwmap;
+    struct postfx postfx;
+    struct panicscr_rndr ps_rndr;
+    /* Shader handle fetching */
+    rndr_shdr_fetch_fn shdr_fetch_cb;
+    void* shdr_fetch_userdata;
+    /* Shaders */
+    struct {
+        unsigned int geom_pass;
+        unsigned int dir_light;
+        unsigned int env_light;
+        struct {
+            unsigned int tonemap;
+            unsigned int gamma;
+            unsigned int smaa;
+        } fx;
+        unsigned int nm_vis;
+        struct {
+            unsigned int irr_gen;
+            unsigned int brdf_lut;
+            unsigned int prefilter;
+        } ibl;
+    } shdrs;
+    /* Internal textures (Luts etc.) */
+    struct {
+        struct {
+            unsigned int area;
+            unsigned int search;
+        } smaa;
+        unsigned int brdf_lut;
+    } textures;
+    /* GBuffer */
+    struct gbuffer main_gbuf;
+    struct gbuffer* gbuf; /* Active */
+    /* Occlusion culling */
+    struct occull_state occl_st;
+    /* Cached values */
+    vec2 viewport;
+    mat4 proj;
+    /* Frame profiler and debug info's */
+    struct frame_prof* fprof;
+    struct {
+        unsigned int num_visible_objs;
+        float gpass_msec;
+        float lpass_msec;
+        float ppass_msec;
+    } dbginfo;
+};
+
+/*-----------------------------------------------------------------
  * Initialization
  *-----------------------------------------------------------------*/
 void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_ud)
 {
     /* Populate renderer state according to init params */
     memset(rs, 0, sizeof(*rs));
-    rs->shdr_fetch_cb = sfn;
-    rs->shdr_fetch_userdata = sh_ud;
+    rs->internal = calloc(1, sizeof(*rs->internal));
+    struct renderer_internal_state* is = rs->internal;
+    is->shdr_fetch_cb = sfn;
+    is->shdr_fetch_userdata = sh_ud;
 
     /* Initial dimensions */
     int width = 1280, height = 720;
-    rs->viewport.x = width; rs->viewport.y = height;
-
+    is->viewport.x = width; is->viewport.y = height;
     /* Initialize gbuffer */
-    rs->gbuf = malloc(sizeof(struct gbuffer));
-    gbuffer_init(rs->gbuf, width, height);
-
+    gbuffer_init(&is->main_gbuf, width, height); is->gbuf = &is->main_gbuf;
     /* Initialize internal postfx renderer */
-    rs->postfx = malloc(sizeof(struct postfx));
-    postfx_init(rs->postfx, width, height);
-
+    postfx_init(&is->postfx, width, height);
     /* Initial resize */
     renderer_resize(rs, width, height);
-
     /* Initialize gl utilities state */
     glutils_init();
-
     /* Initialize internal texture sky state */
-    rs->sky_rs.tex = malloc(sizeof(struct sky_texture));
-    sky_texture_init(rs->sky_rs.tex);
-
+    sky_texture_init(&is->sky_rndr.tex);
     /* Initialize internal preetham sky state */
-    rs->sky_rs.preeth = malloc(sizeof(struct sky_preetham));
-    sky_preetham_init(rs->sky_rs.preeth);
-
+    sky_preetham_init(&is->sky_rndr.preeth);
     /* Initialize internal Global Illumination renderer state */
-    rs->gi_rndr = malloc(sizeof(struct gi_rndr));
-    gi_rndr_init(rs->gi_rndr);
-
+    gi_rndr_init(&is->gi_rndr);
     /* Initialize internal bbox renderer state */
-    rs->bbox_rs = malloc(sizeof(struct bbox_rndr));
-    bbox_rndr_init(rs->bbox_rs);
-
+    bbox_rndr_init(&is->bbox_rs);
     /* Initialize internal occlusion state */
-    rs->occl_st = malloc(sizeof(struct occull_state));
-    occull_init(rs->occl_st);
-
+    occull_init(&is->occl_st);
     /* Initialize internal shadowmap state */
-    rs->shdwmap = malloc(sizeof(struct shadowmap));
     const GLuint shmap_res = 2048;
-    shadowmap_init(rs->shdwmap, shmap_res, shmap_res);
-
+    shadowmap_init(&is->shdwmap, shmap_res, shmap_res);
     /* Initialize internal panic screen state */
-    rs->ps_rndr = malloc(sizeof(struct panicscr_rndr));
-    panicscr_init(rs->ps_rndr);
-    panicscr_register_gldbgcb(rs->ps_rndr);
-
+    panicscr_init(&is->ps_rndr);
+    panicscr_register_gldbgcb(&is->ps_rndr);
     /* Fetch shaders */
     renderer_shdr_fetch(rs);
-
     /* Initialize frame profiler */
-    rs->fprof = frame_prof_init();
-
+    is->fprof = frame_prof_init();
     /* Initialize debug text rendering */
     dbgtxt_init();
-
     /* Initialize multiple render targets debugger */
     mrtdbg_init();
-
     /* Load internal textures */
-    glGenTextures(1, &rs->textures.smaa.area);
-    glBindTexture(GL_TEXTURE_2D, rs->textures.smaa.area);
+    glGenTextures(1, &is->textures.smaa.area);
+    glBindTexture(GL_TEXTURE_2D, is->textures.smaa.area);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, AREATEX_WIDTH, AREATEX_HEIGHT, 0, GL_RG, GL_UNSIGNED_BYTE, areaTexBytes);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glGenTextures(1, &rs->textures.smaa.search);
-    glBindTexture(GL_TEXTURE_2D, rs->textures.smaa.search);
+    glGenTextures(1, &is->textures.smaa.search);
+    glBindTexture(GL_TEXTURE_2D, is->textures.smaa.search);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, SEARCHTEX_WIDTH, SEARCHTEX_HEIGHT, 0, GL_RED, GL_UNSIGNED_BYTE, searchTexBytes);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D, 0);
-
     /* Setup IBL */
-    rs->textures.brdf_lut = brdf_lut_generate(rs->shdrs.ibl.brdf_lut);
+    is->textures.brdf_lut = brdf_lut_generate(is->shdrs.ibl.brdf_lut);
 
     /* Default options */
     rs->options.use_occlusion_culling = 0;
@@ -128,18 +164,19 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
 
 void renderer_shdr_fetch(struct renderer_state* rs)
 {
-    rs->shdrs.geom_pass  = rs->shdr_fetch_cb("geom_pass", rs->shdr_fetch_userdata);
-    rs->shdrs.dir_light  = rs->shdr_fetch_cb("dir_light", rs->shdr_fetch_userdata);
-    rs->shdrs.env_light  = rs->shdr_fetch_cb("env_light", rs->shdr_fetch_userdata);
-    rs->shdrs.fx.tonemap = rs->shdr_fetch_cb("tonemap_fx", rs->shdr_fetch_userdata);
-    rs->shdrs.fx.gamma   = rs->shdr_fetch_cb("gamma_fx", rs->shdr_fetch_userdata);
-    rs->shdrs.fx.smaa    = rs->shdr_fetch_cb("smaa_fx", rs->shdr_fetch_userdata);
-    rs->shdrs.nm_vis     = rs->shdr_fetch_cb("norm_vis", rs->shdr_fetch_userdata);
-    rs->shdrs.ibl.irr_gen = rs->shdr_fetch_cb("irr_conv", rs->shdr_fetch_userdata);
-    rs->shdrs.ibl.brdf_lut = rs->shdr_fetch_cb("brdf_lut", rs->shdr_fetch_userdata);
-    rs->shdrs.ibl.prefilter = rs->shdr_fetch_cb("prefilter", rs->shdr_fetch_userdata);
-    rs->gi_rndr->probe_vis->shdr = rs->shdr_fetch_cb("probe_vis", rs->shdr_fetch_userdata);
-    rs->sky_rs.preeth->shdr = rs->shdr_fetch_cb("sky_prth", rs->shdr_fetch_userdata);
+    struct renderer_internal_state* is = rs->internal;
+    is->shdrs.geom_pass         = is->shdr_fetch_cb("geom_pass", is->shdr_fetch_userdata);
+    is->shdrs.dir_light         = is->shdr_fetch_cb("dir_light", is->shdr_fetch_userdata);
+    is->shdrs.env_light         = is->shdr_fetch_cb("env_light", is->shdr_fetch_userdata);
+    is->shdrs.fx.tonemap        = is->shdr_fetch_cb("tonemap_fx", is->shdr_fetch_userdata);
+    is->shdrs.fx.gamma          = is->shdr_fetch_cb("gamma_fx", is->shdr_fetch_userdata);
+    is->shdrs.fx.smaa           = is->shdr_fetch_cb("smaa_fx", is->shdr_fetch_userdata);
+    is->shdrs.nm_vis            = is->shdr_fetch_cb("norm_vis", is->shdr_fetch_userdata);
+    is->shdrs.ibl.irr_gen       = is->shdr_fetch_cb("irr_conv", is->shdr_fetch_userdata);
+    is->shdrs.ibl.brdf_lut      = is->shdr_fetch_cb("brdf_lut", is->shdr_fetch_userdata);
+    is->shdrs.ibl.prefilter     = is->shdr_fetch_cb("prefilter", is->shdr_fetch_userdata);
+    is->sky_rndr.preeth.shdr    = is->shdr_fetch_cb("sky_prth", is->shdr_fetch_userdata);
+    is->gi_rndr.probe_vis->shdr = is->shdr_fetch_cb("probe_vis", is->shdr_fetch_userdata);
 }
 
 static void upload_gbuffer_uniforms(GLuint shdr, float viewport[2], mat4* view, mat4* proj)
@@ -159,7 +196,8 @@ static void upload_gbuffer_uniforms(GLuint shdr, float viewport[2], mat4* view, 
 static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, float view[16], float proj[16])
 {
     /* Bind gbuf */
-    gbuffer_bind_for_geometry_pass(rs->gbuf);
+    struct renderer_internal_state* is = rs->internal;
+    gbuffer_bind_for_geometry_pass(is->gbuf);
 
     /* Enable depth and culling */
     glEnable(GL_DEPTH_TEST);
@@ -171,7 +209,7 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     /* Pick shader for the mode */
-    GLuint shdr = rs->shdrs.geom_pass;
+    GLuint shdr = is->shdrs.geom_pass;
     glUseProgram(shdr);
 
     /* Setup matrices */
@@ -188,7 +226,7 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
     glUniform1i(glGetUniformLocation(shdr, "mat.metal_tex"), 3);
 
     /* Loop through meshes */
-    rs->dbginfo.num_visible_objs = 0;
+    is->dbginfo.num_visible_objs = 0;
     for (unsigned int i = 0; i < ri->num_meshes; ++i) {
         /* Setup mesh to be rendered */
         struct renderer_mesh* rm = ri->meshes + i;
@@ -204,15 +242,15 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
         unsigned int visible = 1;
         if (rs->options.use_occlusion_culling) {
             /* Begin occlusion query, use index i as handle */
-            occull_object_begin(rs->occl_st, i);
-            visible = occull_should_render(rs->occl_st, rm->aabb.min, rm->aabb.max);
+            occull_object_begin(&is->occl_st, i);
+            visible = occull_should_render(&is->occl_st, rm->aabb.min, rm->aabb.max);
             if (!visible) {
-                occull_object_end(rs->occl_st);
+                occull_object_end(&is->occl_st);
                 continue;
             }
         }
         if (visible)
-            rs->dbginfo.num_visible_objs++;
+            is->dbginfo.num_visible_objs++;
 
         /* Albedo */
         struct renderer_material_attr* rma = 0;
@@ -275,7 +313,7 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
 
         /* End occlusion query for current object */
         if (rs->options.use_occlusion_culling)
-            occull_object_end(rs->occl_st);
+            occull_object_end(&is->occl_st);
     }
     glUseProgram(0);
     glFrontFace(GL_CCW);
@@ -289,7 +327,7 @@ static void render_sky(struct renderer_state* rs, struct renderer_input* ri, flo
 {
     switch (ri->sky_type) {
         case RST_TEXTURE: {
-            sky_texture_render(rs->sky_rs.tex, (mat4*)view, (mat4*)proj, ri->sky_tex);
+            sky_texture_render(&rs->internal->sky_rndr.tex, (mat4*)view, (mat4*)proj, ri->sky_tex);
             break;
         }
         case RST_PREETHAM: {
@@ -297,7 +335,7 @@ static void render_sky(struct renderer_state* rs, struct renderer_input* ri, flo
             sky_preetham_default_params(&sp_params);
             sp_params.inclination = ri->sky_pp.inclination;
             sp_params.azimuth     = ri->sky_pp.azimuth;
-            sky_preetham_render(rs->sky_rs.preeth, &sp_params, (mat4*)proj, (mat4*)view);
+            sky_preetham_render(&rs->internal->sky_rndr.preeth, &sp_params, (mat4*)proj, (mat4*)view);
             break;
         }
         case RST_NONE:
@@ -309,7 +347,8 @@ static void render_sky(struct renderer_state* rs, struct renderer_input* ri, flo
 static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj, int direct_only)
 {
     /* Bind gbuffer input textures and target fbo */
-    gbuffer_bind_for_light_pass(rs->gbuf);
+    struct renderer_internal_state* is = rs->internal;
+    gbuffer_bind_for_light_pass(is->gbuf);
 
     /* Clear */
     glClear(GL_COLOR_BUFFER_BIT);
@@ -323,9 +362,9 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     glBlendFunc(GL_ONE, GL_ONE);
 
     /* Setup common uniforms */
-    GLuint shdr = rs->shdrs.dir_light;
+    GLuint shdr = is->shdrs.dir_light;
     glUseProgram(shdr);
-    upload_gbuffer_uniforms(shdr, rs->viewport.xy, view, proj);
+    upload_gbuffer_uniforms(shdr, is->viewport.xy, view, proj);
 
     mat4 inverse_view = mat4_inverse(*(mat4*)view);
     vec3 view_pos = vec3_new(inverse_view.xw, inverse_view.yw, inverse_view.zw);
@@ -337,8 +376,8 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     glUniform1i(glGetUniformLocation(shdr, "shadowmap"), 7);
     glUniform1i(glGetUniformLocation(shdr, "shadows_enabled"), rs->options.use_shadows);
     if (rs->options.use_shadows) {
-        glBindTexture(GL_TEXTURE_2D_ARRAY, rs->shdwmap->glh.tex_id);
-        shadowmap_bind(rs->shdwmap, shdr);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, is->shdwmap.glh.tex_id);
+        shadowmap_bind(&is->shdwmap, shdr);
     } else
         glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
@@ -362,11 +401,11 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     /* Environmental lighting */
     if (rs->options.use_envlight && !direct_only) {
         /* Pick probe */
-        struct probe* pb = rs->gi_rndr->fallback_probe.p;
+        struct probe* pb = is->gi_rndr.fallback_probe.p;
         /* Setup environment light shader */
-        GLuint shdr = rs->shdrs.env_light;
+        GLuint shdr = is->shdrs.env_light;
         glUseProgram(shdr);
-        upload_gbuffer_uniforms(shdr, rs->viewport.xy, view, proj);
+        upload_gbuffer_uniforms(shdr, is->viewport.xy, view, proj);
         glUniform3f(glGetUniformLocation(shdr, "view_pos"), view_pos.x, view_pos.y, view_pos.z);
         /* Diffuse irradiance map */
         glUniform1i(glGetUniformLocation(shdr, "irr_map"), 5);
@@ -379,7 +418,7 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
         /* Brdf Lut */
         glUniform1i(glGetUniformLocation(shdr, "brdf_lut"), 7);
         glActiveTexture(GL_TEXTURE7);
-        glBindTexture(GL_TEXTURE_2D, rs->textures.brdf_lut);
+        glBindTexture(GL_TEXTURE_2D, is->textures.brdf_lut);
         /* Screen pass */
         render_quad();
     }
@@ -388,15 +427,16 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
     /* Restore gl values */
     glDisable(GL_BLEND);
     glDepthMask(GL_TRUE);
-    gbuffer_unbind_textures(rs->gbuf);
+    gbuffer_unbind_textures(is->gbuf);
 }
 
 static void postprocess_pass(struct renderer_state* rs, unsigned int cur_fb)
 {
+    struct renderer_internal_state* is = rs->internal;
     GLuint shdr = 0;
-    postfx_blit_fb_to_read(rs->postfx, rs->gbuf->fbo);
+    postfx_blit_fb_to_read(&is->postfx, is->gbuf->fbo);
     if (rs->options.use_antialiasing) {
-        shdr = rs->shdrs.fx.smaa;
+        shdr = is->shdrs.fx.smaa;
         glDisable(GL_BLEND);
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         glUseProgram(shdr);
@@ -406,38 +446,39 @@ static void postprocess_pass(struct renderer_state* rs, unsigned int cur_fb)
 
         /* Edge detection step */
         glUniform1i(glGetUniformLocation(shdr, "ustep"), 0);
-        postfx_pass(rs->postfx);
+        postfx_pass(&is->postfx);
 
         /* Blend weight calculation step */
         glUniform1i(glGetUniformLocation(shdr, "ustep"), 1);
         glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, rs->textures.smaa.area);
+        glBindTexture(GL_TEXTURE_2D, is->textures.smaa.area);
         glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, rs->textures.smaa.search);
-        postfx_pass(rs->postfx);
+        glBindTexture(GL_TEXTURE_2D, is->textures.smaa.search);
+        postfx_pass(&is->postfx);
 
         /* Neighborhood blending step */
         glUniform1i(glGetUniformLocation(shdr, "ustep"), 2);
         glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, postfx_orig_tex(rs->postfx));
-        postfx_pass(rs->postfx);
+        glBindTexture(GL_TEXTURE_2D, postfx_orig_tex(&is->postfx));
+        postfx_pass(&is->postfx);
     }
     if (rs->options.use_tonemapping) {
-        shdr = rs->shdrs.fx.tonemap;
+        shdr = is->shdrs.fx.tonemap;
         glUseProgram(shdr);
-        postfx_pass(rs->postfx);
+        postfx_pass(&is->postfx);
     }
     if (rs->options.use_gamma_correction) {
-        shdr = rs->shdrs.fx.gamma;
+        shdr = is->shdrs.fx.gamma;
         glUseProgram(shdr);
-        postfx_pass(rs->postfx);
+        postfx_pass(&is->postfx);
     }
     glUseProgram(0);
-    postfx_blit_read_to_fb(rs->postfx, cur_fb);
+    postfx_blit_read_to_fb(&is->postfx, cur_fb);
 }
 
 static void render_scene(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj, int direct_only)
 {
+    struct renderer_internal_state* is = rs->internal;
     /* Clear default buffers */
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -445,14 +486,14 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
     GLint cur_fb;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &cur_fb);
     /* Geometry pass */
-    frame_prof_timepoint(rs->fprof)
+    frame_prof_timepoint(is->fprof)
         geometry_pass(rs, ri, view->m, proj->m);
     /* Copy depth to fb */
-    gbuffer_blit_depth_to_fb(rs->gbuf, cur_fb);
+    gbuffer_blit_depth_to_fb(is->gbuf, cur_fb);
     /* Shadowmap pass*/
     if (rs->options.use_shadows && !direct_only) {
         float* light_dir = ri->lights[0].type_data.dir.direction.xyz;
-        shadowmap_render(rs->shdwmap, light_dir, view->m, proj->m) {
+        shadowmap_render((&is->shdwmap), light_dir, view->m, proj->m) {
             for (size_t i = 0; i < ri->num_meshes; ++i) {
                 struct renderer_mesh* rm = ri->meshes + i;
                 glUniformMatrix4fv(glGetUniformLocation(shdr, "model"), 1, GL_FALSE, rm->model_mat);
@@ -465,16 +506,16 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
         }
     }
     /* Light pass */
-    frame_prof_timepoint(rs->fprof)
+    frame_prof_timepoint(is->fprof)
         light_pass(rs, ri, (mat4*)view, (mat4*)proj, direct_only);
     /* Sky */
     render_sky(rs, ri, view->m, proj->m);
     /* PostFX pass */
-    frame_prof_timepoint(rs->fprof) {
+    frame_prof_timepoint(is->fprof) {
         if (!direct_only)
             postprocess_pass(rs, cur_fb);
         else
-            gbuffer_blit_accum_to_fb(rs->gbuf, cur_fb);
+            gbuffer_blit_accum_to_fb(is->gbuf, cur_fb);
     }
 }
 
@@ -488,13 +529,13 @@ static void visualize_bboxes(struct renderer_state* rs, struct renderer_input* r
         /* Setup mesh to be rendered */
         struct renderer_mesh* rm = ri->meshes + i;
         /* Upload model matrix */
-        bbox_rndr_vis(rs->bbox_rs, rm->model_mat, view, rs->proj.m, rm->aabb.min, rm->aabb.max);
+        bbox_rndr_vis(&rs->internal->bbox_rs, rm->model_mat, view, rs->internal->proj.m, rm->aabb.min, rm->aabb.max);
     }
 }
 
 static void visualize_normals(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj)
 {
-    const GLuint shdr = rs->shdrs.nm_vis;
+    const GLuint shdr = rs->internal->shdrs.nm_vis;
     glUseProgram(shdr);
     glUniformMatrix4fv(glGetUniformLocation(shdr, "proj"), 1, GL_FALSE, proj->m);
     glUniformMatrix4fv(glGetUniformLocation(shdr, "view"), 1, GL_FALSE, view->m);
@@ -515,23 +556,22 @@ static void visualize_normals(struct renderer_state* rs, struct renderer_input* 
 void renderer_gi_update(struct renderer_state* rs, struct renderer_input* ri)
 {
     /* Update fallback probe */
+    struct gi_rndr* gir = &rs->internal->gi_rndr;
     mat4 pass_view, pass_proj;
-    probe_render_faces(rs->gi_rndr->probe_rndr, rs->gi_rndr->fallback_probe.p, vec3_zero(), pass_view, pass_proj)
+    probe_render_faces(gir->probe_rndr, gir->fallback_probe.p, vec3_zero(), pass_view, pass_proj)
         render_sky(rs, ri, pass_view.m, pass_proj.m);
 
+    /* HACK: Temporarily replace gbuffer reference in renderer state */
+    struct gbuffer* old_gbuf = rs->internal->gbuf;
+    rs->internal->gbuf = gir->probe_gbuf;
     /* Update probes */
-    gi_render_passes(rs->gi_rndr, pass_view, pass_proj) {
-        /* HACK: Temporarily replace gbuffer reference in renderer state */
-        struct gbuffer* old_gbuf = rs->gbuf;
-        rs->gbuf = rs->gi_rndr->probe_gbuf;
-        /* Render scene */
+    gi_render_passes(gir, pass_view, pass_proj)
         render_scene(rs, ri, &pass_view, &pass_proj, 1);
-        /* Restore original gbuffer reference */
-        rs->gbuf = old_gbuf;
-    }
+    /* Restore original gbuffer reference */
+    rs->internal->gbuf = old_gbuf;
 
     /* Preprocess probes */
-    gi_preprocess(rs->gi_rndr, rs->shdrs.ibl.irr_gen, rs->shdrs.ibl.prefilter);
+    gi_preprocess(gir, rs->internal->shdrs.ibl.irr_gen, rs->internal->shdrs.ibl.prefilter);
 }
 
 /*-----------------------------------------------------------------
@@ -539,19 +579,20 @@ void renderer_gi_update(struct renderer_state* rs, struct renderer_input* ri)
  *-----------------------------------------------------------------*/
 void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view[16])
 {
+    struct renderer_internal_state* is = rs->internal;
     /* Show panic screen if any critical error occured */
-    if (rs->ps_rndr->should_show) {
-        panicscr_show(rs->ps_rndr);
+    if (is->ps_rndr.should_show) {
+        panicscr_show(&is->ps_rndr);
         return;
     }
 
     /* Render main scene */
-    with_fprof(rs->fprof, 1)
-        render_scene(rs, ri, (mat4*)view, &rs->proj, 0);
+    with_fprof(is->fprof, 1)
+        render_scene(rs, ri, (mat4*)view, &is->proj, 0);
 
     /* Visualize normals */
     if (rs->options.show_normals)
-        visualize_normals(rs, ri, (mat4*)view, &rs->proj);
+        visualize_normals(rs, ri, (mat4*)view, &is->proj);
 
     /* Visualize bboxes */
     if (rs->options.show_bboxes)
@@ -559,25 +600,25 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
 
     /* Visualize GI probes */
     if (rs->options.show_gidata)
-        gi_vis_probes(rs->gi_rndr, view, rs->proj.m, 1);
+        gi_vis_probes(&is->gi_rndr, view, is->proj.m, 1);
 
     /* Show gbuffer textures */
     if (rs->options.show_gbuf_textures) {
         const struct mrtdbg_tex_info tinfos[] = {
             {
-                .handle = rs->gbuf->albedo_buf,
+                .handle = is->gbuf->albedo_buf,
                 .type   = 0, .layer  = 0,
                 .mode   = MRTDBG_MODE_RGB,
             },{
-                .handle = rs->gbuf->normal_buf,
+                .handle = is->gbuf->normal_buf,
                 .type   = 0, .layer  = 0,
                 .mode   = MRTDBG_MODE_RGB,
             },{
-                .handle = rs->gbuf->roughness_metallic_buf,
+                .handle = is->gbuf->roughness_metallic_buf,
                 .type   = 0, .layer  = 0,
                 .mode   = MRTDBG_MODE_MONO_R,
             },{
-                .handle = rs->gbuf->roughness_metallic_buf,
+                .handle = is->gbuf->roughness_metallic_buf,
                 .type   = 0, .layer  = 0,
                 .mode   = MRTDBG_MODE_MONO_A,
             }
@@ -587,35 +628,36 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
     }
 
     /* Update debug info */
-    frame_prof_flush(rs->fprof);
-    rs->dbginfo.gpass_msec = frame_prof_timepoint_msec(rs->fprof, 0);
-    rs->dbginfo.lpass_msec = frame_prof_timepoint_msec(rs->fprof, 1);
-    rs->dbginfo.ppass_msec = frame_prof_timepoint_msec(rs->fprof, 2);
+    frame_prof_flush(is->fprof);
+    is->dbginfo.gpass_msec = frame_prof_timepoint_msec(is->fprof, 0);
+    is->dbginfo.lpass_msec = frame_prof_timepoint_msec(is->fprof, 1);
+    is->dbginfo.ppass_msec = frame_prof_timepoint_msec(is->fprof, 2);
 
     /* Show debug info */
     if (rs->options.show_fprof) {
         char buf[128];
         snprintf(buf, sizeof(buf), "GPass: %.3f\nLPass: %.3f\nPPass: %.3f\nVis/Tot: %u/%u",
-                 rs->dbginfo.gpass_msec, rs->dbginfo.lpass_msec, rs->dbginfo.ppass_msec,
-                 rs->dbginfo.num_visible_objs, ri->num_meshes);
+                 is->dbginfo.gpass_msec, is->dbginfo.lpass_msec, is->dbginfo.ppass_msec,
+                 is->dbginfo.num_visible_objs, ri->num_meshes);
         dbgtxt_setfnt(FNT_GOHU);
         dbgtxt_prnt(buf, 5, 15);
         dbgtxt_setfnt(FNT_SLKSCR);
-        dbgtxt_prntc("EnergyCore", rs->viewport.x - 130, rs->viewport.y - 25, 0.08f, 0.08f, 0.08f, 1.0f);
+        dbgtxt_prntc("EnergyCore", is->viewport.x - 130, is->viewport.y - 25, 0.08f, 0.08f, 0.08f, 1.0f);
     }
 }
 
 void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height)
 {
+    struct renderer_internal_state* is = rs->internal;
     glViewport(0, 0, width, height);
-    rs->viewport.x = width;
-    rs->viewport.y = height;
-    rs->proj = mat4_perspective(radians(60.0f), 0.1f, 30000.0f, ((float)width / height));
+    is->viewport.x = width;
+    is->viewport.y = height;
+    is->proj = mat4_perspective(radians(60.0f), 0.1f, 30000.0f, ((float)width / height));
     /* Recreate all fb textures */
-    gbuffer_destroy(rs->gbuf);
-    gbuffer_init(rs->gbuf, width, height);
-    postfx_destroy(rs->postfx);
-    postfx_init(rs->postfx, width, height);
+    gbuffer_destroy(is->gbuf);
+    gbuffer_init(is->gbuf, width, height);
+    postfx_destroy(&is->postfx);
+    postfx_init(&is->postfx, width, height);
 }
 
 /*-----------------------------------------------------------------
@@ -623,29 +665,22 @@ void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int
  *-----------------------------------------------------------------*/
 void renderer_destroy(struct renderer_state* rs)
 {
-    glDeleteTextures(1, &rs->textures.brdf_lut);
-    glDeleteTextures(1, &rs->textures.smaa.area);
-    glDeleteTextures(1, &rs->textures.smaa.search);
-    panicscr_destroy(rs->ps_rndr);
-    free(rs->ps_rndr);
+    struct renderer_internal_state* is = rs->internal;
+    glDeleteTextures(1, &is->textures.brdf_lut);
+    glDeleteTextures(1, &is->textures.smaa.area);
+    glDeleteTextures(1, &is->textures.smaa.search);
+    panicscr_destroy(&is->ps_rndr);
     mrtdbg_destroy();
     dbgtxt_destroy();
-    frame_prof_destroy(rs->fprof);
-    shadowmap_destroy(rs->shdwmap);
-    free(rs->shdwmap);
-    occull_destroy(rs->occl_st);
-    free(rs->occl_st);
-    bbox_rndr_destroy(rs->bbox_rs);
-    free(rs->bbox_rs);
-    gi_rndr_destroy(rs->gi_rndr);
-    free(rs->gi_rndr);
-    sky_preetham_destroy(rs->sky_rs.preeth);
-    free(rs->sky_rs.preeth);
-    sky_texture_destroy(rs->sky_rs.tex);
-    free(rs->sky_rs.tex);
+    frame_prof_destroy(is->fprof);
+    shadowmap_destroy(&is->shdwmap);
+    occull_destroy(&is->occl_st);
+    bbox_rndr_destroy(&is->bbox_rs);
+    gi_rndr_destroy(&is->gi_rndr);
+    sky_preetham_destroy(&is->sky_rndr.preeth);
+    sky_texture_destroy(&is->sky_rndr.tex);
     glutils_deinit();
-    postfx_destroy(rs->postfx);
-    free(rs->postfx);
-    gbuffer_destroy(rs->gbuf);
-    free(rs->gbuf);
+    postfx_destroy(&is->postfx);
+    gbuffer_destroy(&is->main_gbuf);
+    free(rs->internal);
 }
