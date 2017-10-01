@@ -3,11 +3,47 @@ out vec4 color;
 uniform sampler2D tex;
 
 //------------------------------------------------------------
+// Helpers
+//------------------------------------------------------------
+float luminance(vec3 c)
+{
+    float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    return lum;
+}
+
+//------------------------------------------------------------
+// Linear
+//------------------------------------------------------------
+vec3 linear(vec3 hdr_color, float exposure)
+{
+    vec3 c = clamp(exposure * hdr_color, 0.0, 1.0);
+    return c;
+}
+
+//------------------------------------------------------------
 // Reinhard
 //------------------------------------------------------------
-vec3 reinhard(vec3 hdr_color)
+vec3 reinhard_simple(vec3 hdr_color, float exposure)
 {
-    return hdr_color / (hdr_color + vec3(1.0));
+    vec3 c = vec3(exposure) * hdr_color / (vec3(1.0) + hdr_color / vec3(exposure));
+    return c;
+}
+
+vec3 reinhard_luma(vec3 hdr_color)
+{
+    float luma = luminance(hdr_color);
+    float tonemapped_luma = luma / (1.0 + luma);
+    vec3 c = hdr_color * (tonemapped_luma / luma);
+    return c;
+}
+
+vec3 reinhard_white_preserving_luma(vec3 hdr_color)
+{
+    float white = 2.0;
+    float luma = luminance(hdr_color);
+    float tonemapped_luma = luma * (1.0 + luma / (white * white)) / (1.0 + luma);
+    vec3 c = hdr_color * (tonemapped_luma / luma);
+    return c;
 }
 
 //------------------------------------------------------------
@@ -56,7 +92,7 @@ void main()
     const int tonemap_type = 0;
     vec3 mapped = hdr_color;
     if (tonemap_type == 0)
-        mapped = reinhard(hdr_color);
+        mapped = reinhard_white_preserving_luma(hdr_color);
     else if (tonemap_type == 1)
         mapped = exposure(hdr_color, 1.0);
     else if (tonemap_type == 2)
