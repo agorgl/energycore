@@ -71,13 +71,13 @@ static const size_t cube_verts_sz = sizeof(cube_verts);
 
 static void mesh_create(GLuint* vao, GLuint *vbo, GLfloat* verts, GLuint verts_sz)
 {
-    GLuint quad_vao;
-    glGenVertexArrays(1, &quad_vao);
-    glBindVertexArray(quad_vao);
+    GLuint tvao;
+    glGenVertexArrays(1, &tvao);
+    glBindVertexArray(tvao);
 
-    GLuint quad_vbo;
-    glGenBuffers(1, &quad_vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, quad_vbo);
+    GLuint tvbo;
+    glGenBuffers(1, &tvbo);
+    glBindBuffer(GL_ARRAY_BUFFER, tvbo);
     glBufferData(GL_ARRAY_BUFFER, verts_sz, verts, GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
@@ -86,8 +86,8 @@ static void mesh_create(GLuint* vao, GLuint *vbo, GLfloat* verts, GLuint verts_s
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    *vao = quad_vao;
-    *vbo = quad_vbo;
+    *vao = tvao;
+    *vbo = tvbo;
 }
 
 static void mesh_destroy(GLuint* vao, GLuint* vbo)
