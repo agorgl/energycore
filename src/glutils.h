@@ -32,6 +32,7 @@
 #define _GLUTILS_H_
 
 #include <stdint.h>
+#include <energycore/asset.h>
 
 /* Convenience macro */
 #define GLSRC(src) "#version 330 core\n" #src
@@ -43,9 +44,6 @@ void glutils_deinit();
 /* Rendering utils */
 void render_quad();
 void render_cube();
-
-/* Shader utils */
-unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char* fs_src);
 
 /* Geometry utils */
 struct sphere_gdata {

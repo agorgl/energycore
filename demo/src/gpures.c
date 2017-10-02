@@ -6,7 +6,7 @@
 #include <glad/glad.h>
 #include <assets/assetload.h>
 #include <assets/model/postprocess.h>
-#include "glutil.h"
+#include <energycore/asset.h>
 
 static void mesh_calc_aabb(struct mesh* m, float min[3], float max[3])
 {
@@ -263,42 +263,6 @@ void tex_free_from_gpu(struct tex_hndl* th)
     free(th);
 }
 
-unsigned int shader_from_sources(const char* vs_src, const char* gs_src, const char* fs_src)
-{
-    /* Vertex */
-    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vs, 1, &vs_src, 0);
-    glCompileShader(vs);
-    gl_check_last_compile_error(vs);
-    /* Geometry */
-    GLuint gs = 0;
-    if (gs_src) {
-        gs = glCreateShader(GL_GEOMETRY_SHADER);
-        glShaderSource(gs, 1, &gs_src, 0);
-        glCompileShader(gs);
-        gl_check_last_compile_error(gs);
-    }
-    /* Fragment */
-    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, 1, &fs_src, 0);
-    glCompileShader(fs);
-    gl_check_last_compile_error(fs);
-    /* Create program */
-    GLuint prog = glCreateProgram();
-    glAttachShader(prog, vs);
-    if (gs_src)
-        glAttachShader(prog, gs);
-    glAttachShader(prog, fs);
-    glLinkProgram(prog);
-    gl_check_last_link_error(prog);
-    /* Free unnecessary resources */
-    glDeleteShader(vs);
-    if (gs_src)
-        glDeleteShader(gs);
-    glDeleteShader(fs);
-    return prog;
-}
-
 static void shader_load_err(void* userdata, const char* err)
 {
     (void) userdata;
@@ -319,7 +283,7 @@ unsigned int shader_from_files(const char* vsp, const char* gsp, const char* fsp
         gs_src = shader_load(gsp, &settings);
     const char* fs_src = shader_load(fsp, &settings);
     /* Create shader */
-    unsigned int shdr = shader_from_sources(vs_src, gs_src, fs_src);
+    unsigned int shdr = shader_from_srcs(vs_src, gs_src, fs_src);
     /* Free sources */
     if (gsp)
         free((void*)gs_src);

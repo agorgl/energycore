@@ -28,12 +28,12 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _GLUTIL_H_
-#define _GLUTIL_H_
-#include <glad/glad.h>
+#ifndef _ASSET_H_
+#define _ASSET_H_
 
-void gl_check_error();
-void gl_check_last_compile_error(GLuint id);
-void gl_check_last_link_error(GLuint id);
+/* Shader utils */
+unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char* fs_src);
+/* Texture utils */
+unsigned int texture_from_ktx(const char* filename);
 
-#endif /* ! _SHADER_H_ */
+#endif /* ! _ASSET_H_ */
