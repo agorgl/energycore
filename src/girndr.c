@@ -15,8 +15,6 @@ void gi_rndr_init(struct gi_rndr* r)
     /* Initialize subrenderers */
     r->probe_rndr = calloc(1, sizeof(struct probe_rndr));
     probe_rndr_init(r->probe_rndr);
-    r->probe_vis = calloc(1, sizeof(struct probe_vis));
-    probe_vis_init(r->probe_vis);
     /* Initialize probe processing */
     r->probe_proc = calloc(1, sizeof(struct probe_proc));
     probe_proc_init(r->probe_proc);
@@ -45,8 +43,6 @@ void gi_rndr_destroy(struct gi_rndr* r)
     free(r->pdata);
     probe_proc_destroy(r->probe_proc);
     free(r->probe_proc);
-    probe_vis_destroy(r->probe_vis);
-    free(r->probe_vis);
     probe_rndr_destroy(r->probe_rndr);
     free(r->probe_rndr);
 }
@@ -129,12 +125,15 @@ void gi_upload_sh_coeffs(unsigned int shdr, double sh_coef[25][3])
     glUseProgram(0);
 }
 
-void gi_vis_probes(struct gi_rndr* r, float view[16], float proj[16], unsigned int mode)
+void gi_vis_probes(struct gi_rndr* r, unsigned int shdr, float view[16], float proj[16], unsigned int mode)
 {
+    struct gi_probe_data* pd = &r->fallback_probe;
+    gi_upload_sh_coeffs(shdr, pd->sh_coeffs);
+    probe_vis_render(pd->p, pd->pos, shdr, *(mat4*)view, *(mat4*)proj, mode);
     for (unsigned int i = 0; i < r->num_probes; ++i) {
         struct gi_probe_data* pd = r->pdata + i;
         /* Visualize sample probe */
-        gi_upload_sh_coeffs(r->probe_vis->shdr, pd->sh_coeffs);
-        probe_vis_render(r->probe_vis, pd->p, pd->pos, *(mat4*)view, *(mat4*)proj, mode);
+        gi_upload_sh_coeffs(shdr, pd->sh_coeffs);
+        probe_vis_render(pd->p, pd->pos, shdr, *(mat4*)view, *(mat4*)proj, mode);
     }
 }

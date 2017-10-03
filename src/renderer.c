@@ -50,6 +50,7 @@ struct renderer_internal_state {
             unsigned int smaa;
         } fx;
         unsigned int nm_vis;
+        unsigned int probe_vis;
         struct {
             unsigned int irr_gen;
             unsigned int brdf_lut;
@@ -172,11 +173,11 @@ void renderer_shdr_fetch(struct renderer_state* rs)
     is->shdrs.fx.gamma          = is->shdr_fetch_cb("gamma_fx", is->shdr_fetch_userdata);
     is->shdrs.fx.smaa           = is->shdr_fetch_cb("smaa_fx", is->shdr_fetch_userdata);
     is->shdrs.nm_vis            = is->shdr_fetch_cb("norm_vis", is->shdr_fetch_userdata);
+    is->shdrs.probe_vis         = is->shdr_fetch_cb("probe_vis", is->shdr_fetch_userdata);
     is->shdrs.ibl.irr_gen       = is->shdr_fetch_cb("irr_conv", is->shdr_fetch_userdata);
     is->shdrs.ibl.brdf_lut      = is->shdr_fetch_cb("brdf_lut", is->shdr_fetch_userdata);
     is->shdrs.ibl.prefilter     = is->shdr_fetch_cb("prefilter", is->shdr_fetch_userdata);
     is->sky_rndr.preeth.shdr    = is->shdr_fetch_cb("sky_prth", is->shdr_fetch_userdata);
-    is->gi_rndr.probe_vis->shdr = is->shdr_fetch_cb("probe_vis", is->shdr_fetch_userdata);
 }
 
 static void upload_gbuffer_uniforms(GLuint shdr, float viewport[2], mat4* view, mat4* proj)
@@ -600,7 +601,7 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
 
     /* Visualize GI probes */
     if (rs->options.show_gidata)
-        gi_vis_probes(&is->gi_rndr, view, is->proj.m, 1);
+        gi_vis_probes(&is->gi_rndr, is->shdrs.probe_vis, view, is->proj.m, 1);
 
     /* Show gbuffer textures */
     if (rs->options.show_gbuf_textures) {

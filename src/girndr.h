@@ -37,7 +37,6 @@
 struct gi_rndr {
     /* Sub renderers */
     struct probe_rndr* probe_rndr;
-    struct probe_vis* probe_vis;
     /* Probe processing */
     struct probe_proc* probe_proc;
     /* Mini gbuffer used when updating probes */
@@ -68,7 +67,7 @@ void gi_update_end(struct gi_rndr* r);
 void gi_preprocess(struct gi_rndr* r, unsigned int irr_conv_shdr, unsigned int prefilter_shdr);
 void gi_upload_sh_coeffs(unsigned int shdr, double sh_coef[25][3]);
 /* Visualizes light probes, for debugging purposes */
-void gi_vis_probes(struct gi_rndr* r, float view[16], float proj[16], unsigned int mode);
+void gi_vis_probes(struct gi_rndr* r, unsigned int shdr, float view[16], float proj[16], unsigned int mode);
 
 /* Convenience macros */
 #define gi_render_passes(gir, pview, pproj) \
