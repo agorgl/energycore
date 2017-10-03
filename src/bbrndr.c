@@ -57,14 +57,12 @@ void bbox_rndr_init(struct bbox_rndr* st)
 
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     /* Create common indice buffer */
     glGenBuffers(1, &ebo);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(box_indices), box_indices, GL_STATIC_DRAW);
     unsigned int indice_count = sizeof(box_indices) / sizeof(box_indices[0]);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
     /* Store state */
@@ -107,12 +105,9 @@ void bbox_rndr_render(struct bbox_rndr* st, float aabb_min[3], float aabb_max[3]
     };
     glBindBuffer(GL_ARRAY_BUFFER, st->vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     glBindVertexArray(st->vao);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, st->ebo);
     glDrawElements(GL_TRIANGLES, st->indice_count, GL_UNSIGNED_INT, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 }
 

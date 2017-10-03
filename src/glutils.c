@@ -88,8 +88,8 @@ static void mesh_create(GLuint* vao, GLuint *vbo, GLfloat* verts, GLuint verts_s
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0);
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     *vao = tvao;
     *vbo = tvbo;
@@ -154,9 +154,9 @@ void glutils_init()
 
 void glutils_deinit()
 {
+    glBindVertexArray(0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
     sphere_destroy();
     mesh_destroy(&g_glutils_state.cube.vao, &g_glutils_state.cube.vbo);
     mesh_destroy(&g_glutils_state.quad.vao, &g_glutils_state.quad.vbo);

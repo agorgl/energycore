@@ -301,21 +301,19 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
 
         /* Render mesh */
         glBindVertexArray(rm->vao);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rm->ebo);
         glDrawElements(GL_TRIANGLES, rm->indice_count, GL_UNSIGNED_INT, (void*)0);
-
-        /* Reset bindings */
-        for (int i = 0; i < 4; ++i) {
-            glActiveTexture(GL_TEXTURE0 + i);
-            glBindTexture(GL_TEXTURE_2D, 0);
-        }
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
 
         /* End occlusion query for current object */
         if (rs->options.use_occlusion_culling)
             occull_object_end(&is->occl_st);
     }
+
+    /* Reset bindings */
+    for (int i = 0; i < 4; ++i) {
+        glActiveTexture(GL_TEXTURE0 + i);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+    glBindVertexArray(0);
     glUseProgram(0);
     glFrontFace(GL_CCW);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -499,10 +497,8 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
                 struct renderer_mesh* rm = ri->meshes + i;
                 glUniformMatrix4fv(glGetUniformLocation(shdr, "model"), 1, GL_FALSE, rm->model_mat);
                 glBindVertexArray(rm->vao);
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rm->ebo);
                 glDrawElements(GL_TRIANGLES, rm->indice_count, GL_UNSIGNED_INT, 0);
             }
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
             glBindVertexArray(0);
         }
     }
@@ -546,10 +542,8 @@ static void visualize_normals(struct renderer_state* rs, struct renderer_input* 
         struct renderer_mesh* rm = ri->meshes + i;
         glUniformMatrix4fv(mdl_mat_loc, 1, GL_FALSE, rm->model_mat);
         glBindVertexArray(rm->vao);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rm->ebo);
         glDrawElements(GL_TRIANGLES, rm->indice_count, GL_UNSIGNED_INT, (void*)0);
     }
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
     glUseProgram(0);
 }

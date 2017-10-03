@@ -272,9 +272,7 @@ void dbgtxt_prntnc(const char* text, size_t num_chars, float x, float y, float r
 
     /* Render */
     glBindVertexArray(st.vao);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, st.ebo);
     glDrawElements(GL_TRIANGLES, num_indices, GL_UNSIGNED_INT, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
     /* Restore state */
