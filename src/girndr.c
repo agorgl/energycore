@@ -85,9 +85,6 @@ void gi_update_pass_end(struct gi_rndr* r)
     probe_render_side_end(r->probe_rndr, r->rs.side);
     r->rs.side++;
     if (r->rs.side >= 6) {
-        /* Calculate SH coefficients from captured cubemap */
-        struct gi_probe_data* pd = r->pdata + r->rs.pidx;
-        probe_extract_shcoeffs(r->probe_proc, pd->sh_coeffs, pd->p);
         /* Advance probe */
         r->rs.pidx++;
         r->rs.side = 0;
@@ -103,8 +100,11 @@ void gi_update_end(struct gi_rndr* r)
 void gi_preprocess(struct gi_rndr* r, unsigned int irr_conv_shdr, unsigned int prefilter_shdr)
 {
     probe_preprocess(r->probe_proc, r->fallback_probe.p, irr_conv_shdr, prefilter_shdr);
-    for (unsigned int i = 0; i < r->num_probes; ++i)
+    probe_extract_shcoeffs(r->probe_proc, r->fallback_probe.sh_coeffs, r->fallback_probe.p);
+    for (unsigned int i = 0; i < r->num_probes; ++i) {
         probe_preprocess(r->probe_proc, r->pdata[i].p, irr_conv_shdr, prefilter_shdr);
+        probe_extract_shcoeffs(r->probe_proc, r->pdata[i].sh_coeffs, r->pdata[i].p);
+    }
 }
 
 void gi_upload_sh_coeffs(unsigned int shdr, double sh_coef[25][3])
