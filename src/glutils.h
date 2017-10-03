@@ -44,6 +44,7 @@ void glutils_deinit();
 /* Rendering utils */
 void render_quad();
 void render_cube();
+void render_sphere();
 
 /* Geometry utils */
 struct sphere_gdata {

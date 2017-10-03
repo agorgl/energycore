@@ -10,10 +10,13 @@
 #define pi M_PI
 
 struct {
-    GLuint quad_vao;
-    GLuint quad_vbo;
-    GLuint cube_vao;
-    GLuint cube_vbo;
+    struct {
+        GLuint vao, vbo;
+    } quad, cube;
+    struct {
+        GLuint vao, vbo, ebo;
+        GLuint num_indices;
+    } sphr;
 } g_glutils_state;
 
 static const GLfloat quad_verts[] =
@@ -94,38 +97,89 @@ static void mesh_create(GLuint* vao, GLuint *vbo, GLfloat* verts, GLuint verts_s
 
 static void mesh_destroy(GLuint* vao, GLuint* vbo)
 {
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
     glDeleteBuffers(1, vbo);
     glDeleteVertexArrays(1, vao);
     *vao = 0;
     *vbo = 0;
 }
 
+static void sphere_create()
+{
+    const unsigned int num_sectors = 32;
+    struct sphere_gdata* vdat = uv_sphere_create(1.0f, num_sectors, num_sectors);
+
+    GLuint sph_vao, sph_vbo, sph_ebo;
+    glGenVertexArrays(1, &sph_vao);
+    glBindVertexArray(sph_vao);
+
+    glGenBuffers(1, &sph_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, sph_vbo);
+    glBufferData(GL_ARRAY_BUFFER, vdat->num_verts * sizeof(struct sphere_vertice), vdat->vertices, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(struct sphere_vertice), (GLvoid*)offsetof(struct sphere_vertice, position));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(struct sphere_vertice), (GLvoid*)offsetof(struct sphere_vertice, uvs));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(struct sphere_vertice), (GLvoid*)offsetof(struct sphere_vertice, normal));
+
+    glGenBuffers(1, &sph_ebo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sph_ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, vdat->num_indices * sizeof(uint32_t), vdat->indices, GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    g_glutils_state.sphr.vao = sph_vao;
+    g_glutils_state.sphr.vbo = sph_vbo;
+    g_glutils_state.sphr.ebo = sph_ebo;
+    g_glutils_state.sphr.num_indices = vdat->num_indices;
+    uv_sphere_destroy(vdat);
+}
+
+static void sphere_destroy()
+{
+    glDeleteBuffers(1, &g_glutils_state.sphr.ebo);
+    glDeleteBuffers(1, &g_glutils_state.sphr.vbo);
+    glDeleteVertexArrays(1, &g_glutils_state.sphr.vao);
+}
+
 void glutils_init()
 {
     memset(&g_glutils_state, 0, sizeof(g_glutils_state));
-    mesh_create(&g_glutils_state.quad_vao, &g_glutils_state.quad_vbo, (GLfloat*)quad_verts, quad_verts_sz);
-    mesh_create(&g_glutils_state.cube_vao, &g_glutils_state.cube_vbo, (GLfloat*)cube_verts, cube_verts_sz);
+    mesh_create(&g_glutils_state.quad.vao, &g_glutils_state.quad.vbo, (GLfloat*)quad_verts, quad_verts_sz);
+    mesh_create(&g_glutils_state.cube.vao, &g_glutils_state.cube.vbo, (GLfloat*)cube_verts, cube_verts_sz);
+    sphere_create();
 }
 
 void glutils_deinit()
 {
-    mesh_destroy(&g_glutils_state.cube_vao, &g_glutils_state.cube_vbo);
-    mesh_destroy(&g_glutils_state.quad_vao, &g_glutils_state.quad_vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    sphere_destroy();
+    mesh_destroy(&g_glutils_state.cube.vao, &g_glutils_state.cube.vbo);
+    mesh_destroy(&g_glutils_state.quad.vao, &g_glutils_state.quad.vbo);
 }
 
 void render_quad()
 {
-    glBindVertexArray(g_glutils_state.quad_vao);
+    glBindVertexArray(g_glutils_state.quad.vao);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     glBindVertexArray(0);
 }
 
 void render_cube()
 {
-    glBindVertexArray(g_glutils_state.cube_vao);
+    glBindVertexArray(g_glutils_state.cube.vao);
     glDrawArrays(GL_TRIANGLES, 0, 36);
+    glBindVertexArray(0);
+}
+
+void render_sphere()
+{
+    glBindVertexArray(g_glutils_state.sphr.vao);
+    glDrawElements(GL_TRIANGLES, g_glutils_state.sphr.num_indices, GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
 }
 
