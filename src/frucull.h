@@ -28,49 +28,10 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _SHDWMAP_H_
-#define _SHDWMAP_H_
+#ifndef _FRUCULL_H_
+#define _FRUCULL_H_
 
 #include <linalgb.h>
+int box_in_frustum(vec3 fru_points[8], vec4 fru_planes[6], vec3 box_mm[2]);
 
-#define SHADOWMAP_NSPLITS 4
-
-struct shadowmap {
-    /* Resolution */
-    unsigned int width, height;
-    /* GL handles */
-    struct {
-        unsigned int tex_id, fbo_id;
-        unsigned int shdr;
-    } glh;
-    /* Split data */
-    struct {
-        mat4 proj_mat;
-        mat4 view_mat;
-        mat4 shdw_mat;
-        vec2 plane;
-        float near_plane, far_plane;
-    } sd[SHADOWMAP_NSPLITS];
-    /* Render state */
-    struct {
-        int prev_vp[4];
-        unsigned int prev_fbo;
-    } rs;
-};
-
-void shadowmap_init(struct shadowmap* sm, int width, int height);
-void shadowmap_render_begin(struct shadowmap* sm, float light_pos[3], float view[16], float proj[16]);
-void shadowmap_render_split_begin(struct shadowmap* sm, unsigned int split, vec3 fru_pts[8], vec4 fru_planes[6]);
-void shadowmap_render_split_end(struct shadowmap* sm);
-void shadowmap_render_end(struct shadowmap* sm);
-void shadowmap_bind(struct shadowmap* sm, unsigned int shdr);
-void shadowmap_destroy(struct shadowmap* sm);
-
-/* Convenience macros */
-#define shadowmap_render(sm, light_pos, view, proj, fru_pts, fru_plns) \
-    for (int _break = (shadowmap_render_begin(sm, light_pos, view, proj), 1), shdr = sm->glh.shdr; \
-            (_break || (shadowmap_render_end(sm), 0)); _break = 0) \
-        for (unsigned int _split = 0; (_split < 4 && (shadowmap_render_split_begin(sm, _split, fru_pts, fru_plns), 1)); \
-                (shadowmap_render_split_end(sm), ++_split))
-
-#endif /* ! _SHDWMAP_H_ */
+#endif /* ! _FRUCULL_H_ */

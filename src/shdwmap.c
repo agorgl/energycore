@@ -20,7 +20,7 @@ void main()
 );
 
 static const char* gs_src = GLSRCEXT(
-layout(triangles,       invocations = 4) in;
+layout(triangles,       invocations = 1) in;
 layout(triangle_strip, max_vertices = 3) out;
 
 out float layer;
@@ -28,15 +28,17 @@ out vec3 vs_pos;
 
 uniform mat4 cascades_view_mats[4];
 uniform mat4 cascades_proj_mats[4];
+uniform int u_layer;
 
 void main()
 {
     for (int i = 0; i < gl_in.length(); ++i) {
-        vec4 pos    = cascades_view_mats[gl_InvocationID] * gl_in[i].gl_Position;
+        int layeri  = u_layer;
+        layer       = float(layeri);
+        vec4 pos    = cascades_view_mats[layeri] * gl_in[i].gl_Position;
         vs_pos      = pos.xyz;
-        layer       = float(gl_InvocationID);
-        gl_Position = cascades_proj_mats[gl_InvocationID] * pos;
-        gl_Layer    = gl_InvocationID;
+        gl_Position = cascades_proj_mats[layeri] * pos;
+        gl_Layer    = layeri;
         EmitVertex();
     }
     EndPrimitive();
@@ -256,6 +258,41 @@ void shadowmap_render_begin(struct shadowmap* sm, float light_pos[3], float view
     /* Set cull face mode to front
      * in order to improve peter panning issues on solid objects */
     glCullFace(GL_FRONT);
+}
+
+static inline vec4 plane_from_points(vec3 p1, vec3 p2, vec3 p3)
+{
+    vec3 e1 = vec3_sub(p2, p1);
+    vec3 e2 = vec3_sub(p3, p1);
+    vec3 normal = vec3_normalize(vec3_cross(e1, e2));
+    float constant = -vec3_dot(p1, normal);
+    return vec4_new(normal.x, normal.y, normal.z, constant);
+}
+
+static inline void points_planes_from_mat(vec3 fru_pts[8], vec4 fru_planes[6], mat4 m)
+{
+    frustum f = frustum_new_clipbox();
+    f = frustum_transform(f, mat4_inverse(m));
+    memcpy(fru_pts, &f, sizeof(vec3) * 8);
+    /* [0]: ntr, [1]: ntl, [2]: nbr, [3]: nbl, [4]: ftr, [5]: ftl, [6]: fbr, [7]: fbl */
+    fru_planes[0] = plane_from_points(fru_pts[0], fru_pts[4], fru_pts[1]); /* Top */
+    fru_planes[1] = plane_from_points(fru_pts[2], fru_pts[3], fru_pts[6]); /* Bottom */
+    fru_planes[2] = plane_from_points(fru_pts[1], fru_pts[5], fru_pts[3]); /* Left */
+    fru_planes[3] = plane_from_points(fru_pts[0], fru_pts[2], fru_pts[4]); /* Right */
+    fru_planes[4] = plane_from_points(fru_pts[4], fru_pts[6], fru_pts[5]); /* Far */
+    fru_planes[5] = plane_from_points(fru_pts[0], fru_pts[1], fru_pts[2]); /* Near */
+}
+
+void shadowmap_render_split_begin(struct shadowmap* sm, unsigned int split, vec3 fru_pts[8], vec4 fru_planes[6])
+{
+    GLuint shdr = sm->glh.shdr;
+    glUniform1i(glGetUniformLocation(shdr, "u_layer"), split);
+    points_planes_from_mat(fru_pts, fru_planes, sm->sd[split].shdw_mat);
+}
+
+void shadowmap_render_split_end(struct shadowmap* sm)
+{
+    (void) sm;
 }
 
 void shadowmap_render_end(struct shadowmap* sm)

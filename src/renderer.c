@@ -12,6 +12,7 @@
 #include "bbrndr.h"
 #include "gbuffer.h"
 #include "occull.h"
+#include "frucull.h"
 #include "shdwmap.h"
 #include "glutils.h"
 #include "frprof.h"
@@ -492,12 +493,19 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
     /* Shadowmap pass*/
     if (rs->options.use_shadows && !direct_only) {
         float* light_dir = ri->lights[0].type_data.dir.direction.xyz;
-        shadowmap_render((&is->shdwmap), light_dir, view->m, proj->m) {
+        vec3 fru_pts[8]; vec4 fru_plns[6];
+        shadowmap_render((&is->shdwmap), light_dir, view->m, proj->m, fru_pts, fru_plns) {
             for (size_t i = 0; i < ri->num_meshes; ++i) {
                 struct renderer_mesh* rm = ri->meshes + i;
-                glUniformMatrix4fv(glGetUniformLocation(shdr, "model"), 1, GL_FALSE, rm->model_mat);
-                glBindVertexArray(rm->vao);
-                glDrawElements(GL_TRIANGLES, rm->indice_count, GL_UNSIGNED_INT, 0);
+                vec3 box_mm[2] = {
+                    mat4_mul_vec3(*(mat4*)rm->model_mat, *(vec3*)rm->aabb.min),
+                    mat4_mul_vec3(*(mat4*)rm->model_mat, *(vec3*)rm->aabb.max)
+                };
+                if (box_in_frustum(fru_pts, fru_plns, box_mm)){
+                    glUniformMatrix4fv(glGetUniformLocation(shdr, "model"), 1, GL_FALSE, rm->model_mat);
+                    glBindVertexArray(rm->vao);
+                    glDrawElements(GL_TRIANGLES, rm->indice_count, GL_UNSIGNED_INT, 0);
+                }
             }
             glBindVertexArray(0);
         }
