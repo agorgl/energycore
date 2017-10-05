@@ -1,6 +1,7 @@
 #version 330 core
 #include "inc/encoding.glsl"
-layout (location = 0) out vec3 g_normal;
+#include "inc/packing.glsl"
+layout (location = 0) out vec2 g_normal;
 layout (location = 1) out vec4 g_albedo;
 layout (location = 2) out vec4 g_roughness_metallic;
 
@@ -32,7 +33,7 @@ void main()
     // Gather texture data
     vec2 uv = fs_in.uv;
     vec4 tex_albedo = texture(mat.albedo_tex, uv * mat.albedo_scl);
-    vec3 tex_normal = texture(mat.normal_tex, uv * mat.normal_scl).rgb;
+    vec2 tex_normal = texture(mat.normal_tex, uv * mat.normal_scl).rg;
     vec4 tex_roughn = texture(mat.rough_tex,  uv * mat.rough_scl);
     vec4 tex_metal  = texture(mat.metal_tex,  uv * mat.metal_scl);
 
@@ -40,10 +41,13 @@ void main()
     tex_albedo = vec4(pow(tex_albedo.rgb, vec3(gamma)), tex_albedo.a);
 
     // Normal output
-    if (use_nm == 1)
-        g_normal = normalize(fs_in.TBN * (tex_normal * 2.0 - 1.0));
-    else
-        g_normal = normalize(fs_in.normal);
+    vec3 n = normalize(fs_in.normal);
+    if (use_nm == 1) {
+        n.xy = tex_normal * 2.0 - 1.0;
+        n.z = sqrt(1.0 - (n.x * n.x + n.y * n.y));
+        n = normalize(fs_in.TBN * n);
+    }
+    g_normal.rg = pack_normal_octahedron(n);
 
     // Albedo output
     g_albedo = tex_albedo + vec4(mat.albedo_col, 1.0);

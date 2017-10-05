@@ -3,6 +3,7 @@
 //
 #extension GL_ARB_sample_shading : enable
 #include "encoding.glsl"
+#include "packing.glsl"
 
 struct gbuffer {
     sampler2D normal;
@@ -37,7 +38,7 @@ void fetch_gbuffer_data()
 {
     ivec2 st = ivec2(gl_FragCoord.xy);
     d.ws_pos = reconstruct_wpos_from_depth();
-    d.normal = texelFetch(gbuf.normal, st, 0).rgb;
+    d.normal = unpack_normal_octahedron(texelFetch(gbuf.normal, st, 0).rg);
     d.albedo = texelFetch(gbuf.albedo, st, 0).rgb;
     vec4 rm  = texelFetch(gbuf.roughness_metallic, st, 0).rgba;
     d.roughness = (rm.r + rm.g + rm.b) / 3.0;
