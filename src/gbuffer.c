@@ -48,8 +48,8 @@ void gbuffer_init(struct gbuffer* gb, int width, int height)
         },
         {
             &gb->roughness_metallic_buf,
-            GL_RGBA,
-            GL_RGBA,
+            GL_RG8,
+            GL_RG,
             GL_UNSIGNED_BYTE,
             GL_COLOR_ATTACHMENT3
         },

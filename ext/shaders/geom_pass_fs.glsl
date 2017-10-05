@@ -3,7 +3,7 @@
 #include "inc/packing.glsl"
 layout (location = 0) out vec2 g_normal;
 layout (location = 1) out vec4 g_albedo;
-layout (location = 2) out vec4 g_roughness_metallic;
+layout (location = 2) out vec2 g_roughness_metallic;
 
 in VS_OUT {
     vec2 uv;
@@ -55,5 +55,5 @@ void main()
     // Roughness / Metallic output
     float roughness = (1.0 - tex_roughn.a) + mat.roughness;
     float metallic = tex_metal.r + mat.metallic;
-    g_roughness_metallic = vec4(vec3(roughness), metallic);
+    g_roughness_metallic.rg = vec2(roughness, metallic);
 }

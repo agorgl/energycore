@@ -43,6 +43,12 @@ vec3 sampleSimple()
             tc = texelFetch(tex, st, 0).rrr;
             break;
         case 2:
+            tc = texelFetch(tex, st, 0).ggg;
+            break;
+        case 3:
+            tc = texelFetch(tex, st, 0).bbb;
+            break;
+        case 4:
             tc = texelFetch(tex, st, 0).aaa;
             break;
     }
@@ -61,6 +67,12 @@ vec3 sampleArray()
             tc = texelFetch(tex_arr, ivec3(st, layer), 0).rrr;
             break;
         case 2:
+            tc = texelFetch(tex_arr, ivec3(st, layer), 0).ggg;
+            break;
+        case 3:
+            tc = texelFetch(tex_arr, ivec3(st, layer), 0).bbb;
+            break;
+        case 4:
             tc = texelFetch(tex_arr, ivec3(st, layer), 0).aaa;
             break;
     }

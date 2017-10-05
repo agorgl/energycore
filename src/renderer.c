@@ -623,7 +623,7 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
             },{
                 .handle = is->gbuf->roughness_metallic_buf,
                 .type   = 0, .layer  = 0,
-                .mode   = MRTDBG_MODE_MONO_A,
+                .mode   = MRTDBG_MODE_MONO_G,
             }
         };
         mrtdbg_show_textures((struct mrtdbg_tex_info*)tinfos,

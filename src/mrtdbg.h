@@ -42,7 +42,9 @@ struct mrtdbg_tex_info {
     enum {
         MRTDBG_MODE_RGB = 0,
         MRTDBG_MODE_MONO_R = 1,
-        MRTDBG_MODE_MONO_A = 2
+        MRTDBG_MODE_MONO_G = 2,
+        MRTDBG_MODE_MONO_B = 3,
+        MRTDBG_MODE_MONO_A = 4
     } mode;
 };
 

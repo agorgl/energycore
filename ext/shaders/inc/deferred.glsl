@@ -38,9 +38,11 @@ void fetch_gbuffer_data()
 {
     ivec2 st = ivec2(gl_FragCoord.xy);
     d.ws_pos = reconstruct_wpos_from_depth();
-    d.normal = unpack_normal_octahedron(texelFetch(gbuf.normal, st, 0).rg);
-    d.albedo = texelFetch(gbuf.albedo, st, 0).rgb;
-    vec4 rm  = texelFetch(gbuf.roughness_metallic, st, 0).rgba;
-    d.roughness = (rm.r + rm.g + rm.b) / 3.0;
-    d.metallic = rm.a;
+    vec2 pckd_nm = texelFetch(gbuf.normal, st, 0).rg;
+    vec3 albedo  = texelFetch(gbuf.albedo, st, 0).rgb;
+    vec2 rgh_met = texelFetch(gbuf.roughness_metallic, st, 0).rg;
+    d.normal    = unpack_normal_octahedron(pckd_nm);
+    d.albedo    = albedo;
+    d.roughness = rgh_met.r;
+    d.metallic  = rgh_met.g;
 }
