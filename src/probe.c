@@ -375,7 +375,7 @@ unsigned int brdf_lut_generate(unsigned int brdf_lut_shdr)
     GLuint brdf_lut_tex;
     glGenTextures(1, &brdf_lut_tex);
     glBindTexture(GL_TEXTURE_2D, brdf_lut_tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, res, res, 0, GL_RG, GL_FLOAT, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, res, res, 0, GL_RG, GL_FLOAT, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
