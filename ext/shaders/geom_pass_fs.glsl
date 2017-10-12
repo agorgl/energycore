@@ -1,5 +1,6 @@
 #version 330 core
 #include "inc/encoding.glsl"
+#include "inc/blending.glsl"
 #include "inc/packing.glsl"
 layout (location = 0) out vec2 g_normal;
 layout (location = 1) out vec4 g_albedo;
@@ -24,9 +25,23 @@ struct material {
     float metallic;
     sampler2D metal_tex;
     vec2 metal_scl;
+    sampler2D detail_albedo_tex;
+    vec2 detail_albedo_scl;
+    sampler2D detail_normal_tex;
+    vec2 detail_normal_scl;
 };
 uniform material mat;
 uniform int use_nm;
+uniform int use_detail_alb;
+uniform int use_detail_nm;
+
+vec3 unpack_tex_normal(vec2 tex_normal)
+{
+    vec3 n;
+    n.xy = tex_normal * 2.0 - 1.0;
+    n.z = sqrt(1.0 - (n.x * n.x + n.y * n.y));
+    return n;
+}
 
 void main()
 {
@@ -36,6 +51,11 @@ void main()
     vec2 tex_normal = texture(mat.normal_tex, uv * mat.normal_scl).rg;
     vec4 tex_roughn = texture(mat.rough_tex,  uv * mat.rough_scl);
     vec4 tex_metal  = texture(mat.metal_tex,  uv * mat.metal_scl);
+    vec4 tex_dalbd  = texture(mat.detail_albedo_tex, uv * mat.detail_albedo_scl);
+    vec2 tex_dnorm  = texture(mat.detail_normal_tex, uv * mat.detail_normal_scl).rg;
+
+    if (use_detail_alb == 1)
+        tex_albedo.rgb = tex_albedo.rgb * tex_dalbd.rgb * 2.0;
 
     const float gamma = 2.2;
     tex_albedo = vec4(pow(tex_albedo.rgb, vec3(gamma)), tex_albedo.a);
@@ -43,8 +63,11 @@ void main()
     // Normal output
     vec3 n = normalize(fs_in.normal);
     if (use_nm == 1) {
-        n.xy = tex_normal * 2.0 - 1.0;
-        n.z = sqrt(1.0 - (n.x * n.x + n.y * n.y));
+        n = unpack_tex_normal(tex_normal);
+        if (use_detail_nm == 1) {
+            vec3 dn = unpack_tex_normal(tex_dnorm);
+            n = blend_normals(n, dn);
+        }
         n = normalize(fs_in.TBN * n);
     }
     g_normal.rg = pack_normal_octahedron(n);

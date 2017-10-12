@@ -220,6 +220,10 @@ struct scene_file* scene_file_load(const char* filepath)
                     targets[0] = STT_ALBEDO;
                 else if (strncmp(emma->name->string, "BumpMap", emma->name->string_size) == 0)
                     targets[0] = STT_NORMAL;
+                else if (strncmp(emma->name->string, "DetailAlbedoMap", emma->name->string_size) == 0)
+                    targets[0] = STT_DETAIL_ALBEDO;
+                else if (strncmp(emma->name->string, "DetailNormalMap", emma->name->string_size) == 0)
+                    targets[0] = STT_DETAIL_NORMAL;
                 else if (strncmp(emma->name->string, "SpecGlossMap", emma->name->string_size) == 0) {
                     targets[0] = STT_ROUGHNESS;
                     targets[1] = STT_METALLIC;

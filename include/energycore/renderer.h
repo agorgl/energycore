@@ -41,6 +41,8 @@ enum renderer_material_attr_type {
     RMAT_NORMAL,
     RMAT_ROUGHNESS,
     RMAT_METALLIC,
+    RMAT_DETAIL_ALBEDO,
+    RMAT_DETAIL_NORMAL,
     RMAT_MAX
 };
 
@@ -141,6 +143,7 @@ struct renderer_state {
         unsigned int use_occlusion_culling;
         unsigned int use_normal_mapping;
         unsigned int use_rough_met_maps;
+        unsigned int use_detail_maps;
         unsigned int use_shadows;
         unsigned int use_envlight;
         unsigned int use_tonemapping;

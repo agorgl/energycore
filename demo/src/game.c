@@ -41,8 +41,10 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         ctx->rndr_state.options.use_normal_mapping = !ctx->rndr_state.options.use_normal_mapping;
     else if (action == KEY_ACTION_RELEASE && key == KEY_T)
         ctx->rndr_state.options.show_gbuf_textures = !ctx->rndr_state.options.show_gbuf_textures;
-    else if (action == KEY_ACTION_RELEASE && key == KEY_R)
-        ctx->rndr_state.options.use_rough_met_maps = !ctx->rndr_state.options.use_rough_met_maps;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_P)
+        ctx->rndr_state.options.use_detail_maps = !ctx->rndr_state.options.use_detail_maps;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_Y)
+        ctx->rndr_state.options.show_gidata = !ctx->rndr_state.options.show_gidata;
     else if (action == KEY_ACTION_RELEASE && key == KEY_O)
         ctx->rndr_state.options.use_shadows = !ctx->rndr_state.options.use_shadows;
     else if (action == KEY_ACTION_RELEASE && key == KEY_X)

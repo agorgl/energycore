@@ -64,6 +64,8 @@ enum material_attr_type {
     MAT_NORMAL,
     MAT_ROUGHNESS,
     MAT_METALLIC,
+    MAT_DETAIL_ALBEDO,
+    MAT_DETAIL_NORMAL,
     MAT_MAX
 };
 
