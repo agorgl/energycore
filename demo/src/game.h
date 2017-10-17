@@ -55,6 +55,7 @@ struct game_context
     /* Renderer state and his cached input */
     struct renderer_state rndr_state;
     struct renderer_input cached_ri;
+    int gi_dirty;
 };
 
 /* Initializes the game instance */

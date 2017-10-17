@@ -57,6 +57,8 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         ctx->rndr_state.options.use_antialiasing = !ctx->rndr_state.options.use_antialiasing;
     else if (action == KEY_ACTION_RELEASE && key == KEY_Y)
         ctx->rndr_state.options.show_gidata = !ctx->rndr_state.options.show_gidata;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_NUM0)
+        ctx->gi_dirty = 1;
 }
 
 static void on_mouse_button(struct window* wnd, int button, int action, int mods)
@@ -207,6 +209,7 @@ void game_init(struct game_context* ctx)
 
     /* Initialize renderer */
     renderer_init(&ctx->rndr_state, rndr_shdr_fetch, ctx);
+    ctx->gi_dirty = 1;
 
     /* Load sky texture from file into the GPU */
     ctx->sky_tex = tex_env_from_file_to_gpu("ext/envmaps/stormydays_large.jpg");
@@ -382,10 +385,9 @@ void game_render(void* userdata, float interpolation)
     struct game_context* ctx = userdata;
 
     /* Update GI */
-    static int gi_dirty = 1;
-    if (gi_dirty) {
+    if (ctx->gi_dirty) {
         renderer_gi_update(&ctx->rndr_state, &ctx->cached_ri);
-        gi_dirty = 0;
+        ctx->gi_dirty = 0;
     }
 
     /* Render */
