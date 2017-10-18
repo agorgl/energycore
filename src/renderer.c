@@ -203,8 +203,9 @@ static void material_setup(struct renderer_state* rs, struct renderer_mesh* rm, 
     rma = rm->material.attrs + RMAT_ALBEDO;
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
+    glUniform1i(glGetUniformLocation(shdr,  "mat.albedo_map.use"), rma->dtype == RMAT_DT_TEX);
+    glUniform2fv(glGetUniformLocation(shdr, "mat.albedo_map.scl"), 1, rma->d.tex.scl);
     glUniform3fv(glGetUniformLocation(shdr, "mat.albedo_col"), 1, rma->d.val3f);
-    glUniform2fv(glGetUniformLocation(shdr, "mat.albedo_scl"), 1, rma->d.tex.scl);
 
     /* Detail albedo */
     int use_detail_alb = 0;
@@ -212,10 +213,10 @@ static void material_setup(struct renderer_state* rs, struct renderer_mesh* rm, 
         rma = rm->material.attrs + RMAT_DETAIL_ALBEDO;
         glActiveTexture(GL_TEXTURE4);
         glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
-        glUniform2fv(glGetUniformLocation(shdr, "mat.detail_albedo_scl"), 1, rma->d.tex.scl);
+        glUniform2fv(glGetUniformLocation(shdr, "mat.detail_albedo_map.scl"), 1, rma->d.tex.scl);
         use_detail_alb = rma->dtype == RMAT_DT_TEX;
     }
-    glUniform1i(glGetUniformLocation(shdr, "use_detail_alb"), use_detail_alb);
+    glUniform1i(glGetUniformLocation(shdr, "mat.detail_albedo_map.use"), use_detail_alb);
 
     /* Normal map */
     int use_nm = 0, use_detail_nm = 0;
@@ -224,19 +225,19 @@ static void material_setup(struct renderer_state* rs, struct renderer_mesh* rm, 
         rma = rm->material.attrs + RMAT_NORMAL;
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
-        glUniform2fv(glGetUniformLocation(shdr, "mat.normal_scl"), 1, rma->d.tex.scl);
+        glUniform2fv(glGetUniformLocation(shdr, "mat.normal_map.scl"), 1, rma->d.tex.scl);
         use_nm = rma->dtype == RMAT_DT_TEX;
         /* Detail */
         if (rs->options.use_detail_maps) {
             rma = rm->material.attrs + RMAT_DETAIL_NORMAL;
             glActiveTexture(GL_TEXTURE5);
             glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
-            glUniform2fv(glGetUniformLocation(shdr, "mat.detail_normal_scl"), 1, rma->d.tex.scl);
+            glUniform2fv(glGetUniformLocation(shdr, "mat.detail_normal_map.scl"), 1, rma->d.tex.scl);
             use_detail_nm = rma->dtype == RMAT_DT_TEX;
         }
     }
-    glUniform1i(glGetUniformLocation(shdr, "use_nm"), use_nm);
-    glUniform1i(glGetUniformLocation(shdr, "use_detail_nm"), use_detail_nm);
+    glUniform1i(glGetUniformLocation(shdr, "mat.normal_map.use"), use_nm);
+    glUniform1i(glGetUniformLocation(shdr, "mat.detail_normal_map.use"), use_detail_nm);
 
     /* Roughness / Metallic */
     unsigned int roughness_tex = 0, metallic_tex = 0;
@@ -259,10 +260,12 @@ static void material_setup(struct renderer_state* rs, struct renderer_mesh* rm, 
         }
     }
     glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, roughness_tex);
-    glUniform2fv(glGetUniformLocation(shdr, "mat.rough_scl"), 1, roughness_scl);
+    glUniform1i(glGetUniformLocation(shdr,  "mat.roughness_map.use"), !!(roughness_tex));
+    glUniform2fv(glGetUniformLocation(shdr, "mat.roughness_map.scl"), 1, roughness_scl);
     glUniform1fv(glGetUniformLocation(shdr, "mat.roughness"), 1, &roughness_val);
     glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, metallic_tex);
-    glUniform2fv(glGetUniformLocation(shdr, "mat.metal_scl"), 1, metallic_scl);
+    glUniform1i(glGetUniformLocation(shdr,  "mat.metallic_map.use"), !!(metallic_tex));
+    glUniform2fv(glGetUniformLocation(shdr, "mat.metallic_map.scl"), 1, metallic_scl);
     glUniform1fv(glGetUniformLocation(shdr, "mat.metallic"),  1, &metallic_val);
 }
 
@@ -293,12 +296,12 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
     glUniformMatrix4fv(view_mat_loc, 1, GL_FALSE, (GLfloat*)view);
 
     /* Set texture locations */
-    glUniform1i(glGetUniformLocation(shdr, "mat.albedo_tex"), 0);
-    glUniform1i(glGetUniformLocation(shdr, "mat.normal_tex"), 1);
-    glUniform1i(glGetUniformLocation(shdr, "mat.rough_tex"), 2);
-    glUniform1i(glGetUniformLocation(shdr, "mat.metal_tex"), 3);
-    glUniform1i(glGetUniformLocation(shdr, "mat.detail_albedo_tex"), 4);
-    glUniform1i(glGetUniformLocation(shdr, "mat.detail_normal_tex"), 5);
+    glUniform1i(glGetUniformLocation(shdr, "mat.albedo_map.tex"), 0);
+    glUniform1i(glGetUniformLocation(shdr, "mat.normal_map.tex"), 1);
+    glUniform1i(glGetUniformLocation(shdr, "mat.roughness_map.tex"), 2);
+    glUniform1i(glGetUniformLocation(shdr, "mat.metallic_map.tex"), 3);
+    glUniform1i(glGetUniformLocation(shdr, "mat.detail_albedo_map.tex"), 4);
+    glUniform1i(glGetUniformLocation(shdr, "mat.detail_normal_map.tex"), 5);
 
     /* Loop through meshes */
     is->dbginfo.num_visible_objs = 0;
