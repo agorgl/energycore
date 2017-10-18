@@ -14,7 +14,7 @@ static inline int mesh_group_offset_from_name(struct model_hndl* m, const char* 
             return i;
         }
     }
-    return -1;
+    return -2;
 }
 
 struct scene* scene_external(const char* scene_file, struct res_mngr* rmgr)
@@ -104,16 +104,16 @@ struct scene* scene_external(const char* scene_file, struct res_mngr* rmgr)
         /* Create and set render component */
         if (so->mdl_ref) {
             struct model_hndl* mhdl = res_mngr_mdl_get(rmgr, so->mdl_ref);
-            int mgroup_idx = -1;
+            int mgroup_idx = ~0;
             if (so->mgroup_name)
                 mgroup_idx = mesh_group_offset_from_name(mhdl, so->mgroup_name);
-            if (mgroup_idx != -1) {
+            if (mgroup_idx != -2) {
                 struct render_component* rendr_c = render_component_create(&world->render_comp_dbuf, e);
                 rendr_c->model = mhdl;
                 rendr_c->mesh_group_idx = mgroup_idx;
                 for (unsigned int j = 0, cur_mat = 0; j < rendr_c->model->num_meshes; ++j) {
                     struct mesh_hndl* mh = rendr_c->model->meshes + j;
-                    if (mh->mgroup_idx == rendr_c->mesh_group_idx) {
+                    if (mh->mgroup_idx == rendr_c->mesh_group_idx || (int)mgroup_idx == ~0) {
                         if (!(cur_mat < so->num_mat_refs && cur_mat < MAX_MATERIALS))
                             break;
                         if (!rendr_c->materials[mh->mat_idx]) {

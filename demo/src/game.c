@@ -299,7 +299,7 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
         if (rc) {
             for (unsigned int j = 0; j < rc->model->num_meshes; ++j) {
                 struct mesh_hndl* mh = rc->model->meshes + j;
-                if (mh->mgroup_idx == rc->mesh_group_idx)
+                if (mh->mgroup_idx == rc->mesh_group_idx || (int)rc->mesh_group_idx == ~0)
                     ++ri->num_meshes;
             }
         }
@@ -322,7 +322,7 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
             /* Source */
             struct mesh_hndl* mh = mdlh->meshes + j;
             /* Skip meshes not in assigned mesh group */
-            if (mh->mgroup_idx != rc->mesh_group_idx)
+            if (mh->mgroup_idx != rc->mesh_group_idx && (int)rc->mesh_group_idx != ~0)
                 continue;
             /* Target */
             struct renderer_mesh* rm = ri->meshes + cur_mesh;
