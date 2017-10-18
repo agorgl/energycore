@@ -196,6 +196,76 @@ static void upload_gbuffer_uniforms(GLuint shdr, float viewport[2], mat4* view, 
 /*-----------------------------------------------------------------
  * Geometry pass
  *-----------------------------------------------------------------*/
+static void material_setup(struct renderer_state* rs, struct renderer_mesh* rm, GLuint shdr)
+{
+    /* Albedo */
+    struct renderer_material_attr* rma = 0;
+    rma = rm->material.attrs + RMAT_ALBEDO;
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
+    glUniform3fv(glGetUniformLocation(shdr, "mat.albedo_col"), 1, rma->d.val3f);
+    glUniform2fv(glGetUniformLocation(shdr, "mat.albedo_scl"), 1, rma->d.tex.scl);
+
+    /* Detail albedo */
+    int use_detail_alb = 0;
+    if (rs->options.use_detail_maps) {
+        rma = rm->material.attrs + RMAT_DETAIL_ALBEDO;
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
+        glUniform2fv(glGetUniformLocation(shdr, "mat.detail_albedo_scl"), 1, rma->d.tex.scl);
+        use_detail_alb = rma->dtype == RMAT_DT_TEX;
+    }
+    glUniform1i(glGetUniformLocation(shdr, "use_detail_alb"), use_detail_alb);
+
+    /* Normal map */
+    int use_nm = 0, use_detail_nm = 0;
+    if (rs->options.use_normal_mapping) {
+        /* Main */
+        rma = rm->material.attrs + RMAT_NORMAL;
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
+        glUniform2fv(glGetUniformLocation(shdr, "mat.normal_scl"), 1, rma->d.tex.scl);
+        use_nm = rma->dtype == RMAT_DT_TEX;
+        /* Detail */
+        if (rs->options.use_detail_maps) {
+            rma = rm->material.attrs + RMAT_DETAIL_NORMAL;
+            glActiveTexture(GL_TEXTURE5);
+            glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
+            glUniform2fv(glGetUniformLocation(shdr, "mat.detail_normal_scl"), 1, rma->d.tex.scl);
+            use_detail_nm = rma->dtype == RMAT_DT_TEX;
+        }
+    }
+    glUniform1i(glGetUniformLocation(shdr, "use_nm"), use_nm);
+    glUniform1i(glGetUniformLocation(shdr, "use_detail_nm"), use_detail_nm);
+
+    /* Roughness / Metallic */
+    unsigned int roughness_tex = 0, metallic_tex = 0;
+    float* roughness_scl = (float[]){1.0f, 1.0f}, *metallic_scl = (float[]){1.0f, 1.0f};
+    float roughness_val = 0.0f, metallic_val = 0.0f;
+    if (rs->options.use_rough_met_maps) {
+        rma = rm->material.attrs + RMAT_ROUGHNESS;
+        if (rma->dtype == RMAT_DT_TEX) {
+            roughness_tex = rma->d.tex.id;
+            roughness_scl = rma->d.tex.scl;
+        } else if (rma->dtype == RMAT_DT_VALF) {
+            roughness_val = rma->d.valf;
+        }
+        rma = rm->material.attrs + RMAT_METALLIC;
+        if (rma->dtype == RMAT_DT_TEX) {
+            metallic_tex = rma->d.tex.id;
+            metallic_scl = rma->d.tex.scl;
+        } else if (rma->dtype == RMAT_DT_VALF) {
+            metallic_val = rma->d.valf;
+        }
+    }
+    glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, roughness_tex);
+    glUniform2fv(glGetUniformLocation(shdr, "mat.rough_scl"), 1, roughness_scl);
+    glUniform1fv(glGetUniformLocation(shdr, "mat.roughness"), 1, &roughness_val);
+    glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, metallic_tex);
+    glUniform2fv(glGetUniformLocation(shdr, "mat.metal_scl"), 1, metallic_scl);
+    glUniform1fv(glGetUniformLocation(shdr, "mat.metallic"),  1, &metallic_val);
+}
+
 static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, float view[16], float proj[16])
 {
     /* Bind gbuf */
@@ -257,72 +327,8 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
         if (visible)
             is->dbginfo.num_visible_objs++;
 
-        /* Albedo */
-        struct renderer_material_attr* rma = 0;
-        rma = rm->material.attrs + RMAT_ALBEDO;
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
-        glUniform3fv(glGetUniformLocation(shdr, "mat.albedo_col"), 1, rma->d.val3f);
-        glUniform2fv(glGetUniformLocation(shdr, "mat.albedo_scl"), 1, rma->d.tex.scl);
-
-        /* Detail albedo */
-        int use_detail_alb = 0;
-        if (rs->options.use_detail_maps) {
-            rma = rm->material.attrs + RMAT_DETAIL_ALBEDO;
-            glActiveTexture(GL_TEXTURE4);
-            glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
-            glUniform2fv(glGetUniformLocation(shdr, "mat.detail_albedo_scl"), 1, rma->d.tex.scl);
-            use_detail_alb = rma->dtype == RMAT_DT_TEX;
-        }
-        glUniform1i(glGetUniformLocation(shdr, "use_detail_alb"), use_detail_alb);
-
-        /* Normal map */
-        int use_nm = 0, use_detail_nm = 0;
-        if (rs->options.use_normal_mapping) {
-            /* Main */
-            rma = rm->material.attrs + RMAT_NORMAL;
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
-            glUniform2fv(glGetUniformLocation(shdr, "mat.normal_scl"), 1, rma->d.tex.scl);
-            use_nm = rma->dtype == RMAT_DT_TEX;
-            /* Detail */
-            if (rs->options.use_detail_maps) {
-                rma = rm->material.attrs + RMAT_DETAIL_NORMAL;
-                glActiveTexture(GL_TEXTURE5);
-                glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
-                glUniform2fv(glGetUniformLocation(shdr, "mat.detail_normal_scl"), 1, rma->d.tex.scl);
-                use_detail_nm = rma->dtype == RMAT_DT_TEX;
-            }
-        }
-        glUniform1i(glGetUniformLocation(shdr, "use_nm"), use_nm);
-        glUniform1i(glGetUniformLocation(shdr, "use_detail_nm"), use_detail_nm);
-
-        /* Roughness / Metallic */
-        unsigned int roughness_tex = 0, metallic_tex = 0;
-        float* roughness_scl = (float[]){1.0f, 1.0f}, *metallic_scl = (float[]){1.0f, 1.0f};
-        float roughness_val = 0.0f, metallic_val = 0.0f;
-        if (rs->options.use_rough_met_maps) {
-            rma = rm->material.attrs + RMAT_ROUGHNESS;
-            if (rma->dtype == RMAT_DT_TEX) {
-                roughness_tex = rma->d.tex.id;
-                roughness_scl = rma->d.tex.scl;
-            } else if (rma->dtype == RMAT_DT_VALF) {
-                roughness_val = rma->d.valf;
-            }
-            rma = rm->material.attrs + RMAT_METALLIC;
-            if (rma->dtype == RMAT_DT_TEX) {
-                metallic_tex = rma->d.tex.id;
-                metallic_scl = rma->d.tex.scl;
-            } else if (rma->dtype == RMAT_DT_VALF) {
-                metallic_val = rma->d.valf;
-            }
-        }
-        glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, roughness_tex);
-        glUniform2fv(glGetUniformLocation(shdr, "mat.rough_scl"), 1, roughness_scl);
-        glUniform1fv(glGetUniformLocation(shdr, "mat.roughness"), 1, &roughness_val);
-        glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, metallic_tex);
-        glUniform2fv(glGetUniformLocation(shdr, "mat.metal_scl"), 1, metallic_scl);
-        glUniform1fv(glGetUniformLocation(shdr, "mat.metallic"),  1, &metallic_val);
+        /* Material parameters */
+        material_setup(rs, rm, shdr);
 
         /* Render mesh */
         glBindVertexArray(rm->vao);
