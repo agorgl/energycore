@@ -86,7 +86,7 @@ uniform sampler2D fntatlas;                       \n\
                                                   \n\
 void main()                                       \n\
 {                                                 \n\
-    float a = texture2D(fntatlas, fs_in.uv.xy).r; \n\
+    float a = texture(fntatlas, fs_in.uv.xy).r;   \n\
     color = vec4(fs_in.col.rgb, fs_in.col.a * a); \n\
 }";
 
