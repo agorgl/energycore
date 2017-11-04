@@ -2,6 +2,8 @@
 #include "inc/encoding.glsl"
 #include "inc/blending.glsl"
 #include "inc/packing.glsl"
+#include "inc/convert.glsl"
+
 layout (location = 0) out vec2 g_normal;
 layout (location = 1) out vec4 g_albedo;
 layout (location = 2) out vec2 g_roughness_metallic;
@@ -25,11 +27,13 @@ struct material {
     vec3 albedo_col;
     /* Normal */
     material_tex normal_map;
-    /* Roughness */
+    /* Roughness / Glossiness */
     material_tex roughness_map;
+    int glossiness_mode;
     float roughness;
-    /* Metallic */
+    /* Metallic / Specular */
     material_tex metallic_map;
+    int specular_mode;
     float metallic;
     /* Detail Albedo */
     material_tex detail_albedo_map;
@@ -57,13 +61,36 @@ void main()
     vec4 tex_dalbd  = texture(mat.detail_albedo_map.tex, uv * mat.detail_albedo_map.scl);
     vec2 tex_dnorm  = texture(mat.detail_normal_map.tex, uv * mat.detail_normal_map.scl).rg;
 
+    // Convert between workflows
+    metallic_roughness mr;
+    if (mat.specular_mode == 1) {
+        specular_glossiness sg;
+        sg.diffuse    = tex_albedo.rgb;
+        sg.specular   = tex_metal.rgb;
+        sg.glossiness = tex_roughn.a;
+        mr = specular_to_metalness(sg);
+    } else {
+        mr.basecolor = tex_albedo.rgb;
+        mr.metallic  = tex_metal.r;
+        mr.roughness = tex_roughn.a;
+    }
+    float rn_const  = mix(mat.roughness, 1.0 - mat.roughness, mat.glossiness_mode);
+
+    // Extract values
+    vec3 albedo     = mix(mat.albedo_col, mr.basecolor, mat.albedo_map.use);
+    float metallic  = mix(mat.metallic, mr.metallic, mat.metallic_map.use);
+    float roughness = mix(rn_const, mr.roughness, mat.roughness_map.use);
+
+    // Perceived to actual roughness
+    roughness = roughness * roughness;
+
     // Combine albedo maps
     if (mat.detail_albedo_map.use == 1)
-        tex_albedo.rgb = tex_albedo.rgb * tex_dalbd.rgb * 2.0;
+        albedo = albedo * tex_dalbd.rgb * 2.0;
 
     // Gamma
     const float gamma = 2.2;
-    tex_albedo = vec4(pow(tex_albedo.rgb, vec3(gamma)), tex_albedo.a);
+    albedo.rgb = pow(albedo.rgb, vec3(gamma));
 
     // Normal output
     vec3 n = normalize(fs_in.normal);
@@ -76,14 +103,8 @@ void main()
         n = normalize(fs_in.TBN * n);
     }
 
-    // Pick values
-    vec3 albedo = mix(mat.albedo_col, tex_albedo.rgb, mat.albedo_map.use);
-    vec3 normal = n;
-    float roughness = mix(mat.roughness, (1.0 - tex_roughn.a), mat.roughness_map.use);
-    float metallic  = mix(mat.metallic, tex_metal.r, mat.metallic_map.use);
-
     // GBuffer outputs
-    g_normal.rg = pack_normal_octahedron(normal);
+    g_normal.rg = pack_normal_octahedron(n);
     g_albedo = vec4(albedo, 1.0);
     g_roughness_metallic.rg = vec2(roughness, metallic);
 }

@@ -243,7 +243,9 @@ static void material_setup(struct renderer_state* rs, struct renderer_mesh* rm, 
     unsigned int roughness_tex = 0, metallic_tex = 0;
     float* roughness_scl = (float[]){1.0f, 1.0f}, *metallic_scl = (float[]){1.0f, 1.0f};
     float roughness_val = 0.0f, metallic_val = 0.0f;
+    int specular_mode = 0, glossiness_mode = 0;
     if (rs->options.use_rough_met_maps) {
+        /* Roughness map */
         rma = rm->material.attrs + RMAT_ROUGHNESS;
         if (rma->dtype == RMAT_DT_TEX) {
             roughness_tex = rma->d.tex.id;
@@ -251,6 +253,19 @@ static void material_setup(struct renderer_state* rs, struct renderer_mesh* rm, 
         } else if (rma->dtype == RMAT_DT_VALF) {
             roughness_val = rma->d.valf;
         }
+        /* Glossiness map (alternative) */
+        if (!roughness_tex) {
+            rma = rm->material.attrs + RMAT_GLOSSINESS;
+            if (rma->dtype == RMAT_DT_TEX) {
+                roughness_tex = rma->d.tex.id;
+                roughness_scl = rma->d.tex.scl;
+                glossiness_mode = 1;
+            } else if (rma->dtype == RMAT_DT_VALF) {
+                roughness_val = rma->d.valf;
+                glossiness_mode = 1;
+            }
+        }
+        /* Metallic map */
         rma = rm->material.attrs + RMAT_METALLIC;
         if (rma->dtype == RMAT_DT_TEX) {
             metallic_tex = rma->d.tex.id;
@@ -258,15 +273,29 @@ static void material_setup(struct renderer_state* rs, struct renderer_mesh* rm, 
         } else if (rma->dtype == RMAT_DT_VALF) {
             metallic_val = rma->d.valf;
         }
+        /* Specular map (alternative) */
+        if (!metallic_tex) {
+            rma = rm->material.attrs + RMAT_SPECULAR;
+            if (rma->dtype == RMAT_DT_TEX) {
+                metallic_tex = rma->d.tex.id;
+                metallic_scl = rma->d.tex.scl;
+                specular_mode = 1;
+            } else if (rma->dtype == RMAT_DT_VALF) {
+                metallic_val = rma->d.valf;
+                specular_mode = 1;
+            }
+        }
     }
     glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, roughness_tex);
     glUniform1i(glGetUniformLocation(shdr,  "mat.roughness_map.use"), !!(roughness_tex));
     glUniform2fv(glGetUniformLocation(shdr, "mat.roughness_map.scl"), 1, roughness_scl);
     glUniform1fv(glGetUniformLocation(shdr, "mat.roughness"), 1, &roughness_val);
+    glUniform1i(glGetUniformLocation(shdr,  "mat.glossiness_mode"), glossiness_mode);
     glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, metallic_tex);
     glUniform1i(glGetUniformLocation(shdr,  "mat.metallic_map.use"), !!(metallic_tex));
     glUniform2fv(glGetUniformLocation(shdr, "mat.metallic_map.scl"), 1, metallic_scl);
     glUniform1fv(glGetUniformLocation(shdr, "mat.metallic"),  1, &metallic_val);
+    glUniform1i(glGetUniformLocation(shdr,  "mat.specular_mode"), specular_mode);
 }
 
 static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, float view[16], float proj[16])
