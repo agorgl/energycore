@@ -72,7 +72,6 @@ struct renderer_material {
 struct renderer_mesh {
     /* Geometry handles */
     unsigned int vao;
-    unsigned int ebo;
     unsigned int indice_count;
     /* Model matrix */
     float model_mat[16];

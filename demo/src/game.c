@@ -327,7 +327,6 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
             /* Target */
             struct renderer_mesh* rm = ri->meshes + cur_mesh;
             rm->vao = mh->vao;
-            rm->ebo = mh->ebo;
             rm->indice_count = mh->indice_count;
             /* Material properties */
             struct material* mat = rc->materials[mh->mat_idx];
