@@ -79,6 +79,26 @@ struct scene* scene_external(const char* scene_file, struct res_mngr* rmgr)
                             mattr->dtype = MAT_DTYPE_VALF;
                             mattr->d.valf = 0.0f;
                             break;
+                        case MAT_GLOSSINESS:
+                            mattr->dtype = MAT_DTYPE_VALF;
+                            mattr->d.valf = 0.2f;
+                            break;
+                        case MAT_SPECULAR:
+                            mattr->dtype = MAT_DTYPE_VAL3F;
+                            mattr->d.val3f[0] = 0.0f;
+                            mattr->d.val3f[1] = 0.0f;
+                            mattr->d.val3f[2] = 0.0f;
+                            break;
+                        case MAT_EMISSION:
+                            mattr->dtype = MAT_DTYPE_VAL3F;
+                            mattr->d.val3f[0] = 0.0f;
+                            mattr->d.val3f[1] = 0.0f;
+                            mattr->d.val3f[2] = 0.0f;
+                            break;
+                        case MAT_OCCLUSION:
+                            mattr->dtype = MAT_DTYPE_VALF;
+                            mattr->d.valf = 0.0f;
+                            break;
                         default:
                             mattr->dtype = MAT_DTYPE_VALF;
                             mattr->d.valf = 0.0f;

@@ -56,12 +56,17 @@ struct scene_file {
                 STT_NORMAL,
                 STT_ROUGHNESS,
                 STT_METALLIC,
+                STT_SPECULAR,
+                STT_GLOSSINESS,
+                STT_EMISSION,
+                STT_OCCLUSION,
                 STT_DETAIL_ALBEDO,
                 STT_DETAIL_NORMAL,
+                STT_PARALLAX,
                 STT_MAX
             } type;
             float scale[2];
-        } textures[6];
+        } textures[11];
     }* materials;
     size_t num_materials;
     /* Objects */

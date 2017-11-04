@@ -64,8 +64,13 @@ enum material_attr_type {
     MAT_NORMAL,
     MAT_ROUGHNESS,
     MAT_METALLIC,
+    MAT_SPECULAR,
+    MAT_GLOSSINESS,
+    MAT_EMISSION,
+    MAT_OCCLUSION,
     MAT_DETAIL_ALBEDO,
     MAT_DETAIL_NORMAL,
+    MAT_PARALLAX,
     MAT_MAX
 };
 
