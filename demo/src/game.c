@@ -23,8 +23,6 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         *(ctx->should_terminate) = 1;
     else if (action == KEY_ACTION_RELEASE && key == KEY_RIGHT_CONTROL)
         window_grub_cursor(wnd, 0);
-    else if (key == KEY_LEFT_SHIFT)
-        ctx->fast_move = action != KEY_ACTION_RELEASE;
     else if (action == KEY_ACTION_RELEASE && key == KEY_N)
         ctx->rndr_state.options.show_normals = !ctx->rndr_state.options.show_normals;
     else if (action == KEY_ACTION_RELEASE && key == KEY_M)
@@ -205,7 +203,6 @@ void game_init(struct game_context* ctx)
     camera_defaults(&ctx->cam);
     ctx->cam.pos = vec3_new(0.0, 1.0, 3.0);
     camera_setdir(&ctx->cam, vec3_normalize(vec3_mul(ctx->cam.pos, -1)));
-    ctx->fast_move = 0;
 
     /* Initialize renderer */
     renderer_init(&ctx->rndr_state, rndr_shdr_fetch, ctx);
@@ -249,7 +246,7 @@ void game_update(void* userdata, float dt)
         cam_mov_flags |= cmd_backward;
     if (window_key_state(ctx->wnd, KEY_D) == KEY_ACTION_PRESS)
         cam_mov_flags |= cmd_right;
-    if (ctx->fast_move) {
+    if (window_key_state(ctx->wnd, KEY_LEFT_SHIFT) == KEY_ACTION_PRESS) {
         float old_move_speed = ctx->cam.move_speed;
         /* Temporarily increase move speed, make the move and restore it */
         ctx->cam.move_speed = old_move_speed * 10.0f;

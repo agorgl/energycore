@@ -49,7 +49,6 @@ struct game_context
     struct scene* active_scene;
     /* Camera */
     struct camera cam;
-    int fast_move;
     /* Sky */
     struct tex_hndl* sky_tex;
     /* Renderer state and his cached input */
