@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <prof.h>
+#include <hashmap.h>
 #include "gpures.h"
 #include "ecs/world.h"
 #include "scene_file.h"
@@ -113,14 +114,16 @@ struct scene* scene_external(const char* scene_file, struct res_mngr* rmgr)
     /* Initialize scene */
     struct scene* s = scene_create();
     struct world* world = s->world;
+    /* Used to later populate parent relations */
+    component_t* transform_handles = calloc(sc->num_objects, sizeof(component_t));
+    struct hashmap transform_handles_map;
+    hashmap_init(&transform_handles_map, hm_str_hash, hm_str_eql);
     /* Add all scene objects */
-    struct hashmap transform_handles; /* Used to later populate parent relations */
-    hashmap_init(&transform_handles, hm_str_hash, hm_str_eql);
     for (size_t i = 0; i < sc->num_objects; ++i) {
         /* Scene object refering to */
         struct scene_object* so = sc->objects + i;
         /* Create entity */
-        entity_t e = entity_create(&world->emgr);
+        entity_t e = entity_create(world->ecs);
         /* Create and set render component */
         if (so->mdl_ref) {
             struct model_hndl* mhdl = res_mngr_mdl_get(rmgr, so->mdl_ref);
@@ -128,7 +131,8 @@ struct scene* scene_external(const char* scene_file, struct res_mngr* rmgr)
             if (so->mgroup_name)
                 mgroup_idx = mesh_group_offset_from_name(mhdl, so->mgroup_name);
             if (mgroup_idx != -2) {
-                struct render_component* rendr_c = render_component_create(&world->render_comp_dbuf, e);
+                component_t rc = render_component_create(world->ecs, e);
+                struct render_component* rendr_c = render_component_data(world->ecs, rc);
                 rendr_c->model = mhdl;
                 rendr_c->mesh_group_idx = mgroup_idx;
                 for (unsigned int j = 0, cur_mat = 0; j < rendr_c->model->num_meshes; ++j) {
@@ -151,25 +155,30 @@ struct scene* scene_external(const char* scene_file, struct res_mngr* rmgr)
         float* pos = so->transform.translation;
         float* rot = so->transform.rotation;
         float* scl = so->transform.scaling;
-        struct transform_handle th = transform_component_create(&world->transform_dbuf, e);
-        transform_set_pose_data(&world->transform_dbuf, th,
+        component_t tc = transform_component_create(world->ecs, e);
+        transform_component_set_pose(world->ecs, tc, (struct transform_pose) {
             vec3_new(scl[0], scl[1], scl[2]),
             quat_new(rot[0], rot[1], rot[2], rot[3]),
-            vec3_new(pos[0], pos[1], pos[2]));
+            vec3_new(pos[0], pos[1], pos[2])
+        });
         /* Store transform handle for later parent relations */
-        hashmap_put(&transform_handles, hm_cast(so->ref), hm_cast(th.offs));
+        transform_handles[i] = tc;
+        hashmap_put(&transform_handles_map, hm_cast(so->ref), i);
     }
 
     /* Populate parent links */
     for (size_t i = 0; i < sc->num_objects; ++i) {
         struct scene_object* so = sc->objects + i;
         if (so->parent_ref) {
-            struct transform_handle th_child = *(struct transform_handle*)hashmap_get(&transform_handles, hm_cast(so->ref));
-            struct transform_handle th_parnt = *(struct transform_handle*)hashmap_get(&transform_handles, hm_cast(so->parent_ref));
-            transform_set_parent(&world->transform_dbuf, th_child, th_parnt);
+            uint32_t cidx = *(uint32_t*)hashmap_get(&transform_handles_map, hm_cast(so->ref));
+            uint32_t pidx = *(uint32_t*)hashmap_get(&transform_handles_map, hm_cast(so->parent_ref));
+            component_t tc_child = transform_handles[cidx];
+            component_t tc_parnt = transform_handles[pidx];
+            transform_component_set_parent(world->ecs, tc_child, tc_parnt);
         }
     }
-    hashmap_destroy(&transform_handles);
+    hashmap_destroy(&transform_handles_map);
+    free(transform_handles);
     scene_file_destroy(sc);
 
     return s;

@@ -28,54 +28,55 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _TRANSFORM_COMPONENT_H_
-#define _TRANSFORM_COMPONENT_H_
+#ifndef _COMPONENTS_H_
+#define _COMPONENTS_H_
 
-#include <stdlib.h>
 #include <linalgb.h>
-#include "entity.h"
+#include "ecs.h"
+#include "../gpures.h"
 
-/* Type used to index a transform component
- * into the compound data array */
-struct transform_handle { size_t offs; };
-struct transform_handle invalid_transform_handle;
+#define MAX_MATERIALS 16
 
-/* Packed transform component data */
-struct transform_pose {
-    vec3 scale;
-    quat rotation;
-    vec3 translation;
+enum component_type {
+    TRANSFORM = 0,
+    RENDER,
+    MAX_COMPONENT_TYPE
 };
 
-/* SOA containing transform components data and relations */
-struct transform_data_buffer {
-    /* TODO: struct hashset                    improve lookup with separate hashset data structure */
-    size_t size;                               /** Number of used entries in arrays */
-    size_t capacity;                           /** Number of allocated entries in arrays */
-    void* buffer;                              /** Raw buffer for data */
-
-    entity_t* entities;                        /** The entities owning each instance (used by gc) */
-    struct transform_pose* poses;              /** Individual components that compose local transform */
-    mat4* local_mats;                          /** Cached local transform with respect to parent */
-    mat4* world_mats;                          /** World transform */
-    struct transform_handle* parents;          /** The parent instance of each instance */
-    struct transform_handle* first_childs;     /** The first child of each instance */
-    struct transform_handle* next_siblings;    /** The next sibling of each instance */
-    struct transform_handle* prev_siblings;    /** The previous sibling of each instance */
+struct transform_component {
+    struct transform_pose {
+        vec3 scale;
+        quat rotation;
+        vec3 translation;
+    } pose;
+    mat4 local_mat;
+    mat4 world_mat;
+    component_t parent;
+    component_t first_child;
+    component_t next_sibling;
+    component_t prev_sibling;
 };
 
-/* Transform data buffer interface */
-void transform_data_buffer_init(struct transform_data_buffer* tdb);
-void transform_data_buffer_destroy(struct transform_data_buffer* tdb);
-void transform_data_buffer_gc(struct transform_data_buffer* tdb, struct entity_mgr* emgr);
-/* Transform components interface */
-struct transform_handle transform_component_lookup(struct transform_data_buffer* tdb, entity_t e);
-struct transform_handle transform_component_create(struct transform_data_buffer* tdb, entity_t e);
-/* Transform data interface */
-struct transform_pose* transform_pose_data(struct transform_data_buffer* tdb, struct transform_handle th);
-void transform_set_pose_data(struct transform_data_buffer* tdb, struct transform_handle th, vec3 scale, quat rotation, vec3 translation);
-void transform_set_parent(struct transform_data_buffer* tdb, struct transform_handle th_child, struct transform_handle th_parent);
-mat4* transform_local_mat(struct transform_data_buffer* tdb, struct transform_handle th);
-mat4* transform_world_mat(struct transform_data_buffer* tdb, struct transform_handle th);
+struct render_component {
+    struct model_hndl* model;
+    size_t mesh_group_idx;
+    struct material* materials[MAX_MATERIALS];
+};
 
-#endif /* ! _TRANSFORM_COMPONENT_H_ */
+/* Registers common component */
+void register_component_maps(ecs_t ecs);
+
+/* Transform component interface */
+component_t transform_component_create(ecs_t ecs, entity_t e);
+component_t transform_component_lookup(ecs_t ecs, entity_t e);
+struct transform_component* transform_component_data(ecs_t ecs, component_t c);
+void transform_component_set_pose(ecs_t ecs, component_t c, struct transform_pose pose);
+void transform_component_set_parent(ecs_t ecs, component_t child, component_t parent);
+mat4 transform_world_mat(ecs_t ecs, entity_t e);
+
+/* Render component interface */
+component_t render_component_create(ecs_t ecs, entity_t e);
+component_t render_component_lookup(ecs_t ecs, entity_t e);
+struct render_component* render_component_data(ecs_t ecs, component_t c);
+
+#endif /* ! _COMPONENTS_H_ */

@@ -31,17 +31,11 @@
 #ifndef _WORLD_H_
 #define _WORLD_H_
 
-#include "entity.h"
-#include "transform_component.h"
-#include "render_component.h"
+#include "ecs.h"
+#include "components.h"
 
 struct world {
-    /* Entity manager is responsible for creating, tracking and destroying entities */
-    struct entity_mgr emgr;
-    /* Transform buffer contains assosiated entity transform components and their relationships */
-    struct transform_data_buffer transform_dbuf;
-    /* Same as above for render components */
-    struct render_comp_data_buffer render_comp_dbuf;
+    ecs_t ecs;
 };
 
 struct world* world_create();

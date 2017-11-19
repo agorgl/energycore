@@ -28,33 +28,53 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _ENTITY_H_
-#define _ENTITY_H_
+#ifndef _ECS_H_
+#define _ECS_H_
 
-#include <stdint.h>
-#include <vector.h>
-#include <queue.h>
+#include "slot_map.h"
 
-typedef uint64_t entity_t;
+/* ECS opaque data type */
+typedef struct ecs* ecs_t;
 
-#define ENTITY_INDEX_BITS 48
-#define ENTITY_GENERATION_BITS 16
+/* Entity reference */
+typedef sm_key entity_t;
 
-#define entity_index(e) ((e) & ((1LL << ENTITY_INDEX_BITS) - 1))
-#define entity_generation(e) (((e) >> ENTITY_INDEX_BITS) & ((1LL << ENTITY_GENERATION_BITS) - 1))
-#define entity_make(idx, gen) (((gen) << ENTITY_INDEX_BITS) | (idx))
+/* Component type */
+typedef uint32_t component_type_t;
 
-struct entity_mgr {
-    struct vector generation;
-    struct queue free_indices;
-};
+/* Component data reference */
+typedef sm_key component_data_t;
 
-void entity_mgr_init(struct entity_mgr* emgr);
-entity_t entity_create(struct entity_mgr* emgr);
-int entity_alive(struct entity_mgr* emgr, entity_t e);
-void entity_destroy(struct entity_mgr* emgr, entity_t e);
-size_t entity_mgr_size(struct entity_mgr* emgr);
-size_t entity_mgr_at(struct entity_mgr* emgr, size_t idx);
-void entity_mgr_destroy(struct entity_mgr* emgr);
+/* Component reference */
+typedef struct {
+    component_type_t type;
+    component_data_t dref;
+} component_t;
 
-#endif /* ! _ENTITY_H_ */
+/* ECS initialization/deinitialization */
+ecs_t ecs_init();
+void ecs_destroy(ecs_t ecs);
+
+/* Entity creation/deletion */
+entity_t entity_create(ecs_t ecs);
+void entity_remove(ecs_t ecs, entity_t e);
+int entity_exists(ecs_t ecs, entity_t e);
+entity_t entity_at(ecs_t ecs, size_t idx);
+size_t entity_total(ecs_t ecs);
+
+/* Component map creation/deletion */
+void component_map_register(ecs_t ecs, component_type_t t, size_t component_size);
+void component_map_unregister(ecs_t ecs, component_type_t t);
+
+/* Component addition/removal/lookup */
+component_t component_add(ecs_t ecs, entity_t e, component_type_t t, void* data);
+component_t component_lookup(ecs_t ecs, entity_t e, component_type_t t);
+void* component_lookup_data(ecs_t ecs, component_t c);
+int component_remove(ecs_t ecs, entity_t e, component_type_t t);
+
+/* Component null references */
+#define INVALID_COMPONENT_TYPE (~0)
+#define INVALID_COMPONENT ((component_t){INVALID_COMPONENT_TYPE, SM_INVALID_KEY})
+int component_valid(component_t c);
+
+#endif /* ! _ECS_H_ */

@@ -8,6 +8,7 @@
 #include "gpures.h"
 #include "util.h"
 #include "ecs/world.h"
+#include "ecs/components.h"
 #include "scene_ext.h"
 
 #define SCENE_FILE "ext/scenes/sample_scene.json"
@@ -288,11 +289,12 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
 {
     struct world* world = ctx->active_scene->world;
     /* Count total meshes */
-    const size_t num_ents = entity_mgr_size(&world->emgr);
+    const size_t num_ents = entity_total(world->ecs);
     ri->num_meshes = 0;
     for (unsigned int i = 0; i < num_ents; ++i) {
-        entity_t e = entity_mgr_at(&world->emgr, i);
-        struct render_component* rc = render_component_lookup(&world->render_comp_dbuf, e);
+        entity_t e = entity_at(world->ecs, i);
+        component_t cc = render_component_lookup(world->ecs, e);
+        struct render_component* rc = render_component_data(world->ecs, cc);
         if (rc) {
             for (unsigned int j = 0; j < rc->model->num_meshes; ++j) {
                 struct mesh_hndl* mh = rc->model->meshes + j;
@@ -307,13 +309,12 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
     memset(ri->meshes, 0, ri->num_meshes * sizeof(struct renderer_mesh));
     unsigned int cur_mesh = 0;
     for (unsigned int i = 0; i < num_ents; ++i) {
-        entity_t e = entity_mgr_at(&world->emgr, i);
-        struct render_component* rc = render_component_lookup(&world->render_comp_dbuf, e);
+        entity_t e = entity_at(world->ecs, i);
+        component_t cc = render_component_lookup(world->ecs, e);
+        struct render_component* rc = render_component_data(world->ecs, cc);
         if (!rc)
             continue;
-        mat4* transform = transform_world_mat(
-            &world->transform_dbuf,
-            transform_component_lookup(&world->transform_dbuf, e));
+        mat4 transform = transform_world_mat(world->ecs, e);
         struct model_hndl* mdlh = rc->model;
         for (unsigned int j = 0; j < mdlh->num_meshes; ++j) {
             /* Source */
@@ -369,7 +370,7 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
             }
             memcpy(rm->aabb.min, mh->aabb_min, 3 * sizeof(float));
             memcpy(rm->aabb.max, mh->aabb_max, 3 * sizeof(float));
-            memcpy(rm->model_mat, transform, 16 * sizeof(float));
+            memcpy(rm->model_mat, transform.m, 16 * sizeof(float));
             ++cur_mesh;
         }
     }
