@@ -179,16 +179,20 @@ unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char
         gl_check_last_compile_error(gs);
     }
     /* Fragment */
-    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, 1, &fs_src, 0);
-    glCompileShader(fs);
-    gl_check_last_compile_error(fs);
+    GLuint fs = 0;
+    if (fs_src) {
+        fs = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fs, 1, &fs_src, 0);
+        glCompileShader(fs);
+        gl_check_last_compile_error(fs);
+    }
     /* Create program */
     GLuint prog = glCreateProgram();
     glAttachShader(prog, vs);
     if (gs_src)
         glAttachShader(prog, gs);
-    glAttachShader(prog, fs);
+    if (fs_src)
+        glAttachShader(prog, fs);
     glLinkProgram(prog);
     gl_check_last_link_error(prog);
     /* Free unnecessary resources */
