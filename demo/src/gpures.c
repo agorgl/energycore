@@ -44,45 +44,68 @@ struct model_hndl* model_to_gpu(struct model* m)
         glBindVertexArray(mh->vao);
 
         /* Create vertex data vbo */
+        size_t vsz = \
+            3 * sizeof(float)  /* Position */
+          + 2 * sizeof(float)  /* UV */
+          + 3 * sizeof(float)  /* Normal */
+          + 3 * sizeof(float)  /* Tangent */
+          + 3 * sizeof(float); /* Bitangent */
         glGenBuffers(1, &mh->vbo);
         glBindBuffer(GL_ARRAY_BUFFER, mh->vbo);
-        glBufferData(GL_ARRAY_BUFFER,
-                mesh->num_verts * sizeof(struct vertex),
-                mesh->vertices,
-                GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, vsz * mesh->num_verts, 0, GL_STATIC_DRAW);
 
+        void* vbuf = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+        for (size_t j = 0; j < mesh->num_verts; ++j) {
+            struct vertex* v = mesh->vertices + j;
+            memcpy(vbuf, v->position, 3 * sizeof(float));
+            vbuf += 3 * sizeof(float);
+        }
+        for (size_t j = 0; j < mesh->num_verts; ++j) {
+            struct vertex* v = mesh->vertices + j;
+            memcpy(vbuf, v->uvs, 2 * sizeof(float));
+            vbuf += 2 * sizeof(float);
+        }
+        for (size_t j = 0; j < mesh->num_verts; ++j) {
+            struct vertex* v = mesh->vertices + j;
+            memcpy(vbuf, v->normal, 3 * sizeof(float));
+            vbuf += 3 * sizeof(float);
+        }
+        for (size_t j = 0; j < mesh->num_verts; ++j) {
+            struct vertex* v = mesh->vertices + j;
+            memcpy(vbuf, v->tangent, 3 * sizeof(float));
+            vbuf += 3 * sizeof(float);
+        }
+        for (size_t j = 0; j < mesh->num_verts; ++j) {
+            struct vertex* v = mesh->vertices + j;
+            memcpy(vbuf, v->binormal, 3 * sizeof(float));
+            vbuf += 3 * sizeof(float);
+        }
+        glUnmapBuffer(GL_ARRAY_BUFFER);
+
+        GLvoid* offset = 0;
         GLuint pos_attrib = 0;
         glEnableVertexAttribArray(pos_attrib);
-        glVertexAttribPointer(pos_attrib, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (GLvoid*)offsetof(struct vertex, position));
+        glVertexAttribPointer(pos_attrib, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), offset);
+        offset += mesh->num_verts * 3 * sizeof(float);
+
         GLuint uv_attrib = 1;
         glEnableVertexAttribArray(uv_attrib);
-        glVertexAttribPointer(uv_attrib, 2, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (GLvoid*)offsetof(struct vertex, uvs));
+        glVertexAttribPointer(uv_attrib, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), offset);
+        offset += mesh->num_verts * 2 * sizeof(float);
+
         GLuint nm_attrib = 2;
         glEnableVertexAttribArray(nm_attrib);
-        glVertexAttribPointer(nm_attrib, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (GLvoid*)offsetof(struct vertex, normal));
+        glVertexAttribPointer(nm_attrib, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), offset);
+        offset += mesh->num_verts * 3 * sizeof(float);
+
         GLuint tn_attrib = 3;
         glEnableVertexAttribArray(tn_attrib);
-        glVertexAttribPointer(tn_attrib, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (GLvoid*)offsetof(struct vertex, tangent));
+        glVertexAttribPointer(tn_attrib, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), offset);
+        offset += mesh->num_verts * 3 * sizeof(float);
+
         GLuint btn_attrib = 4;
         glEnableVertexAttribArray(btn_attrib);
-        glVertexAttribPointer(btn_attrib, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (GLvoid*)offsetof(struct vertex, binormal));
-
-        /* Create vertex weight data vbo */
-        if (mesh->weights) {
-            glGenBuffers(1, &mh->wbo);
-            glBindBuffer(GL_ARRAY_BUFFER, mh->wbo);
-            glBufferData(GL_ARRAY_BUFFER,
-                mesh->num_verts * sizeof(struct vertex_weight),
-                mesh->weights,
-                GL_STATIC_DRAW);
-
-            GLuint bi_attrib = 3;
-            glEnableVertexAttribArray(bi_attrib);
-            glVertexAttribIPointer(bi_attrib, 4, GL_UNSIGNED_INT, sizeof(struct vertex_weight), (GLvoid*)offsetof(struct vertex_weight, bone_ids));
-            GLuint bw_attrib = 4;
-            glEnableVertexAttribArray(bw_attrib);
-            glVertexAttribPointer(bw_attrib, 4, GL_FLOAT, GL_FALSE, sizeof(struct vertex_weight), (GLvoid*)offsetof(struct vertex_weight, bone_weights));
-        }
+        glVertexAttribPointer(btn_attrib, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), offset);
 
         /* Create indice ebo */
         glGenBuffers(1, &mh->ebo);
