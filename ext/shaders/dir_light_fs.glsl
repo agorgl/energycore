@@ -13,7 +13,7 @@ uniform vec3 view_pos;
 uniform mat4 view;
 
 uniform bool shadows_enabled;
-uniform sampler2DArray shadowmap;
+uniform sampler2DArrayShadow shadowmap;
 uniform shadow_cascade cascades[4];
 
 void main()

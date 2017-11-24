@@ -12,53 +12,14 @@
 
 static const char* vs_src = GLSRCEXT(
 layout (location = 0) in vec3 position;
+
+uniform mat4 light_vp_mats[4];
 uniform mat4 model;
-void main()
-{
-    gl_Position = model * vec4(position, 1.0f);
-}
-);
-
-static const char* gs_src = GLSRCEXT(
-layout(triangles,       invocations = 1) in;
-layout(triangle_strip, max_vertices = 3) out;
-
-out float layer;
-out vec3 vs_pos;
-
-uniform mat4 cascades_view_mats[4];
-uniform mat4 cascades_proj_mats[4];
-uniform int u_layer;
+uniform int layer;
 
 void main()
 {
-    for (int i = 0; i < gl_in.length(); ++i) {
-        int layeri  = u_layer;
-        layer       = float(layeri);
-        vec4 pos    = cascades_view_mats[layeri] * gl_in[i].gl_Position;
-        vs_pos      = pos.xyz;
-        gl_Position = cascades_proj_mats[layeri] * pos;
-        gl_Layer    = layeri;
-        EmitVertex();
-    }
-    EndPrimitive();
-}
-);
-
-static const char* fs_src = GLSRCEXT(
-in float layer;
-in vec3 vs_pos;
-
-uniform float cascades_near[4];
-uniform float cascades_far[4];
-
-void main()
-{
-    int layeri = int(layer);
-    float near = cascades_near[layeri];
-    float far  = cascades_far[layeri];
-    float linear_depth = (-vs_pos.z - near) / (far - near);
-    gl_FragDepth = linear_depth;
+    gl_Position = light_vp_mats[layer] * model * vec4(position, 1.0f);
 }
 );
 
@@ -67,17 +28,19 @@ void shadowmap_init(struct shadowmap* sm, int width, int height)
     memset(sm, 0, sizeof(*sm));
     sm->width = width;
     sm->height = height;
-    sm->glh.shdr = shader_from_srcs(vs_src, gs_src, fs_src);
+    sm->glh.shdr = shader_from_srcs(vs_src, 0, 0);
 
     /* Create texture array that will hold the shadow maps */
     GLuint depth_tex;
     glGenTextures(1, &depth_tex);
     glBindTexture(GL_TEXTURE_2D_ARRAY, depth_tex);
     glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT, width, height, SHADOWMAP_NSPLITS, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_GEQUAL);
     GLfloat border_col[] = { 1.0, 1.0, 1.0, 1.0 };
     glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, border_col);
 
@@ -237,22 +200,11 @@ void shadowmap_render_begin(struct shadowmap* sm, float light_pos[3], float view
     for (int i = 0; i < SHADOWMAP_NSPLITS; ++i) {
         GLint uloc = 0;
         char* uname_buf[64];
-        /* Proj matrix */
-        snprintf((char*)uname_buf, sizeof(uname_buf), "cascades_proj_mats[%u]", i);
+        /* Light view projection matrix */
+        snprintf((char*)uname_buf, sizeof(uname_buf), "light_vp_mats[%u]", i);
         uloc = glGetUniformLocation(shdr, (const char*)uname_buf);
-        glUniformMatrix4fv(uloc, 1, GL_FALSE, sm->sd[i].proj_mat.m);
-        /* View matrix */
-        snprintf((char*)uname_buf, sizeof(uname_buf), "cascades_view_mats[%u]", i);
-        uloc = glGetUniformLocation(shdr, (const char*)uname_buf);
-        glUniformMatrix4fv(uloc, 1, GL_FALSE, sm->sd[i].view_mat.m);
-        /* Near value */
-        snprintf((char*)uname_buf, sizeof(uname_buf), "cascades_near[%u]", i);
-        uloc = glGetUniformLocation(shdr, (const char*)uname_buf);
-        glUniform1fv(uloc, 1, &sm->sd[i].near_plane);
-        /* Far value */
-        snprintf((char*)uname_buf, sizeof(uname_buf), "cascades_far[%u]", i);
-        uloc = glGetUniformLocation(shdr, (const char*)uname_buf);
-        glUniform1fv(uloc, 1, &sm->sd[i].far_plane);
+        mat4 lvp = mat4_mul_mat4(sm->sd[i].proj_mat, sm->sd[i].view_mat);
+        glUniformMatrix4fv(uloc, 1, GL_FALSE, lvp.m);
     }
 
     /* Set cull face mode to front
@@ -285,8 +237,10 @@ static inline void points_planes_from_mat(vec3 fru_pts[8], vec4 fru_planes[6], m
 
 void shadowmap_render_split_begin(struct shadowmap* sm, unsigned int split, vec3 fru_pts[8], vec4 fru_planes[6])
 {
+    glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, sm->glh.tex_id, 0, split);
+    glClear(GL_DEPTH_BUFFER_BIT);
     GLuint shdr = sm->glh.shdr;
-    glUniform1i(glGetUniformLocation(shdr, "u_layer"), split);
+    glUniform1i(glGetUniformLocation(shdr, "layer"), split);
     points_planes_from_mat(fru_pts, fru_planes, sm->sd[split].shdw_mat);
 }
 

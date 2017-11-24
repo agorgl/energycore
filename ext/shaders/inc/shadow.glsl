@@ -48,7 +48,7 @@ bool is_vertex_in_shadow_map(vec3 coord)
 }
 
 float calc_shadow_coef(
-    sampler2DArray shadow_map,
+    sampler2DArrayShadow shadow_map,
     vec3 vws_pos,
     vec3 vvs_pos,
     mat4 lview_projs[4],
@@ -76,22 +76,20 @@ float calc_shadow_coef(
 
     // Fetch the layer index of the current used cascade
     float layer = weighted_array_value(cascade_weights, float[](0.0, 1.0, 2.0, 3.0));
-    // Get closest depth value from light's perspective
-    float closest_depth = texture(shadow_map, vec3(coords.xy, layer)).r;
     // Get depth of current fragment from light's perspective
     float current_depth = coords.z;
 
     // Calculate shadow factor
     float shadow = 0.0;
     // No PCF
-    //shadow = current_depth - bias > closest_depth ? 1.0 : 0.0;
+    //shadow = texture(shadow_map, vec4(coords.xy, layer, current_depth - bias));
 
     // PCF
     vec2 texel_size = 1.0 / textureSize(shadow_map, 0).xy;
     for(int x = -1; x <= 1; ++x) {
         for(int y = -1; y <= 1; ++y) {
-            float pcf_depth = texture(shadow_map, vec3(coords.xy + vec2(x, y) * texel_size, layer)).r;
-            shadow += current_depth - bias > pcf_depth  ? 1.0 : 0.0;
+            vec4 tc = vec4(coords.xy + vec2(x, y) * texel_size, layer, current_depth - bias);
+            shadow += texture(shadow_map, tc);
         }
     }
     shadow /= 9.0;
@@ -117,7 +115,7 @@ vec3 get_biased_position(vec3 pos, float slope_bias, float normal_bias, vec3 nor
     return pos;
 }
 
-float shadow_coef(sampler2DArray shadowmap, shadow_cascade cascades[4], vec3 ws_pos, vec3 normal, vec3 light_dir, mat4 view)
+float shadow_coef(sampler2DArrayShadow shadowmap, shadow_cascade cascades[4], vec3 ws_pos, vec3 normal, vec3 light_dir, mat4 view)
 {
     mat4 vp_mats[4]   = mat4[](cascades[0].vp_mat, cascades[1].vp_mat,
                                cascades[2].vp_mat, cascades[3].vp_mat);
