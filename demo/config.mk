@@ -8,5 +8,5 @@ endif
 ifeq ($(VARIANT), Debug)
 	MLDFLAGS = -export-dynamic
 endif
-EXTDEPS = gfxwnd::0.0.0dev macu::0.0.2dev assetloader::dev orb::dev envmapproc::dev
+EXTDEPS = gfxwnd::0.0.1dev macu::0.0.2dev assetloader::dev orb::dev envmapproc::dev
 MOREDEPS = ..
