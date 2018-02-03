@@ -6,7 +6,31 @@
 #define INITIAL_CAPACITY 4
 #define INVALID_IDX ~0lu
 
-static inline void free_list_push(struct slot_map* sm, size_t idx);
+static inline void free_list_push(struct slot_map* sm, size_t idx)
+{
+    sm->slots[idx].free_list_next = INVALID_IDX;
+    if (sm->free_list_head == INVALID_IDX) {
+        sm->free_list_head = sm->free_list_tail = idx;
+    } else {
+        sm->slots[sm->free_list_tail].free_list_next = idx;
+        sm->slots[idx].free_list_prev = sm->free_list_tail;
+        sm->free_list_tail = idx;
+    }
+}
+
+static inline void free_list_remove(struct slot_map* sm, size_t idx)
+{
+    struct sm_slot* s = &sm->slots[idx];
+    if (s->free_list_prev != INVALID_IDX)
+        sm->slots[s->free_list_prev].free_list_next = s->free_list_next;
+    else
+        sm->free_list_head = s->free_list_next;
+    if (s->free_list_next != INVALID_IDX)
+        sm->slots[s->free_list_next].free_list_prev = s->free_list_prev;
+    else
+        sm->free_list_tail = s->free_list_prev;
+    s->free_list_next = s->free_list_prev = INVALID_IDX;
+}
 
 static inline void slots_resize(struct slot_map* sm, size_t ncap)
 {
@@ -60,40 +84,6 @@ int slot_map_key_valid(sm_key k)
     return !slot_map_keys_equal(k, SM_INVALID_KEY);
 }
 
-static inline void free_list_remove(struct slot_map* sm, size_t idx)
-{
-    struct sm_slot* s = &sm->slots[idx];
-    if (s->free_list_prev != INVALID_IDX)
-        sm->slots[s->free_list_prev].free_list_next = s->free_list_next;
-    else
-        sm->free_list_head = s->free_list_next;
-    if (s->free_list_next != INVALID_IDX)
-        sm->slots[s->free_list_next].free_list_prev = s->free_list_prev;
-    else
-        sm->free_list_tail = s->free_list_prev;
-    s->free_list_next = s->free_list_prev = INVALID_IDX;
-}
-
-static inline size_t free_list_pop(struct slot_map* sm)
-{
-    assert(sm->free_list_head != INVALID_IDX);
-    size_t idx = sm->free_list_head;
-    free_list_remove(sm, idx);
-    return idx;
-}
-
-static inline void free_list_push(struct slot_map* sm, size_t idx)
-{
-    sm->slots[idx].free_list_next = INVALID_IDX;
-    if (sm->free_list_head == INVALID_IDX) {
-        sm->free_list_head = sm->free_list_tail = idx;
-    } else {
-        sm->slots[sm->free_list_tail].free_list_next = idx;
-        sm->slots[idx].free_list_prev = sm->free_list_tail;
-        sm->free_list_tail = idx;
-    }
-}
-
 static inline size_t data_append(struct slot_map* sm, void* data)
 {
     if (sm->capacity - sm->size < 1) {
@@ -113,8 +103,9 @@ static sm_key slot_map_next_key(struct slot_map* sm)
         slots_resize(sm, sm->cap_slots * 2);
     assert(sm->free_list_head != INVALID_IDX);
     /* Next index */
-    k.index = free_list_pop(sm);
+    k.index = sm->free_list_head;
     k.generation = sm->slots[k.index].generation;
+    free_list_remove(sm, sm->free_list_head);
     sm->num_slots++;
     return k;
 }
