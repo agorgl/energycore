@@ -115,7 +115,7 @@ struct scene* scene_external(const char* scene_file, struct res_mngr* rmgr)
     struct scene* s = scene_create();
     struct world* world = s->world;
     /* Used to later populate parent relations */
-    component_t* transform_handles = calloc(sc->num_objects, sizeof(component_t));
+    entity_t* transform_handles = calloc(sc->num_objects, sizeof(entity_t));
     struct hashmap transform_handles_map;
     hashmap_init(&transform_handles_map, hm_str_hash, hm_str_eql);
     /* Add all scene objects */
@@ -131,8 +131,7 @@ struct scene* scene_external(const char* scene_file, struct res_mngr* rmgr)
             if (so->mgroup_name)
                 mgroup_idx = mesh_group_offset_from_name(mhdl, so->mgroup_name);
             if (mgroup_idx != -2) {
-                component_t rc = render_component_create(world->ecs, e);
-                struct render_component* rendr_c = render_component_data(world->ecs, rc);
+                struct render_component* rendr_c = render_component_create(world->ecs, e);
                 rendr_c->model = mhdl;
                 rendr_c->mesh_group_idx = mgroup_idx;
                 for (unsigned int j = 0, cur_mat = 0; j < rendr_c->model->num_meshes; ++j) {
@@ -155,14 +154,14 @@ struct scene* scene_external(const char* scene_file, struct res_mngr* rmgr)
         float* pos = so->transform.translation;
         float* rot = so->transform.rotation;
         float* scl = so->transform.scaling;
-        component_t tc = transform_component_create(world->ecs, e);
-        transform_component_set_pose(world->ecs, tc, (struct transform_pose) {
+        transform_component_create(world->ecs, e);
+        transform_component_set_pose(world->ecs, e, (struct transform_pose) {
             vec3_new(scl[0], scl[1], scl[2]),
             quat_new(rot[0], rot[1], rot[2], rot[3]),
             vec3_new(pos[0], pos[1], pos[2])
         });
         /* Store transform handle for later parent relations */
-        transform_handles[i] = tc;
+        transform_handles[i] = e;
         hashmap_put(&transform_handles_map, hm_cast(so->ref), i);
     }
 
@@ -172,8 +171,8 @@ struct scene* scene_external(const char* scene_file, struct res_mngr* rmgr)
         if (so->parent_ref) {
             uint32_t cidx = *(uint32_t*)hashmap_get(&transform_handles_map, hm_cast(so->ref));
             uint32_t pidx = *(uint32_t*)hashmap_get(&transform_handles_map, hm_cast(so->parent_ref));
-            component_t tc_child = transform_handles[cidx];
-            component_t tc_parnt = transform_handles[pidx];
+            entity_t tc_child = transform_handles[cidx];
+            entity_t tc_parnt = transform_handles[pidx];
             transform_component_set_parent(world->ecs, tc_child, tc_parnt);
         }
     }

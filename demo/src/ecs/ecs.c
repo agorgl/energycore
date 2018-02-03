@@ -3,32 +3,22 @@
 #include <string.h>
 #include <assert.h>
 
-#define MAX_COMPONENTS 64
+struct entity_data {
+    uint64_t component_mask;
+};
 
 struct ecs {
-    /* Maps from entity to component references */
-    struct slot_map entity_map;
+    /* Entity pool */
+    struct slot_map entity_pool;
     /* Component maps */
     struct component_map {
         component_type_t type;
+        /* Maps from component references to component data */
         struct slot_map map;
     }* component_maps;
     size_t cap_component_maps;
     size_t num_component_maps;
 };
-
-struct component_reference_table {
-    component_t references[MAX_COMPONENTS];
-    size_t num_components;
-};
-
-static inline void default_reference_table(struct component_reference_table* rt)
-{
-    memset(rt, 0, sizeof(*rt));
-    for (size_t i = 0; i < MAX_COMPONENTS; ++i)
-        rt->references[i].type = INVALID_COMPONENT_TYPE;
-    rt->num_components = 0;
-}
 
 static void initialize_allocated_component_maps(struct component_map* cmaps, size_t start, size_t end) {
     for (size_t i = start; i < end; ++i) {
@@ -40,7 +30,7 @@ static void initialize_allocated_component_maps(struct component_map* cmaps, siz
 ecs_t ecs_init()
 {
     struct ecs* ecs = calloc(1, sizeof(struct ecs));
-    slot_map_init(&ecs->entity_map, sizeof(struct component_reference_table));
+    slot_map_init(&ecs->entity_pool, sizeof(struct entity_data));
     ecs->cap_component_maps = 4;
     ecs->num_component_maps = 0;
     ecs->component_maps = calloc(ecs->cap_component_maps, sizeof(struct component_map));
@@ -53,36 +43,36 @@ void ecs_destroy(ecs_t ecs)
     for (size_t i = 0; i < ecs->num_component_maps; ++i)
         slot_map_destroy(&ecs->component_maps[i].map);
     free(ecs->component_maps);
-    slot_map_destroy(&ecs->entity_map);
+    slot_map_destroy(&ecs->entity_pool);
     free(ecs);
 }
 
 entity_t entity_create(ecs_t ecs)
 {
-    struct component_reference_table rt;
-    default_reference_table(&rt);
-    sm_key k = slot_map_insert(&ecs->entity_map, &rt);
+    struct entity_data ed;
+    ed.component_mask = 0;
+    sm_key k = slot_map_insert(&ecs->entity_pool, &ed);
     return k;
 }
 
 void entity_remove(ecs_t ecs, entity_t e)
 {
-    slot_map_remove(&ecs->entity_map, e);
+    slot_map_remove(&ecs->entity_pool, e);
 }
 
 int entity_exists(ecs_t ecs, entity_t e)
 {
-    return !!(slot_map_lookup(&ecs->entity_map, e));
+    return !!(slot_map_lookup(&ecs->entity_pool, e));
 }
 
 entity_t entity_at(ecs_t ecs, size_t idx)
 {
-    return slot_map_data_to_key(&ecs->entity_map, idx);
+    return slot_map_data_to_key(&ecs->entity_pool, idx);
 }
 
 size_t entity_total(ecs_t ecs)
 {
-    return ecs->entity_map.size;
+    return ecs->entity_pool.size;
 }
 
 static inline struct component_map* find_component_map(ecs_t ecs, component_type_t t)
@@ -113,46 +103,24 @@ void component_map_unregister(ecs_t ecs, component_type_t t)
     assert(0 && "Unimplemented");
 }
 
-static inline component_t* find_component_reference(struct component_reference_table* rt, component_type_t t)
+void* component_add(ecs_t ecs, entity_t e, component_type_t t, void* data)
 {
-    for (size_t i = 0; i < rt->num_components; ++i)
-        if (rt->references[i].type == t)
-            return &rt->references[i];
+    struct component_map* cm = find_component_map(ecs, t);
+    if (entity_exists(ecs, e) && cm) {
+        struct entity_data* ed = slot_map_lookup(&ecs->entity_pool, e);
+        ed->component_mask |= 1 << t;
+        return slot_map_foreign_add(&cm->map, e, data);
+    }
     return 0;
 }
 
-component_t component_add(ecs_t ecs, entity_t e, component_type_t t, void* data)
+void* component_lookup(ecs_t ecs, entity_t e, component_type_t t)
 {
-    struct component_reference_table* rt = slot_map_lookup(&ecs->entity_map, e);
-    if (rt) {
-        if (!find_component_reference(rt, t)) {
-            assert(rt->num_components + 1 < MAX_COMPONENTS);
-            component_t* r = &rt->references[rt->num_components++];
-            struct component_map* component_map = find_component_map(ecs, t);
-            r->dref = slot_map_insert(&component_map->map, data);
-            r->type = t;
-            return *r;
-        }
-    }
-    return INVALID_COMPONENT;
-}
-
-component_t component_lookup(ecs_t ecs, entity_t e, component_type_t t)
-{
-    struct component_reference_table* rt = slot_map_lookup(&ecs->entity_map, e);
-    if (rt) {
-        component_t* r = find_component_reference(rt, t);
-        return r ? *r : INVALID_COMPONENT;
-    }
-    return INVALID_COMPONENT;
-}
-
-void* component_lookup_data(ecs_t ecs, component_t c)
-{
-    if (component_valid(c)) {
-        struct component_map* cm = find_component_map(ecs, c.type);
-        void* data = slot_map_lookup(&cm->map, c.dref);
-        return data;
+    struct component_map* cm = find_component_map(ecs, t);
+    if (entity_exists(ecs, e) && cm) {
+        struct entity_data* ed = slot_map_lookup(&ecs->entity_pool, e);
+        if (ed->component_mask & (1 << t))
+            return slot_map_lookup(&cm->map, e);
     }
     return 0;
 }
@@ -164,7 +132,31 @@ int component_remove(ecs_t ecs, entity_t e, component_type_t t)
     return 0;
 }
 
-int component_valid(component_t c)
+int entity_valid(entity_t e)
 {
-    return slot_map_key_valid(c.dref) && c.type != INVALID_COMPONENT.type;
+    return slot_map_key_valid(e);
+}
+
+entity_t component_parent(ecs_t ecs, component_type_t t, size_t data_idx)
+{
+    struct component_map* cm = find_component_map(ecs, t);
+    if (cm)
+        return slot_map_data_to_key(&cm->map, data_idx);
+    return INVALID_ENTITY;
+}
+
+size_t components_count(ecs_t ecs, component_type_t t)
+{
+    struct component_map* cm = find_component_map(ecs, t);
+    if (cm)
+        return cm->map.size;
+    return 0;
+}
+
+void* components_get(ecs_t ecs, component_type_t t)
+{
+    struct component_map* cm = find_component_map(ecs, t);
+    if (cm)
+        return cm->map.data;
+    return 0;
 }

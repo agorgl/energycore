@@ -38,7 +38,7 @@
 #define MAX_MATERIALS 16
 
 enum component_type {
-    TRANSFORM = 0,
+    TRANSFORM = 1,
     RENDER,
     MAX_COMPONENT_TYPE
 };
@@ -51,10 +51,10 @@ struct transform_component {
     } pose;
     mat4 local_mat;
     mat4 world_mat;
-    component_t parent;
-    component_t first_child;
-    component_t next_sibling;
-    component_t prev_sibling;
+    entity_t parent;
+    entity_t first_child;
+    entity_t next_sibling;
+    entity_t prev_sibling;
 };
 
 struct render_component {
@@ -67,16 +67,14 @@ struct render_component {
 void register_component_maps(ecs_t ecs);
 
 /* Transform component interface */
-component_t transform_component_create(ecs_t ecs, entity_t e);
-component_t transform_component_lookup(ecs_t ecs, entity_t e);
-struct transform_component* transform_component_data(ecs_t ecs, component_t c);
-void transform_component_set_pose(ecs_t ecs, component_t c, struct transform_pose pose);
-void transform_component_set_parent(ecs_t ecs, component_t child, component_t parent);
+struct transform_component* transform_component_create(ecs_t ecs, entity_t e);
+struct transform_component* transform_component_lookup(ecs_t ecs, entity_t e);
+void transform_component_set_pose(ecs_t ecs, entity_t e, struct transform_pose pose);
+void transform_component_set_parent(ecs_t ecs, entity_t child, entity_t parent);
 mat4 transform_world_mat(ecs_t ecs, entity_t e);
 
 /* Render component interface */
-component_t render_component_create(ecs_t ecs, entity_t e);
-component_t render_component_lookup(ecs_t ecs, entity_t e);
-struct render_component* render_component_data(ecs_t ecs, component_t c);
+struct render_component* render_component_create(ecs_t ecs, entity_t e);
+struct render_component* render_component_lookup(ecs_t ecs, entity_t e);
 
 #endif /* ! _COMPONENTS_H_ */

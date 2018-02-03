@@ -293,8 +293,7 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
     ri->num_meshes = 0;
     for (unsigned int i = 0; i < num_ents; ++i) {
         entity_t e = entity_at(world->ecs, i);
-        component_t cc = render_component_lookup(world->ecs, e);
-        struct render_component* rc = render_component_data(world->ecs, cc);
+        struct render_component* rc = render_component_lookup(world->ecs, e);
         if (rc) {
             for (unsigned int j = 0; j < rc->model->num_meshes; ++j) {
                 struct mesh_hndl* mh = rc->model->meshes + j;
@@ -310,8 +309,7 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
     unsigned int cur_mesh = 0;
     for (unsigned int i = 0; i < num_ents; ++i) {
         entity_t e = entity_at(world->ecs, i);
-        component_t cc = render_component_lookup(world->ecs, e);
-        struct render_component* rc = render_component_data(world->ecs, cc);
+        struct render_component* rc = render_component_lookup(world->ecs, e);
         if (!rc)
             continue;
         mat4 transform = transform_world_mat(world->ecs, e);

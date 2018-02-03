@@ -42,15 +42,6 @@ typedef sm_key entity_t;
 /* Component type */
 typedef uint32_t component_type_t;
 
-/* Component data reference */
-typedef sm_key component_data_t;
-
-/* Component reference */
-typedef struct {
-    component_type_t type;
-    component_data_t dref;
-} component_t;
-
 /* ECS initialization/deinitialization */
 ecs_t ecs_init();
 void ecs_destroy(ecs_t ecs);
@@ -67,14 +58,18 @@ void component_map_register(ecs_t ecs, component_type_t t, size_t component_size
 void component_map_unregister(ecs_t ecs, component_type_t t);
 
 /* Component addition/removal/lookup */
-component_t component_add(ecs_t ecs, entity_t e, component_type_t t, void* data);
-component_t component_lookup(ecs_t ecs, entity_t e, component_type_t t);
-void* component_lookup_data(ecs_t ecs, component_t c);
+void* component_add(ecs_t ecs, entity_t e, component_type_t t, void* data);
+void* component_lookup(ecs_t ecs, entity_t e, component_type_t t);
 int component_remove(ecs_t ecs, entity_t e, component_type_t t);
 
-/* Component null references */
+/* Component iteration */
+size_t components_count(ecs_t ecs, component_type_t t);
+void*  components_get(ecs_t ecs, component_type_t t);
+entity_t component_parent(ecs_t ecs, component_type_t t, size_t data_idx);
+
+/* Entity / Component null references */
 #define INVALID_COMPONENT_TYPE (~0)
-#define INVALID_COMPONENT ((component_t){INVALID_COMPONENT_TYPE, SM_INVALID_KEY})
-int component_valid(component_t c);
+#define INVALID_ENTITY (SM_INVALID_KEY)
+int entity_valid(entity_t e);
 
 #endif /* ! _ECS_H_ */
