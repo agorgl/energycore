@@ -122,7 +122,7 @@ struct slot_map {
          * We reuse slots by getting keys of the head of the free list,
          * and if the free list is empty we allocate a new key
          */
-        size_t free_list_next;
+        size_t free_list_next, free_list_prev;
     }* slots;
 
     /* Number/Capacity of slots */
@@ -138,7 +138,7 @@ struct slot_map {
     size_t size, capacity;
 
     /* Array of indexes to do reverse mapping */
-    size_t* data_to_slot; /* TODO */
+    size_t* data_to_slot;
 
     /* Array of data (dense) */
     void* data;
@@ -173,9 +173,17 @@ int slot_map_key_valid(sm_key k);
 /*
  * slot_map_insert - insert an element in the slot_map
  * @sm: the slot map
- * @k: the element's data to insert (or just allocate space if null)
+ * @data: the element's data to insert (or just allocate space if null)
  */
 sm_key slot_map_insert(struct slot_map* sm, void* data);
+
+/*
+ * slot_map_foreign_add - insert an element in the slot_map with the given key
+ * @sm: the slot map
+ * @k: the key to try and insert
+ * @data: the element's data to insert (or just allocate space if null)
+ */
+int slot_map_foreign_add(struct slot_map* sm, sm_key k, void* data);
 
 /*
  * slot_map_lookup - lookup the element in the slot_map
@@ -187,14 +195,14 @@ void* slot_map_lookup(struct slot_map* sm, sm_key k);
 /*
  * slot_map_data - fetch the data in index
  * @sm: the slot map
- * @data_idx: the index to use for the data array
+ * @idx: the index to use for the data array
  */
 void* slot_map_data(struct slot_map* sm, size_t idx);
 
 /*
  * slot_map_data_to_key - retrieve key corresponding to given data index
  * @sm: the slot map
- * @data_idx: the index to use for the data array
+ * @idx: the index to use for the data array
  */
 sm_key slot_map_data_to_key(struct slot_map* sm, size_t idx);
 
