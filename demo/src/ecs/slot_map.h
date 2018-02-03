@@ -110,7 +110,7 @@ struct slot_map {
          * so that a key with index to this slot created for old data
          * can be invalidated
          */
-        uint32_t generation;
+        uint32_t generation : SLOT_MAP_GENERATION_BITS;
         /*
          * Index points to an entry in the data table
          * This indirection allows data array to be dense,
@@ -183,7 +183,7 @@ sm_key slot_map_insert(struct slot_map* sm, void* data);
  * @k: the key to try and insert
  * @data: the element's data to insert (or just allocate space if null)
  */
-int slot_map_foreign_add(struct slot_map* sm, sm_key k, void* data);
+void* slot_map_foreign_add(struct slot_map* sm, sm_key k, void* data);
 
 /*
  * slot_map_lookup - lookup the element in the slot_map

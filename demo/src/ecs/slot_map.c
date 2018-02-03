@@ -128,11 +128,11 @@ sm_key slot_map_insert(struct slot_map* sm, void* data)
     return k;
 }
 
-int slot_map_foreign_add(struct slot_map* sm, sm_key k, void* data)
+void* slot_map_foreign_add(struct slot_map* sm, sm_key k, void* data)
 {
     assert(slot_map_key_valid(k));
-    if (!(k.index < sm->capacity - 1 && sm->slots[k.index].data_idx != INVALID_IDX)) {
-        if (k.index > sm->capacity - 1)
+    if (!(k.index < sm->cap_slots && sm->slots[k.index].data_idx != INVALID_IDX)) {
+        if (k.index >= sm->cap_slots)
             slots_resize(sm, k.index + 1);
         size_t ndata_idx = data_append(sm, data);
         free_list_remove(sm, k.index);
@@ -140,7 +140,7 @@ int slot_map_foreign_add(struct slot_map* sm, sm_key k, void* data)
         sm->slots[k.index].data_idx = ndata_idx;
         sm->data_to_slot[ndata_idx] = k.index;
         sm->num_slots++;
-        return 1;
+        return slot_map_data(sm, ndata_idx);
     }
     return 0;
 }
@@ -157,11 +157,13 @@ void* slot_map_lookup(struct slot_map* sm, sm_key k)
 
 void* slot_map_data(struct slot_map* sm, size_t idx)
 {
+    assert(idx < sm->size);
     return sm->data + idx * sm->esz;
 }
 
 sm_key slot_map_data_to_key(struct slot_map* sm, size_t idx)
 {
+    assert(idx < sm->size);
     sm_key k;
     k.index = sm->data_to_slot[idx];
     k.generation = sm->slots[k.index].generation;
