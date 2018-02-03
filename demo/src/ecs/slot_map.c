@@ -67,8 +67,10 @@ void slot_map_init(struct slot_map* sm, size_t esz)
 
 void slot_map_destroy(struct slot_map* sm)
 {
+    free(sm->data_to_slot);
     free(sm->slots);
     free(sm->data);
+    sm->data_to_slot = POISON_POINTER;
     sm->slots = POISON_POINTER;
     sm->data  = POISON_POINTER;
 }
