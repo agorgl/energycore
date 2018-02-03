@@ -8,22 +8,22 @@
 
 static inline void free_list_push(struct slot_map* sm, size_t idx);
 
-static inline void initialize_allocated_slots(struct slot_map* sm, size_t start, size_t end)
+static inline void slots_resize(struct slot_map* sm, size_t ncap)
 {
-    for (size_t i = start; i < end; ++i) {
+    assert(ncap > sm->cap_slots);
+    size_t prev_cap  = sm->cap_slots;
+    sm->cap_slots    = ncap;
+    sm->slots        = realloc(sm->slots, sm->cap_slots * sizeof(struct sm_slot));
+    sm->data_to_slot = realloc(sm->data_to_slot, sm->cap_slots * sizeof(size_t));
+    for (size_t i = prev_cap; i < sm->cap_slots; ++i) {
         struct sm_slot* s = &sm->slots[i];
         s->generation     = 0;
         s->data_idx       = INVALID_IDX;
         s->free_list_next = INVALID_IDX;
         s->free_list_prev = INVALID_IDX;
         free_list_push(sm, i);
+        sm->data_to_slot[i] = INVALID_IDX;
     }
-}
-
-static inline void initialize_allocated_inverse_mappings(size_t* a, size_t start, size_t end)
-{
-    for (size_t i = start; i < end; ++i)
-        a[i] = INVALID_IDX;
 }
 
 void slot_map_init(struct slot_map* sm, size_t esz)
@@ -31,15 +31,14 @@ void slot_map_init(struct slot_map* sm, size_t esz)
     sm->esz            = esz;
     sm->num_slots      = 0;
     sm->size           = 0;
-    sm->cap_slots      = INITIAL_CAPACITY;
+    sm->cap_slots      = 0;
     sm->capacity       = INITIAL_CAPACITY;
-    sm->slots          = calloc(sm->cap_slots, sizeof(struct sm_slot));
-    sm->data_to_slot   = calloc(sm->cap_slots, sizeof(size_t));
+    sm->slots          = 0;
+    sm->data_to_slot   = 0;
     sm->data           = calloc(sm->capacity, sm->esz);
     sm->free_list_head = INVALID_IDX;
     sm->free_list_tail = INVALID_IDX;
-    initialize_allocated_slots(sm, 0, sm->cap_slots);
-    initialize_allocated_inverse_mappings(sm->data_to_slot, 0, sm->cap_slots);
+    slots_resize(sm, INITIAL_CAPACITY);
 }
 
 void slot_map_destroy(struct slot_map* sm)
@@ -104,17 +103,6 @@ static inline size_t data_append(struct slot_map* sm, void* data)
     if (data)
         memcpy(sm->data + sm->size * sm->esz, data, sm->esz);
     return sm->size++;
-}
-
-static inline void slots_resize(struct slot_map* sm, size_t ncap)
-{
-    assert(ncap > sm->cap_slots);
-    size_t prev_cap = sm->cap_slots;
-    sm->cap_slots = ncap;
-    sm->slots = realloc(sm->slots, sm->cap_slots * sizeof(struct sm_slot));
-    sm->data_to_slot = realloc(sm->data_to_slot, sm->cap_slots * sizeof(size_t));
-    initialize_allocated_slots(sm, prev_cap, sm->cap_slots);
-    initialize_allocated_inverse_mappings(sm->data_to_slot, prev_cap, sm->cap_slots);
 }
 
 static sm_key slot_map_next_key(struct slot_map* sm)
