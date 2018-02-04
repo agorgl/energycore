@@ -172,13 +172,22 @@ struct tex_hndl* tex_to_gpu(struct image* im)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-    glTexImage2D(
-        GL_TEXTURE_2D, 0,
-        im->channels == 4 ? GL_RGBA : GL_RGB,
-        im->width, im->height, 0,
-        im->channels == 4 ? GL_RGBA : GL_RGB,
-        GL_UNSIGNED_BYTE,
-        im->data);
+    if (im->compression_type == 0) {
+        glTexImage2D(
+            GL_TEXTURE_2D, 0,
+            im->channels == 4 ? GL_RGBA : GL_RGB,
+            im->width, im->height, 0,
+            im->channels == 4 ? GL_RGBA : GL_RGB,
+            GL_UNSIGNED_BYTE,
+            im->data);
+    } else {
+        glCompressedTexImage2D(
+            GL_TEXTURE_2D, 0,
+            im->compression_type,
+            im->width,
+            im->height,
+            0, im->data_sz, im->data);
+    }
     glGenerateMipmap(GL_TEXTURE_2D);
 
     struct tex_hndl* th = calloc(1, sizeof(struct tex_hndl));
