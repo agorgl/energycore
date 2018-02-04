@@ -35,10 +35,9 @@ static inline void free_list_remove(struct slot_map* sm, size_t idx)
 static inline void slots_resize(struct slot_map* sm, size_t ncap)
 {
     assert(ncap > sm->cap_slots);
-    size_t prev_cap  = sm->cap_slots;
-    sm->cap_slots    = ncap;
-    sm->slots        = realloc(sm->slots, sm->cap_slots * sizeof(struct sm_slot));
-    sm->data_to_slot = realloc(sm->data_to_slot, sm->cap_slots * sizeof(size_t));
+    size_t prev_cap = sm->cap_slots;
+    sm->cap_slots   = ncap;
+    sm->slots       = realloc(sm->slots, sm->cap_slots * sizeof(struct sm_slot));
     for (size_t i = prev_cap; i < sm->cap_slots; ++i) {
         struct sm_slot* s = &sm->slots[i];
         s->generation     = 0;
@@ -46,8 +45,17 @@ static inline void slots_resize(struct slot_map* sm, size_t ncap)
         s->free_list_next = INVALID_IDX;
         s->free_list_prev = INVALID_IDX;
         free_list_push(sm, i);
-        sm->data_to_slot[i] = INVALID_IDX;
     }
+}
+
+static inline void data_resize(struct slot_map* sm, size_t ncap)
+{
+    size_t prev_cap = sm->capacity;
+    sm->capacity = ncap;
+    sm->data = realloc(sm->data, sm->capacity * sm->esz);
+    sm->data_to_slot = realloc(sm->data_to_slot, sm->capacity * sizeof(size_t));
+    for (size_t i = prev_cap; i < sm->capacity; ++i)
+        sm->data_to_slot[i] = INVALID_IDX;
 }
 
 void slot_map_init(struct slot_map* sm, size_t esz)
@@ -56,13 +64,14 @@ void slot_map_init(struct slot_map* sm, size_t esz)
     sm->num_slots      = 0;
     sm->size           = 0;
     sm->cap_slots      = 0;
-    sm->capacity       = INITIAL_CAPACITY;
+    sm->capacity       = 0;
     sm->slots          = 0;
     sm->data_to_slot   = 0;
-    sm->data           = calloc(sm->capacity, sm->esz);
+    sm->data           = 0;
     sm->free_list_head = INVALID_IDX;
     sm->free_list_tail = INVALID_IDX;
     slots_resize(sm, INITIAL_CAPACITY);
+    data_resize(sm, INITIAL_CAPACITY);
 }
 
 void slot_map_destroy(struct slot_map* sm)
@@ -88,10 +97,8 @@ int slot_map_key_valid(sm_key k)
 
 static inline size_t data_append(struct slot_map* sm, void* data)
 {
-    if (sm->capacity - sm->size < 1) {
-        sm->capacity = sm->capacity * 2;
-        sm->data = realloc(sm->data, sm->capacity * sm->esz);
-    }
+    if (sm->capacity - sm->size < 1)
+        data_resize(sm, sm->capacity * 2);
     if (data)
         memcpy(sm->data + sm->size * sm->esz, data, sm->esz);
     return sm->size++;
