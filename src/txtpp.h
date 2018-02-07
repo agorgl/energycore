@@ -28,135 +28,27 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _RENDERER_H_
-#define _RENDERER_H_
+#ifndef _TXTPP_H_
+#define _TXTPP_H_
 
-#include <linalgb.h>
+#define TXTPP_LOAD_FILE   1
+#define TXTPP_LOAD_CUSTOM 2
 
-/*-----------------------------------------------------------------
- * Renderer input
- *-----------------------------------------------------------------*/
-enum renderer_material_attr_type {
-    RMAT_ALBEDO = 0,
-    RMAT_NORMAL,
-    RMAT_ROUGHNESS,
-    RMAT_METALLIC,
-    RMAT_SPECULAR,
-    RMAT_GLOSSINESS,
-    RMAT_EMISSION,
-    RMAT_OCCLUSION,
-    RMAT_DETAIL_ALBEDO,
-    RMAT_DETAIL_NORMAL,
-    RMAT_PARALLAX,
-    RMAT_MAX
+typedef int(*txtpp_load_custom_fn)(void* userdata, const char* uri, unsigned char** buf);
+typedef void(*txtpp_load_error_fn)(void* userdata, const char* err);
+
+struct txtpp_settings {
+    /* Can be either TXTPP_LOAD_FILE indicating normal filesystem load or TXTPP_LOAD_CUSTOM
+     * indicating custom load in witch the given resolver functions are used */
+    int load_type;
+    /* Custom load function */
+    txtpp_load_custom_fn load_fn;
+    /* Error callback */
+    txtpp_load_error_fn error_cb;
+    /* User data passed to custom load function */
+    void* userdata;
 };
 
-struct renderer_material {
-    struct renderer_material_attr {
-        struct {
-            float valf;
-            float val3f[3];
-            struct {
-                unsigned int id;
-                float scl[2];
-            } tex;
-        } d;
-        enum {
-            RMAT_DT_VALF = 0,
-            RMAT_DT_VAL3F,
-            RMAT_DT_TEX
-        } dtype;
-    } attrs[RMAT_MAX];
-};
+const char* txtpp_load(const char* uri, struct txtpp_settings* settings);
 
-struct renderer_mesh {
-    /* Geometry handles */
-    unsigned int vao;
-    unsigned int indice_count;
-    /* Model matrix */
-    float model_mat[16];
-    /* Material parameters */
-    struct renderer_material material;
-    /* AABB */
-    struct {
-        float min[3], max[3];
-    } aabb;
-};
-
-enum renderer_sky_type {
-    RST_TEXTURE,
-    RST_PREETHAM,
-    RST_NONE
-};
-
-struct renderer_light {
-    /* Light type */
-    enum renderer_light_type {
-        LT_DIRECTIONAL,
-        LT_POINT
-    } type;
-    /* Common light type data */
-    vec3 color;
-    /* Light type-specific data */
-    union {
-        struct {
-            vec3 direction;
-        } dir;
-        struct {
-            vec3 position;
-            float radius;
-        } pt;
-    } type_data;
-};
-
-/* Scene description passed to render function */
-struct renderer_input {
-    /* Meshes to render */
-    struct renderer_mesh* meshes;
-    unsigned int num_meshes;
-    /* Sky type and parameters */
-    enum renderer_sky_type sky_type;
-    unsigned int sky_tex; /* Used if sky_type is RST_TEXTURE */
-    struct {
-        float inclination;
-        float azimuth;
-    } sky_pp; /* Used if sky_type  is RST_PREETHAM */
-    /* Lighting parameters */
-    struct renderer_light* lights;
-    unsigned int num_lights;
-};
-
-/*-----------------------------------------------------------------
- * Renderer state
- *-----------------------------------------------------------------*/
-/* Aggregate state */
-struct renderer_state {
-    /* Internals */
-    struct renderer_internal_state* internal;
-    /* Options */
-    struct {
-        unsigned int show_bboxes;
-        unsigned int show_fprof;
-        unsigned int show_gbuf_textures;
-        unsigned int show_normals;
-        unsigned int show_gidata;
-        unsigned int use_occlusion_culling;
-        unsigned int use_normal_mapping;
-        unsigned int use_rough_met_maps;
-        unsigned int use_detail_maps;
-        unsigned int use_shadows;
-        unsigned int use_envlight;
-        unsigned int use_tonemapping;
-        unsigned int use_gamma_correction;
-        unsigned int use_antialiasing;
-    } options;
-};
-
-/* Public interface */
-void renderer_init(struct renderer_state* rs);
-void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view_mat[16]);
-void renderer_gi_update(struct renderer_state* rs, struct renderer_input* ri);
-void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height);
-void renderer_destroy(struct renderer_state* rs);
-
-#endif /* ! _RENDERER_H_ */
+#endif /* ! _TXTPP_H_ */

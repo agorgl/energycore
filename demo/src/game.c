@@ -74,93 +74,6 @@ static void on_fb_size(struct window* wnd, unsigned int width, unsigned int heig
     renderer_resize(&ctx->rndr_state, width, height);
 }
 
-static const struct shdr_info {
-    const char* name;
-    const char* vs_loc;
-    const char* gs_loc;
-    const char* fs_loc;
-} shdrs[] = {
-    {
-        .name = "geom_pass",
-        .vs_loc = "shaders/static_vs.glsl",
-        .gs_loc = 0,
-        .fs_loc = "shaders/geom_pass_fs.glsl"
-    },
-    {
-        .name = "dir_light",
-        .vs_loc = "shaders/passthrough_vs.glsl",
-        .gs_loc = 0,
-        .fs_loc = "shaders/dir_light_fs.glsl"
-    },
-    {
-        .name = "env_light",
-        .vs_loc = "shaders/passthrough_vs.glsl",
-        .gs_loc = 0,
-        .fs_loc = "shaders/env_light_fs.glsl"
-    },
-    {
-        .name = "sky_prth",
-        .vs_loc = "shaders/sky_prth_vs.glsl",
-        .gs_loc = 0,
-        .fs_loc = "shaders/sky_prth_fs.glsl"
-    },
-    {
-        .name = "irr_conv",
-        .vs_loc = "shaders/ibl/cubemap_vs.glsl",
-        .gs_loc = 0,
-        .fs_loc = "shaders/ibl/convolution_fs.glsl"
-    },
-    {
-        .name = "brdf_lut",
-        .vs_loc = "shaders/passthrough_vs.glsl",
-        .gs_loc = 0,
-        .fs_loc = "shaders/ibl/brdf_lut_fs.glsl"
-    },
-    {
-        .name = "prefilter",
-        .vs_loc = "shaders/ibl/cubemap_vs.glsl",
-        .gs_loc = 0,
-        .fs_loc = "shaders/ibl/prefilter_fs.glsl"
-    },
-    {
-        .name = "probe_vis",
-        .vs_loc = "shaders/static_vs.glsl",
-        .gs_loc = 0,
-        .fs_loc = "shaders/vis/probe_fs.glsl"
-    },
-    {
-        .name = "norm_vis",
-        .vs_loc = "shaders/vis/normal_vs.glsl",
-        .gs_loc = "shaders/vis/normal_gs.glsl",
-        .fs_loc = "shaders/vis/normal_fs.glsl"
-    },
-    {
-        .name = "tonemap_fx",
-        .vs_loc = "shaders/passthrough_vs.glsl",
-        .gs_loc = 0,
-        .fs_loc = "shaders/fx/tonemap.glsl"
-    },
-    {
-        .name = "gamma_fx",
-        .vs_loc = "shaders/passthrough_vs.glsl",
-        .gs_loc = 0,
-        .fs_loc = "shaders/fx/gamma.glsl"
-    },
-    {
-        .name = "smaa_fx",
-        .vs_loc = "shaders/fx/smaa_pass_vs.glsl",
-        .gs_loc = 0,
-        .fs_loc = "shaders/fx/smaa_pass_fs.glsl"
-    }
-};
-
-static unsigned int rndr_shdr_fetch(const char* shdr_name, void* userdata)
-{
-    struct game_context* ctx = userdata;
-    unsigned int shdr = res_mngr_shdr_get(ctx->rmgr, shdr_name);
-    return shdr;
-}
-
 void game_init(struct game_context* ctx)
 {
     /* Create window */
@@ -192,21 +105,13 @@ void game_init(struct game_context* ctx)
         ctx->main_scene = scene_external(scene_file, ctx->rmgr);
     ctx->active_scene = ctx->main_scene;
 
-    /* Internal shaders */
-    for (unsigned int i = 0; i < sizeof(shdrs) / sizeof(struct shdr_info); ++i) {
-        const struct shdr_info* si = shdrs + i;
-        const char* name = si->name;
-        unsigned int shdr = shader_from_files(si->vs_loc, si->gs_loc, si->fs_loc);
-        res_mngr_shdr_put(ctx->rmgr, name, shdr);
-    }
-
     /* Initialize camera */
     camera_defaults(&ctx->cam);
     ctx->cam.pos = vec3_new(0.0, 1.0, 3.0);
     camera_setdir(&ctx->cam, vec3_normalize(vec3_mul(ctx->cam.pos, -1)));
 
     /* Initialize renderer */
-    renderer_init(&ctx->rndr_state, rndr_shdr_fetch, ctx);
+    renderer_init(&ctx->rndr_state);
     ctx->gi_dirty = 1;
 
     /* Load sky texture from file into the GPU */

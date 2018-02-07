@@ -19,6 +19,7 @@
 #include "dbgtxt.h"
 #include "mrtdbg.h"
 #include "postfx.h"
+#include "resint.h"
 #include "panicscr.h"
 #include "smaa_area_tex.h"
 #include "smaa_search_tex.h"
@@ -37,9 +38,6 @@ struct renderer_internal_state {
     struct shadowmap shdwmap;
     struct postfx postfx;
     struct panicscr_rndr ps_rndr;
-    /* Shader handle fetching */
-    rndr_shdr_fetch_fn shdr_fetch_cb;
-    void* shdr_fetch_userdata;
     /* Shaders */
     struct {
         unsigned int geom_pass;
@@ -84,17 +82,17 @@ struct renderer_internal_state {
     } dbginfo;
 };
 
+static void renderer_shdr_fetch(struct renderer_state* rs);
+
 /*-----------------------------------------------------------------
  * Initialization
  *-----------------------------------------------------------------*/
-void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_ud)
+void renderer_init(struct renderer_state* rs)
 {
     /* Populate renderer state according to init params */
     memset(rs, 0, sizeof(*rs));
     rs->internal = calloc(1, sizeof(*rs->internal));
     struct renderer_internal_state* is = rs->internal;
-    is->shdr_fetch_cb = sfn;
-    is->shdr_fetch_userdata = sh_ud;
 
     /* Initial dimensions */
     int width = 1280, height = 720;
@@ -107,6 +105,8 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     renderer_resize(rs, width, height);
     /* Initialize gl utilities state */
     glutils_init();
+    /* Initialize embedded resources */
+    resint_init();
     /* Initialize internal texture sky state */
     sky_texture_init(&is->sky_rndr.tex);
     /* Initialize internal preetham sky state */
@@ -165,21 +165,21 @@ void renderer_init(struct renderer_state* rs, rndr_shdr_fetch_fn sfn, void* sh_u
     rs->options.show_gidata = 0;
 }
 
-void renderer_shdr_fetch(struct renderer_state* rs)
+static void renderer_shdr_fetch(struct renderer_state* rs)
 {
     struct renderer_internal_state* is = rs->internal;
-    is->shdrs.geom_pass         = is->shdr_fetch_cb("geom_pass", is->shdr_fetch_userdata);
-    is->shdrs.dir_light         = is->shdr_fetch_cb("dir_light", is->shdr_fetch_userdata);
-    is->shdrs.env_light         = is->shdr_fetch_cb("env_light", is->shdr_fetch_userdata);
-    is->shdrs.fx.tonemap        = is->shdr_fetch_cb("tonemap_fx", is->shdr_fetch_userdata);
-    is->shdrs.fx.gamma          = is->shdr_fetch_cb("gamma_fx", is->shdr_fetch_userdata);
-    is->shdrs.fx.smaa           = is->shdr_fetch_cb("smaa_fx", is->shdr_fetch_userdata);
-    is->shdrs.nm_vis            = is->shdr_fetch_cb("norm_vis", is->shdr_fetch_userdata);
-    is->shdrs.probe_vis         = is->shdr_fetch_cb("probe_vis", is->shdr_fetch_userdata);
-    is->shdrs.ibl.irr_gen       = is->shdr_fetch_cb("irr_conv", is->shdr_fetch_userdata);
-    is->shdrs.ibl.brdf_lut      = is->shdr_fetch_cb("brdf_lut", is->shdr_fetch_userdata);
-    is->shdrs.ibl.prefilter     = is->shdr_fetch_cb("prefilter", is->shdr_fetch_userdata);
-    is->sky_rndr.preeth.shdr    = is->shdr_fetch_cb("sky_prth", is->shdr_fetch_userdata);
+    is->shdrs.geom_pass      = resint_shdr_fetch("geom_pass");
+    is->shdrs.dir_light      = resint_shdr_fetch("dir_light");
+    is->shdrs.env_light      = resint_shdr_fetch("env_light");
+    is->shdrs.fx.tonemap     = resint_shdr_fetch("tonemap_fx");
+    is->shdrs.fx.gamma       = resint_shdr_fetch("gamma_fx");
+    is->shdrs.fx.smaa        = resint_shdr_fetch("smaa_fx");
+    is->shdrs.nm_vis         = resint_shdr_fetch("norm_vis");
+    is->shdrs.probe_vis      = resint_shdr_fetch("probe_vis");
+    is->shdrs.ibl.irr_gen    = resint_shdr_fetch("irr_conv");
+    is->shdrs.ibl.brdf_lut   = resint_shdr_fetch("brdf_lut");
+    is->shdrs.ibl.prefilter  = resint_shdr_fetch("prefilter");
+    is->sky_rndr.preeth.shdr = resint_shdr_fetch("sky_prth");
 }
 
 static void upload_gbuffer_uniforms(GLuint shdr, float viewport[2], mat4* view, mat4* proj)
@@ -744,6 +744,7 @@ void renderer_destroy(struct renderer_state* rs)
     gi_rndr_destroy(&is->gi_rndr);
     sky_preetham_destroy(&is->sky_rndr.preeth);
     sky_texture_destroy(&is->sky_rndr.tex);
+    resint_destroy();
     glutils_deinit();
     postfx_destroy(&is->postfx);
     gbuffer_destroy(&is->main_gbuf);

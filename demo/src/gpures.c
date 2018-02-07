@@ -295,55 +295,12 @@ void tex_free_from_gpu(struct tex_hndl* th)
     free(th);
 }
 
-static void shader_load_err(void* userdata, const char* err)
-{
-    (void) userdata;
-    fprintf(stderr, "%s\n", err);
-}
-
-static int shader_load_custom(void* userdata, const char* uri, unsigned char** buf)
-{
-    (void) userdata;
-    void* f; size_t sz;
-    int r = embedded_file(&f, &sz, uri);
-    if (r) {
-        const char* s = strndup(f, sz);
-        *buf = (unsigned char*)s;
-    }
-    return r;
-}
-
-unsigned int shader_from_files(const char* vsp, const char* gsp, const char* fsp)
-{
-    /* Load settings */
-    struct shader_load_settings settings;
-    memset(&settings, 0, sizeof(settings));
-    settings.load_type = SHADER_LOAD_CUSTOM;
-    settings.load_fn   = shader_load_custom;
-    settings.error_cb  = shader_load_err;
-    /* Load sources */
-    const char* vs_src = shader_load(vsp, &settings);
-    const char* gs_src = 0;
-    if (gsp)
-        gs_src = shader_load(gsp, &settings);
-    const char* fs_src = shader_load(fsp, &settings);
-    /* Create shader */
-    unsigned int shdr = shader_from_srcs(vs_src, gs_src, fs_src);
-    /* Free sources */
-    if (gsp)
-        free((void*)gs_src);
-    free((void*)vs_src);
-    free((void*)fs_src);
-    return shdr;
-}
-
 struct res_mngr* res_mngr_create()
 {
     struct res_mngr* rmgr = calloc(1, sizeof(struct res_mngr));
     hashmap_init(&rmgr->mdl_store, hm_str_hash, hm_str_eql);
     hashmap_init(&rmgr->tex_store, hm_str_hash, hm_str_eql);
     hashmap_init(&rmgr->mat_store, hm_str_hash, hm_str_eql);
-    hashmap_init(&rmgr->shdr_store, hm_str_hash, hm_str_eql);
     return rmgr;
 }
 
@@ -365,12 +322,6 @@ struct material* res_mngr_mat_get(struct res_mngr* rmgr, const char* mat_name)
     return p == 0 ? 0 : hm_pcast(*p);
 }
 
-unsigned int res_mngr_shdr_get(struct res_mngr* rmgr, const char* shdr_name)
-{
-    hm_ptr* p = hashmap_get(&rmgr->shdr_store, hm_cast(shdr_name));
-    return p == 0 ? 0 : *p;
-}
-
 void res_mngr_mdl_put(struct res_mngr* rmgr, const char* mdl_name, struct model_hndl* m)
 {
     hashmap_put(&rmgr->mdl_store, hm_cast(strdup(mdl_name)), hm_cast(m));
@@ -386,20 +337,9 @@ void res_mngr_mat_put(struct res_mngr* rmgr, const char* mat_name, struct materi
     hashmap_put(&rmgr->mat_store, hm_cast(strdup(mat_name)), hm_cast(mat));
 }
 
-void res_mngr_shdr_put(struct res_mngr* rmgr, const char* shdr_name, unsigned int shdr)
-{
-    hashmap_put(&rmgr->shdr_store, hm_cast(strdup(shdr_name)), hm_cast(shdr));
-}
-
 void res_mngr_destroy(struct res_mngr* rmgr)
 {
     struct hashmap_iter it;
-    /* Free shaders */
-    hashmap_for(rmgr->shdr_store, it) {
-        free((void*)hm_pcast(it.p->key));
-        GLuint shdr = it.p->value;
-        glDeleteProgram(shdr);
-    }
     /* Free model store data */
     hashmap_for(rmgr->mdl_store, it) {
         free((void*)hm_pcast(it.p->key));
@@ -418,7 +358,6 @@ void res_mngr_destroy(struct res_mngr* rmgr)
         free((void*)hm_pcast(it.p->value));
     }
     /* Free stores */
-    hashmap_destroy(&rmgr->shdr_store);
     hashmap_destroy(&rmgr->mdl_store);
     hashmap_destroy(&rmgr->mat_store);
     hashmap_destroy(&rmgr->tex_store);

@@ -96,7 +96,6 @@ struct res_mngr {
     struct hashmap mdl_store;
     struct hashmap tex_store;
     struct hashmap mat_store;
-    struct hashmap shdr_store;
 };
 
 /* Geometry gpu data */
@@ -109,19 +108,14 @@ struct tex_hndl* tex_from_file_to_gpu(const char* filename);
 struct tex_hndl* tex_env_to_gpu(struct image* im);
 struct tex_hndl* tex_env_from_file_to_gpu(const char* filename);
 void tex_free_from_gpu(struct tex_hndl* th);
-/* Shader programs */
-unsigned int shader_from_sources(const char* vs_src, const char* gs_src, const char* fs_src);
-unsigned int shader_from_files(const char* vsp, const char* gsp, const char* fsp);
 /* Resource manager */
 struct res_mngr* res_mngr_create();
 struct model_hndl* res_mngr_mdl_get(struct res_mngr* rmgr, const char* mdl_name);
 struct tex_hndl* res_mngr_tex_get(struct res_mngr* rmgr, const char* tex_name);
 struct material* res_mngr_mat_get(struct res_mngr* rmgr, const char* mat_name);
-unsigned int res_mngr_shdr_get(struct res_mngr* rmgr, const char* shdr_name);
 void res_mngr_mdl_put(struct res_mngr* rmgr, const char* mdl_name, struct model_hndl* m);
 void res_mngr_tex_put(struct res_mngr* rmgr, const char* tex_name, struct tex_hndl* t);
 void res_mngr_mat_put(struct res_mngr* rmgr, const char* mat_name, struct material* mat);
-void res_mngr_shdr_put(struct res_mngr* rmgr, const char* shdr_name, unsigned int shdr);
 void res_mngr_destroy(struct res_mngr*);
 
 #endif /* ! _GPURES_H_ */
