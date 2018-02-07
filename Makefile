@@ -28,8 +28,15 @@
 #  [7] contains intermediate object files of compiling processes
 MAKEFLAGS += --no-builtin-rules
 
-# CreateProcess NULL bug
+# Detect OS
 ifeq ($(OS), Windows_NT)
+	HOST_OS := Windows
+else
+	HOST_OS := $(shell uname -s)
+endif
+
+# CreateProcess NULL bug
+ifeq ($(HOST_OS), Windows)
 	SHELL = cmd.exe
 endif
 
@@ -46,7 +53,7 @@ TOOLCHAIN ?= GCC
 SILENT ?=
 VERBOSE ?=
 # Default target OS is host if not provided
-TARGET_OS ?= $(OS)
+TARGET_OS ?= $(HOST_OS)
 # Install location
 LOCAL_REPO ?= $(HOME)/.local
 
@@ -55,30 +62,32 @@ LOCAL_REPO ?= $(HOME)/.local
 #---------------------------------------------------------------
 # Recursive wildcard func
 rwildcard = $(foreach d, $(wildcard $1*), $(call rwildcard, $d/, $2) $(filter $(subst *, %, $2), $d))
+# Keeps only paths corresponding to files
+filter-files = $(filter-out $(patsubst %/., %, $(wildcard $(addsuffix /., $(1)))), $(1))
 
 # Suppress full command output
-ifeq ($(OS), Windows_NT)
+ifeq ($(HOST_OS), Windows)
 	suppress_out = > nul 2>&1
 else
 	suppress_out = > /dev/null 2>&1
 endif
 
 # Ignore command error
-ifeq ($(OS), Windows_NT)
+ifeq ($(HOST_OS), Windows)
 	ignore_err = || (exit 0)
 else
 	ignore_err = || true
 endif
 
 # Native paths
-ifeq ($(OS), Windows_NT)
+ifeq ($(HOST_OS), Windows)
 	native_path = $(subst /,\,$(1))
 else
 	native_path = $(1)
 endif
 
 # Makedir command
-ifeq ($(OS), Windows_NT)
+ifeq ($(HOST_OS), Windows)
 	MKDIR_CMD = mkdir
 else
 	MKDIR_CMD = mkdir -p
@@ -86,7 +95,7 @@ endif
 mkdir = -$(if $(wildcard $(1)/.*), , $(MKDIR_CMD) $(call native_path, $(1)) $(suppress_out)$(ignore_err))
 
 # Rmdir command
-ifeq ($(OS), Windows_NT)
+ifeq ($(HOST_OS), Windows)
 	RMDIR_CMD = rmdir /s /q
 else
 	RMDIR_CMD = rm -rf
@@ -94,7 +103,7 @@ endif
 rmdir = $(if $(wildcard $(1)/.*), $(RMDIR_CMD) $(call native_path, $(1)),)
 
 # Copy command
-ifeq ($(OS), Windows_NT)
+ifeq ($(HOST_OS), Windows)
 	COPY_CMD = copy /Y
 else
 	COPY_CMD = cp
@@ -102,7 +111,7 @@ endif
 copy = $(COPY_CMD) $(call native_path, $(1)) $(call native_path, $(2)) $(suppress_out)
 
 # Recursive folder copy command
-ifeq ($(OS), Windows_NT)
+ifeq ($(HOST_OS), Windows)
 	RCOPY_CMD = robocopy /S /E $(call native_path, $(1)) $(call native_path, $(2)) $(suppress_out)$(ignore_err)
 else
 	RCOPY_CMD = cp -r $(call native_path, $(1))/* $(call native_path, $(2))
@@ -110,7 +119,7 @@ endif
 rcopy = $(RCOPY_CMD)
 
 # Path separator
-pathsep = $(strip $(if $(filter $(OS), Windows_NT), ;, :))
+pathsep = $(strip $(if $(filter $(HOST_OS), Windows), ;, :))
 
 # Lowercase
 lc = $(subst A,a,$(subst B,b,$(subst C,c,$(subst D,d,$(subst E,e,$(subst F,f,$(subst G,g,\
@@ -163,13 +172,13 @@ extdep-conf = $(call extdep-path, \
 # Global constants
 #---------------------------------------------------------------
 # Os executable extension
-ifeq ($(TARGET_OS), Windows_NT)
+ifeq ($(TARGET_OS), Windows)
 	EXECEXT = .exe
 else
 	EXECEXT = .out
 endif
 # Os dynamic library extension
-ifeq ($(TARGET_OS), Windows_NT)
+ifeq ($(TARGET_OS), Windows)
 	DLEXT = .dll
 else
 	DLEXT = .so
@@ -211,8 +220,8 @@ endif
 #---------------------------------------------------------------
 # Colors
 #---------------------------------------------------------------
-ifneq ($(OS), Windows_NT)
-	ESC := $(shell echo -e -n '\x1b')
+ifneq ($(HOST_OS), Windows)
+	ESC := $(shell printf "\033")
 endif
 NO_COLOR       := $(ESC)[0m
 LGREEN_COLOR   := $(ESC)[92m
@@ -277,7 +286,7 @@ else
 	# Linker
 	LD          := g++
 	LDFLAGS     :=
-	ifeq ($(TARGET_OS), Windows_NT)
+	ifeq ($(TARGET_OS), Windows)
 		LDFLAGS += -static-libgcc -static-libstdc++
 	endif
 	LIBFLAG     := -l
@@ -472,7 +481,7 @@ ifeq ($$(PRJTYPE_$(D)), DynLib)
 endif
 # Setup rpath flag parameter for linux systems
 ifeq ($$(PRJTYPE_$(D)), Executable)
-ifneq ($(TARGET_OS), Windows_NT)
+ifneq ($(TARGET_OS), Windows)
 	# Path from executable location to project root
 	RELPPREFIX_$(D)  := $$(subst $$(space),,$$(foreach dir, $$(subst /,$$(space),$$(dir $$(MASTEROUT_$(D)))),../))
 	# Library paths relative to the executable
@@ -495,6 +504,39 @@ INSTDEPS_$(D) := $$(addprefix install_, $$(DEPS_$(D)))
 endif
 endef
 
+#--------------------------------------------------
+#=- Populate project install values
+# 1 = dst file 2 = src file
+define copy-file-rule
+$(1): $(2)
+	$$(info $(LGREEN_COLOR)[>] Copying$(NO_COLOR) $(LYELLOW_COLOR)$(strip $(2)) -> $$(subst \,/,$(strip $(1)))$(NO_COLOR))
+	$(showcmd)$$(call mkdir, $$(@D))
+	$(showcmd)$$(call copy, $(2), $$(@D))
+INSTALL_FILES += $(1)
+endef
+
+# 1 = dst folder 2 = src folder
+define copy-folder-rule
+$(foreach f, $(call filter-files, $(call rwildcard, $(2), *)), \
+	$(call copy-file-rule, $(1)/$(call canonical_path, $(abspath $(2)), $(f)), $(f))${\n})
+endef
+
+define populate-install-values
+${subproj-template-prologue}
+# Reset install file list
+$(eval undefine INSTALL_FILES)
+ifneq ($$(PRJTYPE_$(D)), Executable)
+# Copy header folder
+$$(eval $$(call copy-folder-rule, $$(INSTALL_PREFIX_$(D))/include, $$(DP)include))
+endif
+# Copy master output folder
+$$(eval $$(call copy-folder-rule, $$(INSTALL_PREFIX_$(D))/$$(lastword $$(subst /, , $$(TARGETDIR_$(D)))), $$(dir $$(MASTEROUT_$(D)))))
+# Save install file list
+INSTALL_FILES_$(D) := $$(INSTALL_FILES)
+# Package description file
+PKG_INFO_$(D) := $$(call extdep-conf, $$(INSTALL_PAIR_$(D)))
+endef
+
 #---------------------------------------------------------------
 # Rules
 #---------------------------------------------------------------
@@ -513,21 +555,18 @@ run_$(D): build_$(D)
 	@$$(eval export PATH := $(PATH)$(pathsep)$$(subst $$(space),$(pathsep),$$(addprefix $$(CURDIR)/, $$(LIBPATHS_$(D)))))
 	@cd $(D) && $$(call native_path, $$(call canonical_path, $$(abspath $$(CURDIR)/$(D)), $$(MASTEROUT_$(D))))
 
-ifneq ($$(PRJTYPE_$(D)), Executable)
 # Pkg.mk file contents
 define PCFG_$(D)
 PKGDEPS := $$(strip $$(EXTDEPS_$(D)) $$(foreach dep, $$(DEPS_$(D)), $$(INSTALL_PAIR_$$(dep))))
 endef
 
-# Installs target to repository
-install_$(D): $$(INSTDEPS_$(D)) $$(MASTEROUT_$(D))
-	$$(info $(LGREEN_COLOR)[>] Installing$(NO_COLOR) $(LYELLOW_COLOR)$$(TARGETNAME_$(D)) to $$(subst \,/,$$(INSTALL_PREFIX_$(D)))$(NO_COLOR))
-	$(showcmd)$$(call mkdir, $$(INSTALL_PREFIX_$(D))/lib)
-	$(showcmd)$$(call mkdir, $$(INSTALL_PREFIX_$(D))/include)
-	$(showcmd)$$(call rcopy, $(DP)include, $$(INSTALL_PREFIX_$(D))/include)
-	$(showcmd)$$(call copy, $$(MASTEROUT_$(D)), $$(INSTALL_PREFIX_$(D))/lib)
-	$(showcmd)echo $$(PCFG_$(D)) > $$(call extdep-conf, $$(INSTALL_PAIR_$(D)))
-endif
+# Creates package info file
+$$(PKG_INFO_$(D)): $(DP)config.mk
+	$$(info $(LGREEN_COLOR)[>] Pkginfo $(NO_COLOR)$(LYELLOW_COLOR)$$(@F) -> $$(@)$(NO_COLOR))
+	$(showcmd)echo $$(PCFG_$(D)) > $$(@)
+
+# Installs files to repository
+install_$(D): $$(INSTDEPS_$(D)) $$(INSTALL_FILES_$(D)) $$(PKG_INFO_$(D))
 
 # Show banner for current build execution
 $$(BANNERFILE_$(D)):
@@ -551,7 +590,7 @@ showvars_$(D): $$(BANNERFILE_$(D))
 	@echo LIBSDIR:   $$(LIBSDIR_$(D))
 	@echo LIBFLAGS:  $$(LIBFLAGS_$(D))
 	@echo HDEPS:     $$(HDEPS_$(D))
-	@echo INSTALL:   $$(INSTALL_PREFIX_$(D))
+	@echo INSTALL:   $$(INSTALL_PREFIX_$(D)): $$(INSTALL_FILES_$(D))
 	@echo EXTDEPS:   $$(EXTDEPS_$(D))
 	@echo EXTPATHS:  $$(EXTDEPPATHS_$(D))
 
@@ -581,8 +620,8 @@ CCOMPILE_$(D)   = $(CC) $(CFLAGS) $$(MCFLAGS_$(D)) $$(CPPFLAGS_$(D)) $$(INCDIR_$
 CXXCOMPILE_$(D) = $(CXX) $(CFLAGS) $(CXXFLAGS) $$(MCFLAGS_$(D)) $$(CPPFLAGS_$(D)) $$(INCDIR_$(D)) $$< $(COUTFLAG) $$@ $$(MORECFLAGS_$(D))
 
 # Generate compile rules
-$(call compile-rule, c, $$(CCOMPILE_$(D)), $(DP))
-$(foreach ext, cpp cxx cc, $(call compile-rule, $(ext), $$(CXXCOMPILE_$(D)), $(DP))${\n})
+$(foreach ext, c m, $(call compile-rule, $(ext), $$(CCOMPILE_$(D)), $(DP))${\n})
+$(foreach ext, cpp cxx cc mm, $(call compile-rule, $(ext), $$(CXXCOMPILE_$(D)), $(DP))${\n})
 
 # Include extra rules
 -include $(DP)rules.mk
@@ -601,6 +640,7 @@ $(foreach generator, \
 			populate-dep-values       \
 			populate-path-values      \
 			populate-flag-values      \
+			populate-install-values   \
 			populate-rule-dep-values, \
 		$(foreach subproj, $(SUBPROJS), $(eval $(call $(generator), $(subproj)))))
 # Create sublists with dependency and main projects
@@ -648,6 +688,7 @@ endif
 PHONYRULETYPES := build run install showvars showincpaths showdefines
 PHONYPREREQS := $(foreach ruletype, $(PHONYRULETYPES), $(addprefix $(ruletype)_, $(SUBPROJS))) \
 		run \
+		install \
 		showvars \
 		showvars_all \
 		clean
