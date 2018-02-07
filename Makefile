@@ -602,6 +602,9 @@ showincpaths_$(D):
 showdefines_$(D):
 	$$(info $$(DEFINES_$(D)))
 
+# Include extra rules
+-include $(DP)rules.mk
+
 $$(MASTEROUT_$(D)): $$(BUILDDEPS_$(D)) $$(OBJ_$(D))
 ifneq ($$(PRJTYPE_$(D)), StaticLib)
 # Link rule
@@ -622,9 +625,6 @@ CXXCOMPILE_$(D) = $(CXX) $(CFLAGS) $(CXXFLAGS) $$(MCFLAGS_$(D)) $$(CPPFLAGS_$(D)
 # Generate compile rules
 $(foreach ext, c m, $(call compile-rule, $(ext), $$(CCOMPILE_$(D)), $(DP))${\n})
 $(foreach ext, cpp cxx cc mm, $(call compile-rule, $(ext), $$(CXXCOMPILE_$(D)), $(DP))${\n})
-
-# Include extra rules
--include $(DP)rules.mk
 endef
 
 #---------------------------------------------------------------
