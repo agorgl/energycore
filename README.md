@@ -32,5 +32,5 @@ Licensing
 ---------
 Read [LICENSE](LICENSE)  
 
-Copyright (C) 2016-2017 Agorgianitis Loukas <agorglouk@gmail.com>  
+Copyright (C) 2016-2018 Agorgianitis Loukas <agorglouk@gmail.com>  
 All rights reserved.
