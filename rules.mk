@@ -1,4 +1,4 @@
-RES_FOLDER = ext
+RES_FOLDER = res
 RES_FILES  = $(call filter-files, $(call rwildcard, $(RES_FOLDER), *))
 RES_DFILE  = res.dat
 
