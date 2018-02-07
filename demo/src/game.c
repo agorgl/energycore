@@ -79,78 +79,78 @@ static const struct shdr_info {
     const char* vs_loc;
     const char* gs_loc;
     const char* fs_loc;
-} shdrs [] = {
+} shdrs[] = {
     {
         .name = "geom_pass",
-        .vs_loc = "../ext/shaders/static_vs.glsl",
+        .vs_loc = "shaders/static_vs.glsl",
         .gs_loc = 0,
-        .fs_loc = "../ext/shaders/geom_pass_fs.glsl"
+        .fs_loc = "shaders/geom_pass_fs.glsl"
     },
     {
         .name = "dir_light",
-        .vs_loc = "../ext/shaders/passthrough_vs.glsl",
+        .vs_loc = "shaders/passthrough_vs.glsl",
         .gs_loc = 0,
-        .fs_loc = "../ext/shaders/dir_light_fs.glsl"
+        .fs_loc = "shaders/dir_light_fs.glsl"
     },
     {
         .name = "env_light",
-        .vs_loc = "../ext/shaders/passthrough_vs.glsl",
+        .vs_loc = "shaders/passthrough_vs.glsl",
         .gs_loc = 0,
-        .fs_loc = "../ext/shaders/env_light_fs.glsl"
+        .fs_loc = "shaders/env_light_fs.glsl"
     },
     {
         .name = "sky_prth",
-        .vs_loc = "../ext/shaders/sky_prth_vs.glsl",
+        .vs_loc = "shaders/sky_prth_vs.glsl",
         .gs_loc = 0,
-        .fs_loc = "../ext/shaders/sky_prth_fs.glsl"
+        .fs_loc = "shaders/sky_prth_fs.glsl"
     },
     {
         .name = "irr_conv",
-        .vs_loc = "../ext/shaders/ibl/cubemap_vs.glsl",
+        .vs_loc = "shaders/ibl/cubemap_vs.glsl",
         .gs_loc = 0,
-        .fs_loc = "../ext/shaders/ibl/convolution_fs.glsl"
+        .fs_loc = "shaders/ibl/convolution_fs.glsl"
     },
     {
         .name = "brdf_lut",
-        .vs_loc = "../ext/shaders/passthrough_vs.glsl",
+        .vs_loc = "shaders/passthrough_vs.glsl",
         .gs_loc = 0,
-        .fs_loc = "../ext/shaders/ibl/brdf_lut_fs.glsl"
+        .fs_loc = "shaders/ibl/brdf_lut_fs.glsl"
     },
     {
         .name = "prefilter",
-        .vs_loc = "../ext/shaders/ibl/cubemap_vs.glsl",
+        .vs_loc = "shaders/ibl/cubemap_vs.glsl",
         .gs_loc = 0,
-        .fs_loc = "../ext/shaders/ibl/prefilter_fs.glsl"
+        .fs_loc = "shaders/ibl/prefilter_fs.glsl"
     },
     {
         .name = "probe_vis",
-        .vs_loc = "../ext/shaders/static_vs.glsl",
+        .vs_loc = "shaders/static_vs.glsl",
         .gs_loc = 0,
-        .fs_loc = "../ext/shaders/vis/probe_fs.glsl"
+        .fs_loc = "shaders/vis/probe_fs.glsl"
     },
     {
         .name = "norm_vis",
-        .vs_loc = "../ext/shaders/vis/normal_vs.glsl",
-        .gs_loc = "../ext/shaders/vis/normal_gs.glsl",
-        .fs_loc = "../ext/shaders/vis/normal_fs.glsl"
+        .vs_loc = "shaders/vis/normal_vs.glsl",
+        .gs_loc = "shaders/vis/normal_gs.glsl",
+        .fs_loc = "shaders/vis/normal_fs.glsl"
     },
     {
         .name = "tonemap_fx",
-        .vs_loc = "../ext/shaders/passthrough_vs.glsl",
+        .vs_loc = "shaders/passthrough_vs.glsl",
         .gs_loc = 0,
-        .fs_loc = "../ext/shaders/fx/tonemap.glsl"
+        .fs_loc = "shaders/fx/tonemap.glsl"
     },
     {
         .name = "gamma_fx",
-        .vs_loc = "../ext/shaders/passthrough_vs.glsl",
+        .vs_loc = "shaders/passthrough_vs.glsl",
         .gs_loc = 0,
-        .fs_loc = "../ext/shaders/fx/gamma.glsl"
+        .fs_loc = "shaders/fx/gamma.glsl"
     },
     {
         .name = "smaa_fx",
-        .vs_loc = "../ext/shaders/fx/smaa_pass_vs.glsl",
+        .vs_loc = "shaders/fx/smaa_pass_vs.glsl",
         .gs_loc = 0,
-        .fs_loc = "../ext/shaders/fx/smaa_pass_fs.glsl"
+        .fs_loc = "shaders/fx/smaa_pass_fs.glsl"
     }
 };
 

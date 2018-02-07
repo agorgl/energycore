@@ -278,13 +278,26 @@ static void shader_load_err(void* userdata, const char* err)
     fprintf(stderr, "%s\n", err);
 }
 
+static int shader_load_custom(void* userdata, const char* uri, unsigned char** buf)
+{
+    (void) userdata;
+    void* f; size_t sz;
+    int r = embedded_file(&f, &sz, uri);
+    if (r) {
+        const char* s = strndup(f, sz);
+        *buf = (unsigned char*)s;
+    }
+    return r;
+}
+
 unsigned int shader_from_files(const char* vsp, const char* gsp, const char* fsp)
 {
     /* Load settings */
     struct shader_load_settings settings;
     memset(&settings, 0, sizeof(settings));
-    settings.load_type = SHADER_LOAD_FILE;
-    settings.error_cb = shader_load_err;
+    settings.load_type = SHADER_LOAD_CUSTOM;
+    settings.load_fn   = shader_load_custom;
+    settings.error_cb  = shader_load_err;
     /* Load sources */
     const char* vs_src = shader_load(vsp, &settings);
     const char* gs_src = 0;
