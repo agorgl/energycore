@@ -31,9 +31,13 @@
 #ifndef _ASSET_H_
 #define _ASSET_H_
 
+#include <stdlib.h>
+
 /* Shader utils */
 unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char* fs_src);
 /* Texture utils */
 unsigned int texture_from_ktx(const char* filename);
+/* Embedded files */
+int embedded_file(void** data, size_t* sz, const char* fpath);
 
 #endif /* ! _ASSET_H_ */
