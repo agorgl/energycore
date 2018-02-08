@@ -1,8 +1,8 @@
 #include "resint.h"
 #include <string.h>
 #include <stdio.h>
-#include <glad/glad.h>
 #include <energycore/asset.h>
+#include "opengl.h"
 #include "txtpp.h"
 
 static const struct shdr_info {

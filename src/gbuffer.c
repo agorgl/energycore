@@ -1,7 +1,7 @@
 #include "gbuffer.h"
 #include <string.h>
 #include <assert.h>
-#include <glad/glad.h>
+#include "opengl.h"
 
 #define array_length(a) (sizeof(a)/sizeof(a[0]))
 

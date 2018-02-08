@@ -1,7 +1,7 @@
 #include "panicscr.h"
 #include <string.h>
 #include <stdio.h>
-#include <glad/glad.h>
+#include "opengl.h"
 #include <GL/glu.h>
 #include "dbgtxt.h"
 #include "prof.h"

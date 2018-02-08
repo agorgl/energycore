@@ -1,6 +1,6 @@
 #include "mrtdbg.h"
 #include <string.h>
-#include <glad/glad.h>
+#include "opengl.h"
 #include "glutils.h"
 
 #define GLSRCEXT(src) "#version 330 core\n" \

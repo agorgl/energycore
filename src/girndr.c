@@ -3,8 +3,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
-#include <glad/glad.h>
 #include <emproc/sh.h>
+#include "opengl.h"
 #include "probe.h"
 #include "gbuffer.h"
 #include "glutils.h"

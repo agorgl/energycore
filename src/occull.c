@@ -1,7 +1,7 @@
 #include "occull.h"
 #include <stdlib.h>
 #include <hashmap.h>
-#include <glad/glad.h>
+#include "opengl.h"
 #include "bbrndr.h"
 
 struct occlusion_info {

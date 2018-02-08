@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
-#include <glad/glad.h>
+#include "opengl.h"
 #include "tar.h"
 
 /*-----------------------------------------------------------------

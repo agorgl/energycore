@@ -1,5 +1,5 @@
 #include "skytex.h"
-#include <glad/glad.h>
+#include "opengl.h"
 #include "glutils.h"
 
 static const char* skybox_vs_src = GLSRC(

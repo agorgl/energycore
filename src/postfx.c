@@ -1,7 +1,7 @@
 #include "postfx.h"
 #include <string.h>
 #include <assert.h>
-#include <glad/glad.h>
+#include "opengl.h"
 #include "glutils.h"
 
 void postfx_init(struct postfx* pfx, unsigned int width, unsigned int height)

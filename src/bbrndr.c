@@ -1,6 +1,6 @@
 #include "bbrndr.h"
 #include <string.h>
-#include <glad/glad.h>
+#include "opengl.h"
 #include "glutils.h"
 
 static const char* vs_src = GLSRC(

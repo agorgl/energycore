@@ -1,8 +1,8 @@
 #include "dbgtxt.h"
 #include <stdlib.h>
 #include <string.h>
-#include <glad/glad.h>
 #include <linalgb.h>
+#include "opengl.h"
 #include "glutils.h"
 
 /* Embedded Fonts */

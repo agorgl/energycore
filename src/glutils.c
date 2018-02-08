@@ -3,11 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <glad/glad.h>
-#include <GL/glu.h>
 #define _USE_MATH_CONSTANTS
 #include <math.h>
 #define pi M_PI
+#include "opengl.h"
+#include <GL/glu.h>
 
 struct {
     struct {

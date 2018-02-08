@@ -4,7 +4,7 @@
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
-#include <glad/glad.h>
+#include "opengl.h"
 #include "skytex.h"
 #include "skyprth.h"
 #include "girndr.h"

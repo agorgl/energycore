@@ -2,9 +2,9 @@
 #include <string.h>
 #include <assert.h>
 #include <math.h>
-#include <glad/glad.h>
 #include <emproc/sh.h>
 #include <emproc/filter_util.h>
+#include "opengl.h"
 #include "glutils.h"
 
 /*-----------------------------------------------------------------

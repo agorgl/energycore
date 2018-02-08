@@ -1,7 +1,7 @@
 #include "skyprth.h"
 #include <string.h>
 #include <math.h>
-#include <glad/glad.h>
+#include "opengl.h"
 #include "glutils.h"
 
 static vec3 view_target(mat4* view)

@@ -1,7 +1,7 @@
 #include "frprof.h"
 #include <assert.h>
-#include <glad/glad.h>
 #include <stdio.h>
+#include "opengl.h"
 
 struct frame_prof* frame_prof_init()
 {
