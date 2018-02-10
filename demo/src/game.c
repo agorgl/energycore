@@ -28,10 +28,6 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         ctx->rndr_state.options.show_normals = !ctx->rndr_state.options.show_normals;
     else if (action == KEY_ACTION_RELEASE && key == KEY_M)
         ctx->cached_ri.sky_type = !ctx->cached_ri.sky_type;
-    else if (action == KEY_ACTION_RELEASE && key == KEY_KP_ADD)
-        ctx->cam.move_speed *= (ctx->cam.move_speed < 10e2) ? 2.0f : 1.0f;
-    else if (action == KEY_ACTION_RELEASE && key == KEY_KP_SUBTRACT)
-        ctx->cam.move_speed /= (ctx->cam.move_speed > 10e-2) ? 2.0f : 1.0f;
     else if (action == KEY_ACTION_RELEASE && key == KEY_B)
         ctx->rndr_state.options.show_bboxes = !ctx->rndr_state.options.show_bboxes;
     else if (action == KEY_ACTION_RELEASE && key == KEY_C)
@@ -139,8 +135,6 @@ static vec3 sun_dir_from_params(float inclination, float azimuth)
 void game_update(void* userdata, float dt)
 {
     struct game_context* ctx = userdata;
-    /* Update camera matrix */
-    camera_update(&ctx->cam);
     /* Update camera position */
     int cam_mov_flags = 0x0;
     if (window_key_state(ctx->wnd, KEY_W) == KEY_ACTION_PRESS)
@@ -151,20 +145,22 @@ void game_update(void* userdata, float dt)
         cam_mov_flags |= cmd_backward;
     if (window_key_state(ctx->wnd, KEY_D) == KEY_ACTION_PRESS)
         cam_mov_flags |= cmd_right;
-    if (window_key_state(ctx->wnd, KEY_LEFT_SHIFT) == KEY_ACTION_PRESS) {
-        float old_move_speed = ctx->cam.move_speed;
-        /* Temporarily increase move speed, make the move and restore it */
-        ctx->cam.move_speed = old_move_speed * 10.0f;
-        camera_move(&ctx->cam, cam_mov_flags, dt);
-        ctx->cam.move_speed = old_move_speed;
-    } else {
-        camera_move(&ctx->cam, cam_mov_flags, dt);
-    }
+    camera_move(&ctx->cam, cam_mov_flags, dt);
     /* Update camera look */
     float cur_diff_x = 0, cur_diff_y = 0;
     window_get_cursor_diff(ctx->wnd, &cur_diff_x, &cur_diff_y);
     if (window_is_cursor_grubbed(ctx->wnd))
         camera_look(&ctx->cam, cur_diff_x, cur_diff_y, dt);
+    /* Update camera matrix */
+    if (window_key_state(ctx->wnd, KEY_LEFT_SHIFT) == KEY_ACTION_PRESS) {
+        float old_max_vel = ctx->cam.max_vel;
+        /* Temporarily increase move speed, make the calculations and restore it */
+        ctx->cam.max_vel = old_max_vel * 10.0f;
+        camera_update(&ctx->cam, dt);
+        ctx->cam.max_vel = old_max_vel;
+    } else {
+        camera_update(&ctx->cam, dt);
+    }
     /* Update sun position */
     if (window_key_state(ctx->wnd, KEY_KP2) == KEY_ACTION_PRESS)
         ctx->cached_ri.sky_pp.inclination = clamp(ctx->cached_ri.sky_pp.inclination + 10e-3f, 0.0f, 1.0f);
