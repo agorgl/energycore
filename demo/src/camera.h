@@ -37,8 +37,7 @@ struct camera {
     /* Position and Orientation */
     vec3 pos;
     quat rot;
-    float yaw;
-    float pitch;
+    vec3 eul;
     /* Attributes */
     float move_speed;
     float sensitivity;
@@ -57,8 +56,8 @@ enum camera_move_dir {
 };
 
 void camera_defaults(struct camera* cam);
-void camera_move(struct camera* cam, int move_directions);
-void camera_look(struct camera* cam, float offx, float offy);
+void camera_move(struct camera* cam, int move_directions, float dt);
+void camera_look(struct camera* cam, float offx, float offy, float dt);
 void camera_update(struct camera* cam);
 void camera_setdir(struct camera* cam, vec3 dir);
 mat4 camera_interpolated_view(struct camera* cam, float interpolaton);

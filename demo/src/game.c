@@ -138,7 +138,6 @@ static vec3 sun_dir_from_params(float inclination, float azimuth)
 
 void game_update(void* userdata, float dt)
 {
-    (void) dt;
     struct game_context* ctx = userdata;
     /* Update camera matrix */
     camera_update(&ctx->cam);
@@ -156,16 +155,16 @@ void game_update(void* userdata, float dt)
         float old_move_speed = ctx->cam.move_speed;
         /* Temporarily increase move speed, make the move and restore it */
         ctx->cam.move_speed = old_move_speed * 10.0f;
-        camera_move(&ctx->cam, cam_mov_flags);
+        camera_move(&ctx->cam, cam_mov_flags, dt);
         ctx->cam.move_speed = old_move_speed;
     } else {
-        camera_move(&ctx->cam, cam_mov_flags);
+        camera_move(&ctx->cam, cam_mov_flags, dt);
     }
     /* Update camera look */
     float cur_diff_x = 0, cur_diff_y = 0;
     window_get_cursor_diff(ctx->wnd, &cur_diff_x, &cur_diff_y);
     if (window_is_cursor_grubbed(ctx->wnd))
-        camera_look(&ctx->cam, cur_diff_x, cur_diff_y);
+        camera_look(&ctx->cam, cur_diff_x, cur_diff_y, dt);
     /* Update sun position */
     if (window_key_state(ctx->wnd, KEY_KP2) == KEY_ACTION_PRESS)
         ctx->cached_ri.sky_pp.inclination = clamp(ctx->cached_ri.sky_pp.inclination + 10e-3f, 0.0f, 1.0f);
