@@ -26,7 +26,7 @@ void mainloop(struct mainloop_data* loop_data)
         lag += elapsed;
 
         while (lag > ms_per_update) {
-            loop_data->update_callback(loop_data->userdata, ms_per_update);
+            loop_data->update_callback(loop_data->userdata, ms_per_update / 1000.0f);
             lag -= ms_per_update;
         }
 
