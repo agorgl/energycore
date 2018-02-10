@@ -143,7 +143,13 @@ static void dbgtxt_add_text(vertex_t* verts, GLuint* indcs, const char* text, si
             continue;
         }
         /* Get corresponding glyph for current char */
-        struct font_map_entry glph = font_map[cc - 32]; /* TODO: Replace with font_map.c mapping */
+        struct font_map_entry glph;
+        if (cc != '\t')
+            glph = font_map[cc - 32]; /* TODO: Replace with font_map.c mapping */
+        else {
+            glph = font_map[' ' - 32];
+            glph.width *= 4; /* Tab is 4 spaces */
+        }
         /* Calculate glyph render triangles */
         int x0 = pen_x + glph.ox;
         int y0 = pen_y + glph.oy;
