@@ -35,19 +35,15 @@ typedef void(*mainloop_update_fn)(void*, float);
 typedef void(*mainloop_render_fn)(void*, float);
 typedef void(*mainloop_perf_fn)(void*, float fps, float msec);
 
-#ifndef ML_PERF_SAMPLES
-#define ML_PERF_SAMPLES 15
-#endif
-
-struct mainloop_data
-{
+struct mainloop_data {
     mainloop_update_fn update_callback;
     mainloop_render_fn render_callback;
     mainloop_perf_fn perf_callback;
     int should_terminate;
     int updates_per_second;
-    int perf_cur_sample_cnt;
-    float perf_samples[ML_PERF_SAMPLES];
+    float perf_refr_rate;
+    float perf_samples_sum;
+    int perf_samples_cnt;
     void* userdata;
 };
 

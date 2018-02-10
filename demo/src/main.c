@@ -49,6 +49,7 @@ int main(int argc, char* argv[])
     mld.update_callback = game_update;
     mld.render_callback = game_render;
     mld.perf_callback   = game_perf_update;
+    mld.perf_refr_rate  = 0.5;
     mld.userdata = &ctx;
     ctx.should_terminate = &mld.should_terminate;
 

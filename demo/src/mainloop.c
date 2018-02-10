@@ -34,14 +34,12 @@ void mainloop(struct mainloop_data* loop_data)
         loop_data->render_callback(loop_data->userdata, interpolation);
 
         if (loop_data->perf_callback) {
-            loop_data->perf_samples[loop_data->perf_cur_sample_cnt++] = elapsed;
-            if (loop_data->perf_cur_sample_cnt >= ML_PERF_SAMPLES) {
-                float avgms = 0.0f;
-                for (unsigned int i = 0; i < ML_PERF_SAMPLES; ++i)
-                    avgms += loop_data->perf_samples[i];
-                avgms /= ML_PERF_SAMPLES;
+            loop_data->perf_samples_sum += elapsed;
+            ++loop_data->perf_samples_cnt;
+            if (loop_data->perf_samples_sum / 1000.0f >= loop_data->perf_refr_rate) {
+                float avgms = loop_data->perf_samples_sum / loop_data->perf_samples_cnt;
                 loop_data->perf_callback(loop_data->userdata, avgms, 1000.0f / avgms);
-                loop_data->perf_cur_sample_cnt = 0;
+                loop_data->perf_samples_sum = loop_data->perf_samples_cnt = 0;
             }
         }
     }
