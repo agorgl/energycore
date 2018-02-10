@@ -7,7 +7,6 @@
 #include <math.h>
 #define pi M_PI
 #include "opengl.h"
-#include <GL/glu.h>
 
 struct {
     struct {
@@ -243,17 +242,4 @@ void uv_sphere_destroy(struct sphere_gdata* vdat)
     free(vdat->vertices);
     free(vdat->indices);
     free(vdat);
-}
-
-/* --------------------------------------------------
- * Checks and shows last OpenGL error
- * -------------------------------------------------- */
-void gl_check_error()
-{
-    GLenum err = glGetError();
-    if (err != GL_NO_ERROR) {
-        const GLubyte* err_desc = gluErrorString(err);
-        fprintf(stderr, "OpenGL error: %s", err_desc);
-        exit(EXIT_FAILURE);
-    }
 }

@@ -28,23 +28,9 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _PANICSCR_H_
-#define _PANICSCR_H_
+#ifndef _ERROR_H_
+#define _ERROR_H_
 
-#include <stdlib.h>
+void register_gl_error_handler(void(*cb)(void*, const char*), void* ud);
 
-struct panicscr_rndr {
-    int should_show;
-    const char* txt_buf;
-    size_t txt_len;
-    unsigned int cur_pos;
-    unsigned long long prev_timepoint;
-};
-
-void panicscr_init(struct panicscr_rndr* ps_rndr);
-void panicscr_settxt(struct panicscr_rndr* ps_rndr, const char* txt);
-void panicscr_addtxt(struct panicscr_rndr* ps_rndr, const char* txt);
-void panicscr_show(struct panicscr_rndr* ps_rndr);
-void panicscr_destroy(struct panicscr_rndr* ps_rndr);
-
-#endif /* ! _PANICSCR_H_ */
+#endif /* ! _ERROR_H_ */

@@ -34,48 +34,6 @@ static void* read_file_to_mem_buf(const char* fpath)
     return data_buf;
 }
 
-/* Checks and shows last shader compile error */
-void gl_check_last_compile_error(GLuint id)
-{
-    /* Check if last compile was successful */
-    GLint compileStatus;
-    glGetShaderiv(id, GL_COMPILE_STATUS, &compileStatus);
-    if (compileStatus == GL_FALSE) {
-        /* Gather the compile log size */
-        GLint logLength;
-        glGetShaderiv(id, GL_INFO_LOG_LENGTH, &logLength);
-        if (logLength != 0) {
-            /* Fetch and print log */
-            GLchar* buf = malloc(logLength * sizeof(GLchar));
-            glGetShaderInfoLog(id, logLength, 0, buf);
-            fprintf(stderr, "Shader error:\n%s\n", buf);
-            free(buf);
-            exit(EXIT_FAILURE);
-        }
-    }
-}
-
-/* Checks and shows last shader link error */
-void gl_check_last_link_error(GLuint id)
-{
-    /* Check if last link was successful */
-    GLint status;
-    glGetProgramiv(id, GL_LINK_STATUS, &status);
-    if (status == GL_FALSE) {
-        /* Gather the link log size */
-        GLint logLength;
-        glGetProgramiv(id, GL_INFO_LOG_LENGTH, &logLength);
-        if (logLength != 0) {
-            /* Fetch and print log */
-            GLchar* buf = malloc(logLength * sizeof(GLchar));
-            glGetProgramInfoLog(id, logLength, 0, buf);
-            fprintf(stderr, "Shader program error:\n%s\n", buf);
-            free(buf);
-            exit(EXIT_FAILURE);
-        }
-    }
-}
-
 /*-----------------------------------------------------------------
  * Ktx Loading
  *-----------------------------------------------------------------*/
@@ -170,14 +128,12 @@ unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char
     GLuint vs = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vs, 1, &vs_src, 0);
     glCompileShader(vs);
-    gl_check_last_compile_error(vs);
     /* Geometry */
     GLuint gs = 0;
     if (gs_src) {
         gs = glCreateShader(GL_GEOMETRY_SHADER);
         glShaderSource(gs, 1, &gs_src, 0);
         glCompileShader(gs);
-        gl_check_last_compile_error(gs);
     }
     /* Fragment */
     GLuint fs = 0;
@@ -185,7 +141,6 @@ unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char
         fs = glCreateShader(GL_FRAGMENT_SHADER);
         glShaderSource(fs, 1, &fs_src, 0);
         glCompileShader(fs);
-        gl_check_last_compile_error(fs);
     }
     /* Create program */
     GLuint prog = glCreateProgram();
@@ -195,7 +150,6 @@ unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char
     if (fs_src)
         glAttachShader(prog, fs);
     glLinkProgram(prog);
-    gl_check_last_link_error(prog);
     /* Free unnecessary resources */
     glDeleteShader(vs);
     if (gs_src)

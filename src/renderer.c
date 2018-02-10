@@ -4,6 +4,7 @@
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
+#include "error.h"
 #include "opengl.h"
 #include "skytex.h"
 #include "skyprth.h"
@@ -83,6 +84,7 @@ struct renderer_internal_state {
 };
 
 static void renderer_shdr_fetch(struct renderer_state* rs);
+static void pnkscr_err_cb(void* ud, const char* msg);
 
 /*-----------------------------------------------------------------
  * Initialization
@@ -105,6 +107,9 @@ void renderer_init(struct renderer_state* rs)
     renderer_resize(rs, width, height);
     /* Initialize gl utilities state */
     glutils_init();
+    /* Initialize internal panic screen state */
+    panicscr_init(&is->ps_rndr);
+    register_gl_error_handler(pnkscr_err_cb, &is->ps_rndr);
     /* Initialize embedded resources */
     resint_init();
     /* Initialize internal texture sky state */
@@ -120,9 +125,6 @@ void renderer_init(struct renderer_state* rs)
     /* Initialize internal shadowmap state */
     const GLuint shmap_res = 2048;
     shadowmap_init(&is->shdwmap, shmap_res, shmap_res);
-    /* Initialize internal panic screen state */
-    panicscr_init(&is->ps_rndr);
-    panicscr_register_gldbgcb(&is->ps_rndr);
     /* Fetch shaders */
     renderer_shdr_fetch(rs);
     /* Initialize frame profiler */
@@ -180,6 +182,14 @@ static void renderer_shdr_fetch(struct renderer_state* rs)
     is->shdrs.ibl.brdf_lut   = resint_shdr_fetch("brdf_lut");
     is->shdrs.ibl.prefilter  = resint_shdr_fetch("prefilter");
     is->sky_rndr.preeth.shdr = resint_shdr_fetch("sky_prth");
+}
+
+static void pnkscr_err_cb(void* ud, const char* msg)
+{
+    struct panicscr_rndr* ps = ud;
+    if (ps->should_show)
+        return;
+    panicscr_addtxt(ud, msg);
 }
 
 static void upload_gbuffer_uniforms(GLuint shdr, float viewport[2], mat4* view, mat4* proj)
