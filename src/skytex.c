@@ -31,9 +31,7 @@ uniform samplerCube sky_tex;
 
 void main()
 {
-    const float gamma = 2.2;
     vec3 color = texture(sky_tex, fs_in.tex_coords).rgb;
-    color = pow(color, vec3(gamma));
     fcolor = vec4(color, 1.0);
 }
 );

@@ -219,7 +219,7 @@ static void hdr_read_rle(float* out, unsigned char* in, unsigned int width, unsi
     free(scanline_buffer);
 }
 
-unsigned int texture_from_hdr(const char* fpath)
+int texture_data_from_hdr(float** data, unsigned int* w, unsigned int* h, const char* fpath)
 {
     /* Read file */
     void* data_buf = read_file_to_mem_buf(fpath);
@@ -278,18 +278,157 @@ unsigned int texture_from_hdr(const char* fpath)
         hdr_read_rle(img_data, (unsigned char*)p, width, height);
     }
 
-    /* Upload to GPU */
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, img_data);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    free(img_data);
+    /* Return data */
+    *data = img_data;
+    *w = width;
+    *h = height;
 
 cleanup:
     free(data_buf);
     return tex;
+}
+
+unsigned int texture_from_hdr(const char* fpath)
+{
+    /* Gather texture data */
+    float* data; unsigned int width, height;
+    texture_data_from_hdr(&data, &width, &height, fpath);
+
+    /* Upload to GPU */
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, data);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    free(data);
+    return tex;
+}
+
+/*
+ *              +----------+
+ *              | +---->+x |
+ *              | |        |
+ *              | |  +y    |
+ *              |+z      2 |
+ *   +----------+----------+----------+----------+
+ *   | +---->+z | +---->+x | +---->-z | +---->-x |
+ *   | |        | |        | |        | |        |
+ *   | |  -x    | |  +z    | |  +x    | |  -z    |
+ *   |-y      1 |-y      4 |-y      0 |-y      5 |
+ *   +----------+----------+----------+----------+
+ *              | +---->+x |
+ *              | |        |
+ *              | |  -y    |
+ *              |-z      3 |
+ *              +----------+
+ */
+static float cm_face_uv_vectors[6][3][3] =
+{
+    { /* +x face */
+        {  0.0f,  0.0f, -1.0f }, /* u -> -z */
+        {  0.0f, -1.0f,  0.0f }, /* v -> -y */
+        {  1.0f,  0.0f,  0.0f }, /* +x face */
+    },
+    { /* -x face */
+        {  0.0f,  0.0f,  1.0f }, /* u -> +z */
+        {  0.0f, -1.0f,  0.0f }, /* v -> -y */
+        { -1.0f,  0.0f,  0.0f }, /* -x face */
+    },
+    { /* +y face */
+        {  1.0f,  0.0f,  0.0f }, /* u -> +x */
+        {  0.0f,  0.0f,  1.0f }, /* v -> +z */
+        {  0.0f,  1.0f,  0.0f }, /* +y face */
+    },
+    { /* -y face */
+        {  1.0f,  0.0f,  0.0f }, /* u -> +x */
+        {  0.0f,  0.0f, -1.0f }, /* v -> -z */
+        {  0.0f, -1.0f,  0.0f }, /* -y face */
+    },
+    { /* +z face */
+        {  1.0f,  0.0f,  0.0f }, /* u -> +x */
+        {  0.0f, -1.0f,  0.0f }, /* v -> -y */
+        {  0.0f,  0.0f,  1.0f }, /* +z face */
+    },
+    { /* -z face */
+        { -1.0f,  0.0f,  0.0f }, /* u -> -x */
+        {  0.0f, -1.0f,  0.0f }, /* v -> -y */
+        {  0.0f,  0.0f, -1.0f }, /* -z face */
+    }
+};
+
+/* u and v should be center adressing and in [-1.0+inv_size..1.0-inv_size] range */
+static void cm_texel_coord_to_vec(float* out3f, float u, float v, uint8_t face_id)
+{
+    /* out = u * face_uv[0] + v * face_uv[1] + face_uv[2]. */
+    out3f[0] = cm_face_uv_vectors[face_id][0][0] * u + cm_face_uv_vectors[face_id][1][0] * v + cm_face_uv_vectors[face_id][2][0];
+    out3f[1] = cm_face_uv_vectors[face_id][0][1] * u + cm_face_uv_vectors[face_id][1][1] * v + cm_face_uv_vectors[face_id][2][1];
+    out3f[2] = cm_face_uv_vectors[face_id][0][2] * u + cm_face_uv_vectors[face_id][1][2] * v + cm_face_uv_vectors[face_id][2][2];
+
+    /* Normalize. */
+    const float inv_len = 1.0f / sqrtf(out3f[0] * out3f[0] + out3f[1] * out3f[1] + out3f[2] * out3f[2]);
+    out3f[0] *= inv_len;
+    out3f[1] *= inv_len;
+    out3f[2] *= inv_len;
+}
+
+static void dir_to_uv_equi(float uv[2], float v[3])
+{
+    uv[0] = atan2(v[2], v[0]) / (2 * M_PI) + 0.5;
+    uv[1] = asin(v[1]) / M_PI + 0.5;
+}
+
+unsigned int texture_cubemap_from_hdr(const char* fpath)
+{
+    /* Gather texture data */
+    float (*data)[3]; unsigned int width, height;
+    texture_data_from_hdr((float**)&data, &width, &height, fpath);
+
+    GLuint id;
+    glGenTextures(1, &id);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, id);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    unsigned int face_size = width / 4;
+    for (int i = 0; i < 6; ++i) {
+        /* Populate face data */
+        float (*face_data)[3] = calloc(1, face_size * face_size * sizeof(*face_data));
+        for (unsigned int k = 0; k < face_size; ++k) {
+            for (unsigned int l = 0; l < face_size; ++l) {
+                float texel_size = 1.0 / face_size;
+                /* Face, U, V -> Direction */
+                float u = ((k + 0.5) * texel_size) * 2.0 - 1.0;
+                float v = ((l + 0.5) * texel_size) * 2.0 - 1.0;
+                float vec[3];
+                cm_texel_coord_to_vec(vec, u, v, i);
+                /* Direction -> Equirect U, V */
+                float uv_equi[2];
+                dir_to_uv_equi(uv_equi, vec);
+                /* Sample */
+                unsigned int x = (unsigned int)(uv_equi[0] * (width  - 1));
+                unsigned int y = (unsigned int)(uv_equi[1] * (height - 1));
+                float* p = (float*)(data + y * width + x);
+                face_data[l * face_size + k][0] = p[0];
+                face_data[l * face_size + k][1] = p[1];
+                face_data[l * face_size + k][2] = p[2];
+            }
+        }
+        /* Upload image data */
+        int target = GL_TEXTURE_CUBE_MAP_POSITIVE_X + i;
+        glTexImage2D(target, 0, GL_RGB16F, face_size, face_size, 0, GL_RGB, GL_FLOAT, face_data);
+        free(face_data);
+    }
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+
+    free(data);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+    return id;
 }
 
 /*-----------------------------------------------------------------

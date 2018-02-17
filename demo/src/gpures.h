@@ -105,7 +105,6 @@ void model_free_from_gpu(struct model_hndl* mdlh);
 /* Texture gpu data */
 struct tex_hndl* tex_to_gpu(struct image* im);
 struct tex_hndl* tex_from_file_to_gpu(const char* filename);
-struct tex_hndl* tex_env_to_gpu(struct image* im);
 struct tex_hndl* tex_env_from_file_to_gpu(const char* filename);
 void tex_free_from_gpu(struct tex_hndl* th);
 /* Resource manager */

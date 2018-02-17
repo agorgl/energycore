@@ -38,6 +38,7 @@ unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char
 /* Texture utils */
 unsigned int texture_from_ktx(const char* filename);
 unsigned int texture_from_hdr(const char* filename);
+unsigned int texture_cubemap_from_hdr(const char* fpath);
 /* Embedded files */
 int embedded_file(void** data, size_t* sz, const char* fpath);
 

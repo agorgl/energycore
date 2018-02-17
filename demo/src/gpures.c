@@ -245,8 +245,9 @@ static size_t hcross_face_offset(int face, size_t face_size)
     return hcross_face_map[face][1] * face_size * stride + hcross_face_map[face][0] * face_size;
 }
 
-struct tex_hndl* tex_env_to_gpu(struct image* im)
+static unsigned int tex_env_from_hcross(void* data, unsigned int width, unsigned int height, unsigned int channels)
 {
+    (void) height;
     GLuint id;
     glGenTextures(1, &id);
     glBindTexture(GL_TEXTURE_CUBE_MAP, id);
@@ -257,8 +258,8 @@ struct tex_hndl* tex_env_to_gpu(struct image* im)
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
     /* Set row read stride */
-    unsigned int stride = im->width;
-    unsigned int face_size = im->width / 4;
+    unsigned int stride = width;
+    unsigned int face_size = width / 4;
     glPixelStorei(GL_UNPACK_ROW_LENGTH, stride);
 
     /* Upload image data */
@@ -266,26 +267,31 @@ struct tex_hndl* tex_env_to_gpu(struct image* im)
         int target = GL_TEXTURE_CUBE_MAP_POSITIVE_X + i;
         glTexImage2D(
             target, 0,
-            im->channels == 4 ? GL_RGBA : GL_RGB,
+            channels == 4 ? GL_SRGB8_ALPHA8 : GL_SRGB8,
             face_size, face_size, 0,
-            im->channels == 4 ? GL_RGBA : GL_RGB,
+            channels == 4 ? GL_RGBA : GL_RGB,
             GL_UNSIGNED_BYTE,
-            im->data + hcross_face_offset(i, face_size) * im->channels);
+            data + hcross_face_offset(i, face_size) * channels);
     }
     glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
-    struct tex_hndl* th = calloc(1, sizeof(struct tex_hndl));
-    th->id = id;
-    return th;
+    return id;
 }
 
 struct tex_hndl* tex_env_from_file_to_gpu(const char* filename)
 {
-    struct image* im = image_from_file(filename);
-    struct tex_hndl* th = tex_env_to_gpu(im);
-    image_delete(im);
+    GLuint id = 0;
+    if (strcmp(strrchr(filename, '.'), ".hdr") == 0) {
+        id = texture_cubemap_from_hdr(filename);
+    } else {
+        struct image* im = image_from_file(filename);
+        id = tex_env_from_hcross(im->data, im->width, im->height, im->channels);
+        image_delete(im);
+    }
+    struct tex_hndl* th = calloc(1, sizeof(struct tex_hndl));
+    th->id = id;
     return th;
 }
 
