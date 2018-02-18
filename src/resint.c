@@ -10,53 +10,46 @@ static const struct shdr_info {
     const char* vs_loc;
     const char* gs_loc;
     const char* fs_loc;
+    const char* cs_loc;
 } shdr_infos[] = {
     {
         .name = "geom_pass",
         .vs_loc = "static_vs.glsl",
-        .gs_loc = 0,
         .fs_loc = "geom_pass_fs.glsl"
     },
     {
         .name = "dir_light",
         .vs_loc = "passthrough_vs.glsl",
-        .gs_loc = 0,
         .fs_loc = "dir_light_fs.glsl"
     },
     {
         .name = "env_light",
         .vs_loc = "passthrough_vs.glsl",
-        .gs_loc = 0,
         .fs_loc = "env_light_fs.glsl"
     },
     {
         .name = "sky_prth",
         .vs_loc = "sky_prth_vs.glsl",
-        .gs_loc = 0,
         .fs_loc = "sky_prth_fs.glsl"
     },
     {
         .name = "irr_conv",
         .vs_loc = "ibl/cubemap_vs.glsl",
-        .gs_loc = 0,
         .fs_loc = "ibl/convolution_fs.glsl"
     },
     {
         .name = "brdf_lut",
         .vs_loc = "passthrough_vs.glsl",
-        .gs_loc = 0,
         .fs_loc = "ibl/brdf_lut_fs.glsl"
     },
     {
         .name = "prefilter",
         .vs_loc = "ibl/cubemap_vs.glsl",
-        .gs_loc = 0,
         .fs_loc = "ibl/prefilter_fs.glsl"
     },
     {
         .name = "probe_vis",
         .vs_loc = "static_vs.glsl",
-        .gs_loc = 0,
         .fs_loc = "vis/probe_fs.glsl"
     },
     {
@@ -68,19 +61,16 @@ static const struct shdr_info {
     {
         .name = "tonemap_fx",
         .vs_loc = "passthrough_vs.glsl",
-        .gs_loc = 0,
         .fs_loc = "fx/tonemap.glsl"
     },
     {
         .name = "gamma_fx",
         .vs_loc = "passthrough_vs.glsl",
-        .gs_loc = 0,
         .fs_loc = "fx/gamma.glsl"
     },
     {
         .name = "smaa_fx",
         .vs_loc = "fx/smaa_pass_vs.glsl",
-        .gs_loc = 0,
         .fs_loc = "fx/smaa_pass_fs.glsl"
     }
 };
@@ -127,6 +117,28 @@ static const char* shader_load(const char* fpath)
     return shdr_src;
 }
 
+struct shader_attachment {
+    GLenum type;
+    const char* src;
+};
+
+static unsigned int shader_build(struct shader_attachment* attachments, size_t num_attachments)
+{
+    GLuint prog = glCreateProgram();
+    for (size_t i = 0; i < num_attachments; ++i) {
+        struct shader_attachment* sa = &attachments[i];
+        if (sa->src) {
+            GLuint s = glCreateShader(sa->type);
+            glShaderSource(s, 1, &sa->src, 0);
+            glCompileShader(s);
+            glAttachShader(prog, s);
+            glDeleteShader(s);
+        }
+    }
+    glLinkProgram(prog);
+    return prog;
+}
+
 void resint_init()
 {
     for (unsigned int i = 0; i < sizeof(shdr_infos)/sizeof(shdr_infos[0]); ++i) {
@@ -134,7 +146,12 @@ void resint_init()
         const char* vs_src = shader_load(si->vs_loc);
         const char* gs_src = shader_load(si->gs_loc);
         const char* fs_src = shader_load(si->fs_loc);
-        shdrs[i] = shader_from_srcs(vs_src, gs_src, fs_src);
+        const char* cs_src = shader_load(si->cs_loc);
+        shdrs[i] = shader_build((struct shader_attachment[]){
+                {GL_VERTEX_SHADER,   vs_src},
+                {GL_GEOMETRY_SHADER, gs_src},
+                {GL_FRAGMENT_SHADER, fs_src},
+                {GL_COMPUTE_SHADER,  cs_src}}, 4);
         free((void*)vs_src);
         if (gs_src)
             free((void*)gs_src);
