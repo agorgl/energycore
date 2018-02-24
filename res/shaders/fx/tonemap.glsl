@@ -82,6 +82,19 @@ vec3 filmic(vec3 hdr_color)
 }
 
 //------------------------------------------------------------
+// ACES
+//------------------------------------------------------------
+vec3 aces_film(vec3 x)
+{
+    float a = 2.51f;
+    float b = 0.03f;
+    float c = 2.43f;
+    float d = 0.59f;
+    float e = 0.14f;
+    return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+}
+
+//------------------------------------------------------------
 // Entrypoint
 //------------------------------------------------------------
 void main()
@@ -97,6 +110,8 @@ void main()
         mapped = exposure(hdr_color, 1.0);
     else if (tonemap_type == 2)
         mapped = filmic(hdr_color);
+    else if (tonemap_type == 3)
+        mapped = aces_film(hdr_color);
 
     color = vec4(mapped, 1.0);
 }
