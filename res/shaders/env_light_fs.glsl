@@ -41,9 +41,10 @@ void main()
 
     // Ambient
     vec3 ao = vec3(1.0); // TODO
+    float intensity = 0.2;
     vec3 environ = env_radiance(
         d.normal, V, d.albedo, d.metallic,
         d.roughness, irr_map, pf_map, brdf_lut) * ao;
 
-    color = vec4(environ, 1.0);
+    color = vec4(intensity * environ, 1.0);
 }

@@ -1,6 +1,7 @@
-#version 330 core
+#version 430 core
 out vec4 color;
 uniform sampler2D tex;
+#include "eyeadapt_buf.glsl"
 
 //------------------------------------------------------------
 // Helpers
@@ -73,7 +74,7 @@ vec3 uncharted2tonemap(vec3 x)
 vec3 filmic(vec3 hdr_color)
 {
     // Filmic tone mapping http://filmicworlds.com/blog/filmic-tonemapping-operators/
-    hdr_color *= 16; // Hardcoded exposure adjustment
+    //hdr_color *= 16; // Hardcoded exposure adjustment
     float exposure_bias = 2.0f;
     vec3 curr = uncharted2tonemap(exposure_bias * hdr_color);
     vec3 white_scale = 1.0f / uncharted2tonemap(vec3(W));
@@ -100,9 +101,11 @@ vec3 aces_film(vec3 x)
 void main()
 {
     vec3 hdr_color = texelFetch(tex, ivec2(gl_FragCoord.xy), 0).rgb;
+    float exposure_value = exposure_cur;
+    hdr_color *= exposure_value;
 
     // Tone mapping types
-    const int tonemap_type = 0;
+    const int tonemap_type = 3;
     vec3 mapped = hdr_color;
     if (tonemap_type == 0)
         mapped = reinhard_white_preserving_luma(hdr_color);

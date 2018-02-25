@@ -20,6 +20,7 @@
 #include "dbgtxt.h"
 #include "mrtdbg.h"
 #include "postfx.h"
+#include "eyeadapt.h"
 #include "resint.h"
 #include "panicscr.h"
 #include "smaa_area_tex.h"
@@ -70,6 +71,8 @@ struct renderer_internal_state {
     struct gbuffer* gbuf; /* Active */
     /* Occlusion culling */
     struct occull_state occl_st;
+    /* Eye adaptation */
+    struct eyeadapt eyeadpt;
     /* Cached values */
     vec2 viewport;
     mat4 proj;
@@ -112,6 +115,8 @@ void renderer_init(struct renderer_state* rs)
     register_gl_error_handler(pnkscr_err_cb, &is->ps_rndr);
     /* Initialize embedded resources */
     resint_init();
+    /* Initialize internal eye adaptation state */
+    eyeadapt_init(&is->eyeadpt);
     /* Initialize internal texture sky state */
     sky_texture_init(&is->sky_rndr.tex);
     /* Initialize internal preetham sky state */
@@ -158,8 +163,8 @@ void renderer_init(struct renderer_state* rs)
     rs->options.use_detail_maps = 1;
     rs->options.use_shadows = 0;
     rs->options.use_envlight = 1;
-    rs->options.use_tonemapping = 0;
-    rs->options.use_gamma_correction = 0;
+    rs->options.use_tonemapping = 1;
+    rs->options.use_gamma_correction = 1;
     rs->options.show_bboxes = 0;
     rs->options.show_normals = 0;
     rs->options.show_fprof = 1;
@@ -182,6 +187,9 @@ static void renderer_shdr_fetch(struct renderer_state* rs)
     is->shdrs.ibl.brdf_lut   = resint_shdr_fetch("brdf_lut");
     is->shdrs.ibl.prefilter  = resint_shdr_fetch("prefilter");
     is->sky_rndr.preeth.shdr = resint_shdr_fetch("sky_prth");
+    is->eyeadpt.gl.shdr_clr  = resint_shdr_fetch("eyeadapt_clr");
+    is->eyeadpt.gl.shdr_hist = resint_shdr_fetch("eyeadapt_hist");
+    is->eyeadpt.gl.shdr_expo = resint_shdr_fetch("eyeadapt_expo");
 }
 
 static void pnkscr_err_cb(void* ud, const char* msg)
@@ -535,6 +543,8 @@ static void postprocess_pass(struct renderer_state* rs, unsigned int cur_fb)
         postfx_pass(&is->postfx);
     }
     if (rs->options.use_tonemapping) {
+        eyeadapt_luminance_hist(&is->eyeadpt);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, is->eyeadpt.gl.ssbo);
         shdr = is->shdrs.fx.tonemap;
         glUseProgram(shdr);
         postfx_pass(&is->postfx);
@@ -756,6 +766,7 @@ void renderer_destroy(struct renderer_state* rs)
     sky_texture_destroy(&is->sky_rndr.tex);
     resint_destroy();
     glutils_deinit();
+    eyeadapt_destroy(&is->eyeadpt);
     postfx_destroy(&is->postfx);
     gbuffer_destroy(&is->main_gbuf);
     free(rs->internal);

@@ -111,7 +111,7 @@ void game_init(struct game_context* ctx)
     ctx->gi_dirty = 1;
 
     /* Load sky texture from file into the GPU */
-    ctx->sky_tex = tex_env_from_file_to_gpu("ext/envmaps/stormydays_large.jpg");
+    ctx->sky_tex = tex_env_from_file_to_gpu("ext/envmaps/sun_clouds.hdr");
     ctx->cached_ri.sky_type = RST_TEXTURE;
     ctx->cached_ri.sky_tex = ctx->sky_tex->id;
     ctx->cached_ri.sky_pp.inclination = 0.8f;

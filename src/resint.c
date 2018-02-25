@@ -72,6 +72,18 @@ static const struct shdr_info {
         .name = "smaa_fx",
         .vs_loc = "fx/smaa_pass_vs.glsl",
         .fs_loc = "fx/smaa_pass_fs.glsl"
+    },
+    {
+        .name = "eyeadapt_clr",
+        .cs_loc = "fx/eyeadapt_clr.glsl"
+    },
+    {
+        .name = "eyeadapt_hist",
+        .cs_loc = "fx/eyeadapt_hist.glsl"
+    },
+    {
+        .name = "eyeadapt_expo",
+        .cs_loc = "fx/eyeadapt_expo.glsl"
     }
 };
 
