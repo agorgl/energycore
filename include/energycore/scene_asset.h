@@ -449,6 +449,33 @@ struct add_elements_options {
     int default_paths;
 };
 
+/* Datatype constructors / destructors */
+void camera_init(struct camera* c);
+void camera_destroy(struct camera* c);
+void texture_init(struct texture* t);
+void texture_destroy(struct texture* t);
+void texture_info_default(struct texture_info* ti);
+void material_init(struct material* m);
+void material_destroy(struct material* m);
+void shape_init(struct shape* s);
+void shape_destroy(struct shape* s);
+void _mesh_init(struct mesh* m); /* TODO: Resolve naming conflict */
+void _mesh_destroy(struct mesh* m); /* TODO: Resolve naming conflict */
+void mesh_instance_init(struct mesh_instance* mi);
+void mesh_instance_destroy(struct mesh_instance* mi);
+void environment_init(struct environment* e);
+void environment_destroy(struct environment* e);
+void node_init(struct node* n);
+void node_destroy(struct node* n);
+void animation_init(struct animation* a);
+void animation_destroy(struct animation* a);
+void animation_group_init(struct animation_group* ag);
+void animation_group_destroy(struct animation_group* ag);
+void skin_init(struct skin* s);
+void skin_destroy(struct skin* s);
+void scene_init(struct scene* s);
+void _scene_destroy(struct scene* s); /* TODO: Resolve naming conflict */
+
 /* Add elements */
 void scene_add_elements(struct scene* scn, const struct add_elements_options* opts);
 /* Update node transforms. */
