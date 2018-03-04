@@ -165,10 +165,9 @@ void resint_init()
                 {GL_FRAGMENT_SHADER, fs_src},
                 {GL_COMPUTE_SHADER,  cs_src}}, 4);
         free((void*)vs_src);
-        if (gs_src)
-            free((void*)gs_src);
-        if (fs_src)
-            free((void*)fs_src);
+        free((void*)gs_src);
+        free((void*)fs_src);
+        free((void*)cs_src);
     }
 }
 
