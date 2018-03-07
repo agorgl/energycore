@@ -49,9 +49,9 @@ typedef struct image4f { int w, h; float (*pixels)[4]; } image4f;
 typedef struct image4b { int w, h; unsigned char (*pixels)[4]; } image4b;
 
 /* Math primitive constants */
-const quat4f identity_quat4f = {0, 0, 0, 1};
-const frame3f identity_frame3f = {{1,0,0}, {0,1,0}, {0,0,1}, {0,0,0}};
-const mat4f identity_mat4f = {{1,0,0,0}, {0,1,0,0}, {0,0,1,0}, {0,0,0,1}};
+extern const quat4f identity_quat4f;
+extern const frame3f identity_frame3f;
+extern const mat4f identity_mat4f;
 
 /* Camera */
 struct camera {

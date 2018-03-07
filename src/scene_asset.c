@@ -2,6 +2,10 @@
 #include <string.h>
 #include <math.h>
 
+const quat4f identity_quat4f = {0, 0, 0, 1};
+const frame3f identity_frame3f = {{1,0,0}, {0,1,0}, {0,0,1}, {0,0,0}};
+const mat4f identity_mat4f = {{1,0,0,0}, {0,1,0,0}, {0,0,1,0}, {0,0,0,1}};
+
 void camera_init(struct camera* c)
 {
     c->name     = calloc(1, sizeof(const char));
