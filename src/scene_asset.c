@@ -8,7 +8,7 @@ const mat4f identity_mat4f = {{1,0,0,0}, {0,1,0,0}, {0,0,1,0}, {0,0,0,1}};
 
 void camera_init(struct camera* c)
 {
-    c->name     = calloc(1, sizeof(const char));
+    c->name     = 0;
     c->frame    = identity_frame3f;
     c->ortho    = 0;
     c->yfov     = 2.0 * atan(0.5);
@@ -27,8 +27,8 @@ void camera_destroy(struct camera* c)
 
 void texture_init(struct texture* t)
 {
-    t->name = calloc(1, sizeof(const char));
-    t->path = calloc(1, sizeof(const char));
+    t->name = 0;
+    t->path = 0;
     t->ldr  = (image4b){.w = 0, .h = 0, .pixels = 0};
     t->hdr  = (image4f){.w = 0, .h = 0, .pixels = 0};
 }
@@ -53,7 +53,7 @@ void texture_info_default(struct texture_info* ti)
 
 void material_init(struct material* m)
 {
-    m->name = calloc(1, sizeof(const char));
+    m->name = 0;
     m->type = MATERIAL_TYPE_METALLIC_ROUGHNESS;
     m->ke = (vec3f){0, 0, 0};
     m->kd = (vec3f){0, 0, 0};
@@ -105,7 +105,7 @@ void material_destroy(struct material* m)
 
 void shape_init(struct shape* s)
 {
-    s->name = calloc(1, sizeof(const char));
+    s->name = 0;
     s->mat  = 0;
     s->points             = 0;
     s->num_points         = 0;
@@ -173,8 +173,8 @@ void shape_destroy(struct shape* s)
 /* TODO: Resolve naming conflict */
 void _mesh_init(struct mesh* m)
 {
-    m->name       = calloc(1, sizeof(const char));
-    m->path       = calloc(1, sizeof(const char));
+    m->name       = 0;
+    m->path       = 0;
     m->shapes     = 0;
     m->num_shapes = 0;
 }
@@ -194,7 +194,7 @@ void _mesh_destroy(struct mesh* m)
 
 void mesh_instance_init(struct mesh_instance* mi)
 {
-    mi->name  = calloc(1, sizeof(const char));
+    mi->name  = 0;
     mi->frame = identity_frame3f;
     mi->msh   = 0;
 }
@@ -207,7 +207,7 @@ void mesh_instance_destroy(struct mesh_instance* mi)
 
 void environment_init(struct environment* e)
 {
-    e->name        = calloc(1, sizeof(const char));
+    e->name        = 0;
     e->frame       = identity_frame3f;
     e->ke          = (vec3f){0, 0, 0};
     e->ke_txt      = 0;
@@ -224,7 +224,7 @@ void environment_destroy(struct environment* e)
 
 void node_init(struct node* n)
 {
-    n->name         = calloc(1, sizeof(const char));
+    n->name         = 0;
     n->parent       = 0;
     n->frame        = identity_frame3f;
     n->translation  = (vec3f){0, 0, 0};
@@ -247,7 +247,7 @@ void node_destroy(struct node* n)
 
 void animation_init(struct animation* a)
 {
-    a->name             = calloc(1, sizeof(const char));
+    a->name             = 0;
     a->type             = KEYFRAME_INTERPOLATION_LINEAR;
     a->times            = 0;
     a->num_times        = 0;
@@ -271,8 +271,8 @@ void animation_destroy(struct animation* a)
 
 void animation_group_init(struct animation_group* ag)
 {
-    ag->name           = calloc(1, sizeof(const char));
-    ag->path           = calloc(1, sizeof(const char));
+    ag->name           = 0;
+    ag->path           = 0;
     ag->animations     = 0;
     ag->num_animations = 0;
     ag->targets        = 0;
@@ -294,8 +294,8 @@ void animation_group_destroy(struct animation_group* ag)
 
 void skin_init(struct skin* s)
 {
-    s->name              = calloc(1, sizeof(const char));
-    s->path              = calloc(1, sizeof(const char));
+    s->name              = 0;
+    s->path              = 0;
     s->pose_matrices     = 0;
     s->num_pose_matrices = 0;
     s->joints            = 0;
