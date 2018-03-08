@@ -59,6 +59,7 @@ static int file_load(const char* fpath, struct txtpp_settings* settings, unsigne
         rewind(f);
         *data_buf = malloc(file_sz + 1);
         fread(*data_buf, 1, file_sz, f);
+        fclose(f);
         *(*data_buf + file_sz) = '\0';
         return 1;
     } else if (settings->load_type == TXTPP_LOAD_CUSTOM) {

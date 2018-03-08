@@ -32,6 +32,7 @@ static void* read_file_to_mem_buf(const char* fpath)
     rewind(f);
     void* data_buf = malloc(file_sz);
     fread(data_buf, 1, file_sz, f);
+    fclose(f);
 
     return data_buf;
 }
