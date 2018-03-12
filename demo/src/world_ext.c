@@ -1,4 +1,4 @@
-#include "scene_ext.h"
+#include "world_ext.h"
 #include <string.h>
 #include <stdio.h>
 #include <prof.h>
@@ -18,7 +18,7 @@ static inline int mesh_group_offset_from_name(struct model_hndl* m, const char* 
     return -2;
 }
 
-struct scene* scene_external(const char* scene_file, struct res_mngr* rmgr)
+struct world* world_external(const char* scene_file, struct res_mngr* rmgr)
 {
     /* Load scene file */
     struct scene_file* sc = scene_file_load(scene_file);
@@ -111,9 +111,8 @@ struct scene* scene_external(const char* scene_file, struct res_mngr* rmgr)
         }
     }
 
-    /* Initialize scene */
-    struct scene* s = scene_create();
-    struct world* world = s->world;
+    /* Initialize world */
+    struct world* world = world_create();
     /* Used to later populate parent relations */
     entity_t* transform_handles = calloc(sc->num_objects, sizeof(entity_t));
     struct hashmap transform_handles_map;
@@ -180,5 +179,5 @@ struct scene* scene_external(const char* scene_file, struct res_mngr* rmgr)
     free(transform_handles);
     scene_file_destroy(sc);
 
-    return s;
+    return world;
 }

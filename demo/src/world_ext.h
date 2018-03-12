@@ -28,12 +28,11 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _SCENE_EXT_H_
-#define _SCENE_EXT_H_
+#ifndef _WORLD_EXT_H_
+#define _WORLD_EXT_H_
 
-#include "scene.h"
 #include "gpures.h"
 
-struct scene* scene_external(const char* scene_file, struct res_mngr* rmgr);
+struct world* world_external(const char* scene_file, struct res_mngr* rmgr);
 
-#endif /* ! _SCENE_EXT_H_ */
+#endif /* ! _WORLD_EXT_H_ */

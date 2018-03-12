@@ -9,7 +9,7 @@
 #include "util.h"
 #include "ecs/world.h"
 #include "ecs/components.h"
-#include "scene_ext.h"
+#include "world_ext.h"
 
 #define SCENE_FILE "ext/scenes/sample_scene.json"
 
@@ -98,8 +98,7 @@ void game_init(struct game_context* ctx)
 
     /* Load data into GPU and construct world entities */
     bench("[+] Tot time")
-        ctx->main_scene = scene_external(scene_file, ctx->rmgr);
-    ctx->active_scene = ctx->main_scene;
+        ctx->world = world_external(scene_file, ctx->rmgr);
 
     /* Initialize camera */
     camera_defaults(&ctx->cam);
@@ -187,7 +186,7 @@ static void prepare_renderer_input_lights(struct renderer_input* ri)
 
 static void prepare_renderer_input(struct game_context* ctx, struct renderer_input* ri)
 {
-    struct world* world = ctx->active_scene->world;
+    struct world* world = ctx->world;
     /* Count total meshes */
     const size_t num_ents = entity_total(world->ecs);
     ri->num_meshes = 0;
@@ -319,8 +318,8 @@ void game_shutdown(struct game_context* ctx)
     /* Destroy renderer */
     renderer_destroy(&ctx->rndr_state);
 
-    /* Destroy main scene */
-    scene_destroy(ctx->main_scene);
+    /* Destroy world */
+    world_destroy(ctx->world);
 
     /* Destroy resource manager */
     res_mngr_destroy(ctx->rmgr);

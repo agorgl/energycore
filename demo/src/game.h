@@ -43,10 +43,8 @@ struct game_context
     int* should_terminate;
     /* GPU Resource Manager */
     struct res_mngr* rmgr;
-    /* Scene list */
-    struct scene* main_scene;
-    /* Active scene pointer */
-    struct scene* active_scene;
+    /* World */
+    struct world* world;
     /* Camera */
     struct camera cam;
     /* Sky */
