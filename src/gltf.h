@@ -205,14 +205,19 @@ struct gltf_material {
     int double_sided;
 };
 
+/* A key-value pair */
+struct gltf_mesh_primitive_attribute {
+    /* Mesh attribute semantic */
+    const char* semantic;
+    /* The index of the accessor containing attribute's data */
+    int accessor_index;
+};
+
 /* Geometry to be rendered with the given material */
 struct gltf_mesh_primitive {
     /* A dictionary object, where each key corresponds to mesh attribute semantic
      * and each value is the index of the accessor containing attribute's data */
-    struct {
-        const char* key;
-        int value;
-    }* attributes;
+    struct gltf_mesh_primitive_attribute* attributes;
     size_t num_attributes;
     /* The index of the accessor that contains the indices */
     gltf_id indices;
@@ -223,10 +228,7 @@ struct gltf_mesh_primitive {
     /* An array of Morph Targets, each  Morph Target is a dictionary mapping
      * attributes (only `POSITION`, `NORMAL`, and `TANGENT` supported)
      * to their deviations in the Morph Target */
-    struct {
-        const char* key;
-        int value;
-    } (*targets[3]);
+    struct gltf_mesh_primitive_attribute (*targets)[3];
     size_t num_targets;
 };
 
@@ -503,5 +505,9 @@ struct gltf {
     const char** extensions_required;
     size_t num_extensions_required;
 };
+
+struct gltf* gltf_file_load(const char* filepath);
+void gltf_destroy(struct gltf* gltf);
+struct scene* gltf_to_scene(const struct gltf* gltf);
 
 #endif /* ! _GLTF_H_ */
