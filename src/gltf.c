@@ -10,7 +10,7 @@
  * Parsing Utils
  *---------------------------------------------------------------------------*/
 /* Reads file from disk to memory allocating needed space */
-static void* read_file_to_mem_buf(const char* fpath)
+static void* read_file_to_mem_buf(const char* fpath, size_t* buf_sz)
 {
     /* Check file for existence */
     FILE* f = 0;
@@ -32,11 +32,90 @@ static void* read_file_to_mem_buf(const char* fpath)
     fread(data_buf, 1, file_sz, f);
     fclose(f);
 
+    /* Store buffer size */
+    if (buf_sz)
+        *buf_sz = file_sz;
+
     return data_buf;
 }
 
 /* Get the directory part of a filepath */
-static const char* dirname(const char* filepath) { return strrchr(filepath, '/'); }
+static const char* dirname(const char* filepath)
+{
+    char* s = strdup(filepath);
+    s[strrchr(s, '/') - s + 1] = 0;
+    return s;
+}
+
+static int startswith(const char* str, const char* pre)
+{
+    size_t lenpre = strlen(pre),
+           lenstr = strlen(str);
+    return lenstr < lenpre ? 0 : strncmp(pre, str, lenpre) == 0;
+}
+
+/* Base64 decoding */
+static const unsigned char base64_table[65] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static unsigned char* base64_decode(const unsigned char* src, size_t len, size_t* out_len)
+{
+    unsigned char dtable[256], *out, *pos, block[4], tmp;
+    size_t i, count, olen;
+    int pad = 0;
+
+    memset(dtable, 0x80, 256);
+    for (i = 0; i < sizeof(base64_table) - 1; i++)
+        dtable[base64_table[i]] = (unsigned char)i;
+    dtable['='] = 0;
+
+    count = 0;
+    for (i = 0; i < len; i++) {
+        if (dtable[src[i]] != 0x80)
+            count++;
+    }
+
+    if (count == 0 || count % 4)
+        return 0;
+
+    olen = count / 4 * 3;
+    pos = out = malloc(olen);
+    if (out == 0)
+        return 0;
+
+    count = 0;
+    for (i = 0; i < len; i++) {
+        tmp = dtable[src[i]];
+        if (tmp == 0x80)
+            continue;
+
+        if (src[i] == '=')
+            pad++;
+        block[count] = tmp;
+        count++;
+        if (count == 4) {
+            *pos++ = (block[0] << 2) | (block[1] >> 4);
+            *pos++ = (block[1] << 4) | (block[2] >> 2);
+            *pos++ = (block[2] << 6) | block[3];
+            count = 0;
+            if (pad) {
+                if (pad == 1)
+                    pos--;
+                else if (pad == 2)
+                    pos -= 2;
+                else {
+                    /* Invalid padding */
+                    free(out);
+                    return 0;
+                }
+                break;
+            }
+        }
+    }
+
+    *out_len = pos - out;
+    return out;
+}
 
 /* Error handling */
 static char parse_err_buf[128];
@@ -1001,10 +1080,39 @@ static int gltf_file_parse(struct gltf* gltf, void* data)
     return 1;
 }
 
+static void gltf_file_load_buffers(struct gltf* gltf, const char* dirname)
+{
+    for (size_t i = 0; i < gltf->num_buffers; ++i) {
+        struct gltf_buffer* b = &gltf->buffers[i];
+        if (strcmp(b->uri, "") == 0) continue;
+        if (startswith(b->uri, "data:")) {
+            /* Buffer data is base64 encoded in uri field */
+            const char* pos = strchr(b->uri, ',');
+            if (!pos)
+                assert(0 && "Invalid base64 data");
+            size_t decoded_sz = 0;
+            b->data = base64_decode((const unsigned char*)pos + 1, strlen(pos + 1), &decoded_sz);
+            if ((size_t)b->byte_length != decoded_sz)
+                assert(0 && "Decoded buffer size mismatch");
+        } else {
+            /* Buffer data is in external file */
+            size_t fpath_len = strlen(dirname) + strlen(b->uri);
+            char* fpath = calloc(1, fpath_len + 1);
+            strcat(fpath, dirname);
+            strcat(fpath, b->uri);
+            size_t loaded_sz = 0;
+            b->data = read_file_to_mem_buf(fpath, &loaded_sz);
+            free(fpath);
+            if ((size_t)b->byte_length != loaded_sz)
+                assert(0 && "Loaded buffer size mismatch");
+        }
+    }
+}
+
 struct gltf* gltf_file_load(const char* filepath)
 {
     /* Load json data */
-    void* json_data = read_file_to_mem_buf(filepath);
+    void* json_data = read_file_to_mem_buf(filepath, 0);
     if (!json_data)
         return 0;
 
@@ -1018,11 +1126,12 @@ struct gltf* gltf_file_load(const char* filepath)
 
     /* Load external resources */
     const char* dname = dirname(filepath);
-    (void) dname;
-    /*
     gltf_file_load_buffers(gltf, dname);
+    /*
     gltf_file_load_images(gltf, dname);
      */
+    free((void*)dname);
+
     free(json_data);
     return gltf;
 }
@@ -1079,6 +1188,7 @@ void gltf_destroy(struct gltf* gltf)
         struct gltf_buffer* b = &gltf->buffers[i];
         free((void*)b->name);
         free((void*)b->uri);
+        free(b->data);
     }
     free(gltf->buffers);
 
@@ -1196,13 +1306,6 @@ void gltf_destroy(struct gltf* gltf)
 /*---------------------------------------------------------------------------
  * Data population
  *---------------------------------------------------------------------------*/
-static int startswith(const char* pre, const char* str)
-{
-    size_t lenpre = strlen(pre),
-           lenstr = strlen(str);
-    return lenstr < lenpre ? 0 : strncmp(pre, str, lenpre) == 0;
-}
-
 static enum texture_filter filter_min_map(int f)
 {
     static const struct { int g; enum texture_filter e;} m[] = {
@@ -1307,9 +1410,8 @@ static void gltf_accessor_view_init(struct gltf_accessor_view* accessor_view, co
     struct gltf_buffer_view* buffer_view = &gltf->buffer_views[accessor->buffer_view];
     accessor_view->ctype_size = gltf_accessor_ctype_size(accessor_view->ctype);
     accessor_view->stride = (buffer_view->byte_stride) ? (size_t)buffer_view->byte_stride : (accessor_view->ctype_size * accessor_view->ncomp);
-    //struct gltf_buffer* buffer = &gltf->buffers[buffer_view->buffer];
-    void* bdata = 0; // TODO!
-    accessor_view->data = bdata + accessor->byte_offset + buffer_view->byte_offset;
+    struct gltf_buffer* buffer = &gltf->buffers[buffer_view->buffer];
+    accessor_view->data = buffer->data + accessor->byte_offset + buffer_view->byte_offset;
 }
 
 static float gltf_accessor_view_get(struct gltf_accessor_view* av, int idx, int c)

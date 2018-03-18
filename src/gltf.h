@@ -360,6 +360,8 @@ struct gltf_buffer {
     const char* uri;
     /* The length of the buffer in bytes */
     int byte_length;
+    /* Loaded data */
+    unsigned char* data;
 };
 
 /* A view into a buffer generally representing a subset of the buffer */
