@@ -334,8 +334,7 @@ void scene_init(struct scene* s)
     s->num_skins        = 0;
 }
 
-/* TODO: Resolve naming conflict */
-void _scene_destroy(struct scene* s)
+void scene_destroy(struct scene* s)
 {
     for (size_t i = 0; i < s->num_meshes; ++i) {
         _mesh_destroy(s->meshes[i]);

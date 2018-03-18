@@ -474,7 +474,7 @@ void animation_group_destroy(struct animation_group* ag);
 void skin_init(struct skin* s);
 void skin_destroy(struct skin* s);
 void scene_init(struct scene* s);
-void _scene_destroy(struct scene* s); /* TODO: Resolve naming conflict */
+void scene_destroy(struct scene* s);
 
 /* Add elements */
 void scene_add_elements(struct scene* scn, const struct add_elements_options* opts);
