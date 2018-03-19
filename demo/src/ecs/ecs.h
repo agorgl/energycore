@@ -31,7 +31,7 @@
 #ifndef _ECS_H_
 #define _ECS_H_
 
-#include "slot_map.h"
+#include <energycore/slot_map.h>
 
 /* ECS opaque data type */
 typedef struct ecs* ecs_t;
