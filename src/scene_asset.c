@@ -64,27 +64,31 @@ void material_init(struct material* m)
     m->op = 1.0;
     m->double_sided = 0;
 
-    m->ke_txt   = 0;
-    m->kd_txt   = 0;
-    m->ks_txt   = 0;
-    m->kr_txt   = 0;
-    m->kt_txt   = 0;
-    m->rs_txt   = 0;
-    m->bump_txt = 0;
-    m->disp_txt = 0;
-    m->norm_txt = 0;
-    m->occ_txt  = 0;
+    m->ke_txt    = 0;
+    m->kd_txt    = 0;
+    m->ks_txt    = 0;
+    m->kr_txt    = 0;
+    m->kt_txt    = 0;
+    m->rs_txt    = 0;
+    m->bump_txt  = 0;
+    m->disp_txt  = 0;
+    m->norm_txt  = 0;
+    m->occ_txt   = 0;
+    m->kdd_txt   = 0;
+    m->normd_txt = 0;
 
-    m->ke_txt_info   = 0;
-    m->kd_txt_info   = 0;
-    m->ks_txt_info   = 0;
-    m->kr_txt_info   = 0;
-    m->kt_txt_info   = 0;
-    m->rs_txt_info   = 0;
-    m->bump_txt_info = 0;
-    m->disp_txt_info = 0;
-    m->norm_txt_info = 0;
-    m->occ_txt_info  = 0;
+    m->ke_txt_info    = 0;
+    m->kd_txt_info    = 0;
+    m->ks_txt_info    = 0;
+    m->kr_txt_info    = 0;
+    m->kt_txt_info    = 0;
+    m->rs_txt_info    = 0;
+    m->bump_txt_info  = 0;
+    m->disp_txt_info  = 0;
+    m->norm_txt_info  = 0;
+    m->occ_txt_info   = 0;
+    m->kdd_txt_info   = 0;
+    m->normd_txt_info = 0;
 }
 
 void material_destroy(struct material* m)
@@ -100,6 +104,8 @@ void material_destroy(struct material* m)
     free(m->disp_txt_info);
     free(m->norm_txt_info);
     free(m->occ_txt_info);
+    free(m->kdd_txt_info);
+    free(m->normd_txt_info);
     memset(m, 0, sizeof(*m));
 }
 

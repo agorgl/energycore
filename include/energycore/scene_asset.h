@@ -181,6 +181,10 @@ struct material {
     struct texture* norm_txt;
     /* Occlusion texture ref (default: null) */
     struct texture* occ_txt;
+    /* Detail diffuse / base texture ref (default: null) */
+    struct texture* kdd_txt;
+    /* Detail normal texture ref (default: null) */
+    struct texture* normd_txt;
 
     /* Emission texture info (default: null) */
     struct texture_info* ke_txt_info;
@@ -202,6 +206,10 @@ struct material {
     struct texture_info* norm_txt_info;
     /* Occlusion texture info (default: null) */
     struct texture_info* occ_txt_info;
+    /* Detail diffuse / base texture info (default: null) */
+    struct texture_info* kdd_txt_info;
+    /* Detail normal texture info (default: null) */
+    struct texture_info* normd_txt_info;
 };
 
 /* Shape data represented as an indexed array.
