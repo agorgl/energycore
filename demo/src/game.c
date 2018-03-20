@@ -101,9 +101,9 @@ void game_init(struct game_context* ctx)
         ctx->world = world_external(scene_file, ctx->rmgr);
 
     /* Initialize camera */
-    camera_defaults(&ctx->cam);
+    camctrl_defaults(&ctx->cam);
     ctx->cam.pos = vec3_new(0.0, 1.0, 3.0);
-    camera_setdir(&ctx->cam, vec3_normalize(vec3_mul(ctx->cam.pos, -1)));
+    camctrl_setdir(&ctx->cam, vec3_normalize(vec3_mul(ctx->cam.pos, -1)));
 
     /* Initialize renderer */
     renderer_init(&ctx->rndr_state);
@@ -144,21 +144,21 @@ void game_update(void* userdata, float dt)
         cam_mov_flags |= cmd_backward;
     if (window_key_state(ctx->wnd, KEY_D) == KEY_ACTION_PRESS)
         cam_mov_flags |= cmd_right;
-    camera_move(&ctx->cam, cam_mov_flags, dt);
+    camctrl_move(&ctx->cam, cam_mov_flags, dt);
     /* Update camera look */
     float cur_diff_x = 0, cur_diff_y = 0;
     window_get_cursor_diff(ctx->wnd, &cur_diff_x, &cur_diff_y);
     if (window_is_cursor_grubbed(ctx->wnd))
-        camera_look(&ctx->cam, cur_diff_x, cur_diff_y, dt);
+        camctrl_look(&ctx->cam, cur_diff_x, cur_diff_y, dt);
     /* Update camera matrix */
     if (window_key_state(ctx->wnd, KEY_LEFT_SHIFT) == KEY_ACTION_PRESS) {
         float old_max_vel = ctx->cam.max_vel;
         /* Temporarily increase move speed, make the calculations and restore it */
         ctx->cam.max_vel = old_max_vel * 10.0f;
-        camera_update(&ctx->cam, dt);
+        camctrl_update(&ctx->cam, dt);
         ctx->cam.max_vel = old_max_vel;
     } else {
-        camera_update(&ctx->cam, dt);
+        camctrl_update(&ctx->cam, dt);
     }
     /* Update sun position */
     if (window_key_state(ctx->wnd, KEY_KP2) == KEY_ACTION_PRESS)
@@ -285,7 +285,7 @@ void game_render(void* userdata, float interpolation)
     }
 
     /* Render */
-    mat4 iview = camera_interpolated_view(&ctx->cam, interpolation);
+    mat4 iview = camctrl_interpolated_view(&ctx->cam, interpolation);
     renderer_render(&ctx->rndr_state, &ctx->cached_ri, (float*)&iview);
 
     /* Show rendered contents from the backbuffer */

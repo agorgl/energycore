@@ -33,7 +33,7 @@
 
 #include <linalgb.h>
 #include <energycore/renderer.h>
-#include "camera.h"
+#include "camctrl.h"
 
 struct game_context
 {
@@ -45,8 +45,8 @@ struct game_context
     struct res_mngr* rmgr;
     /* World */
     struct world* world;
-    /* Camera */
-    struct camera cam;
+    /* Camera control */
+    struct camctrl cam;
     /* Sky */
     struct tex_hndl* sky_tex;
     /* Renderer state and his cached input */

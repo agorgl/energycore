@@ -1,10 +1,10 @@
-#include "camera.h"
+#include "camctrl.h"
 #include <string.h>
 #include <math.h>
 
 #define CLAMP(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 
-void camera_defaults(struct camera* cam)
+void camctrl_defaults(struct camctrl* cam)
 {
     cam->pos = cam->prev_pos = vec3_new(0.0f, 0.0f, 0.0f);
     cam->rot = cam->prev_rot = quat_id();
@@ -18,7 +18,7 @@ void camera_defaults(struct camera* cam)
     cam->view_mat = mat4_id();
 }
 
-void camera_move(struct camera* cam, int move_directions, float dt)
+void camctrl_move(struct camctrl* cam, int move_directions, float dt)
 {
     mat4 v = mat4_rotation_quat(cam->rot);
     vec3 forward = vec3_new(v.m2[0][2], v.m2[1][2], v.m2[2][2]);
@@ -47,20 +47,20 @@ void camera_move(struct camera* cam, int move_directions, float dt)
     cam->vel = vec3_add(cam->vel, vec3_add(vec3_mul(forward, -dz), vec3_mul(strafe, dx)));
 }
 
-void camera_look(struct camera* cam, float offx, float offy, float dt)
+void camctrl_look(struct camctrl* cam, float offx, float offy, float dt)
 {
     cam->angvel.x += offy * cam->ang_accel * dt;
     cam->angvel.y += offx * cam->ang_accel * dt;
 }
 
-void camera_setdir(struct camera* cam, vec3 dir)
+void camctrl_setdir(struct camctrl* cam, vec3 dir)
 {
     dir = vec3_normalize(vec3_mul(dir, -1));
     cam->eul.x = degrees(asin(dir.y));
     cam->eul.y = degrees(atan2f(dir.x, dir.z));
 }
 
-static inline mat4 camera_view(vec3 pos, quat rot)
+static inline mat4 camctrl_view(vec3 pos, quat rot)
 {
     return mat4_mul_mat4(
         mat4_rotation_quat(rot),
@@ -68,7 +68,7 @@ static inline mat4 camera_view(vec3 pos, quat rot)
     );
 }
 
-void camera_update(struct camera* cam, float dt)
+void camctrl_update(struct camctrl* cam, float dt)
 {
     /* Store previous state for interpolation */
     cam->prev_rot = cam->rot;
@@ -95,12 +95,12 @@ void camera_update(struct camera* cam, float dt)
     cam->rot = quat_mul_quat(pq, yq);
 
     /* Construct view matrix */
-    cam->view_mat = camera_view(cam->pos, cam->rot);
+    cam->view_mat = camctrl_view(cam->pos, cam->rot);
 }
 
-mat4 camera_interpolated_view(struct camera* cam, float interpolation)
+mat4 camctrl_interpolated_view(struct camctrl* cam, float interpolation)
 {
     vec3 ipos = vec3_lerp(cam->prev_pos, cam->pos, interpolation);
     quat irot = quat_slerp(cam->prev_rot, cam->rot, interpolation);
-    return camera_view(ipos, irot);
+    return camctrl_view(ipos, irot);
 }
