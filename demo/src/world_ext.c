@@ -10,8 +10,8 @@
 
 static inline int mesh_group_offset_from_name(struct model_hndl* m, const char* mgroup_name)
 {
-    for (unsigned int i = 0; i <m->num_mesh_groups; ++i) {
-        if (strcmp(m->mesh_groups[i]->name, mgroup_name) == 0) {
+    for (unsigned int i = 0; i < m->num_mgroup_names; ++i) {
+        if (strcmp(m->mgroup_names[i], mgroup_name) == 0) {
             return i;
         }
     }

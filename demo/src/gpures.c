@@ -4,26 +4,25 @@
 #include <string.h>
 #include <prof.h>
 #include <glad/glad.h>
-#include <assets/assetload.h>
-#include <assets/model/postprocess.h>
 #include <energycore/asset.h>
+#include "asset_data.h"
 
-static void mesh_calc_aabb(struct mesh* m, float min[3], float max[3])
+static void mesh_calc_aabb(struct mesh_data* m, float min[3], float max[3])
 {
     memset(min, 0, 3 * sizeof(float));
     memset(max, 0, 3 * sizeof(float));
     for (size_t i = 0; i < m->num_verts; ++i) {
-        struct vertex* v = m->vertices + i;
+        float* pos = m->positions[i];
         for (unsigned int j = 0; j < 3; ++j) {
-            if (v->position[j] < min[j])
-                min[j] = v->position[j];
-            else if (v->position[j] > max[j])
-                max[j] = v->position[j];
+            if (pos[j] < min[j])
+                min[j] = pos[j];
+            else if (pos[j] > max[j])
+                max[j] = pos[j];
         }
     }
 }
 
-struct model_hndl* model_to_gpu(struct model* m)
+struct model_hndl* model_to_gpu(struct model_data* m)
 {
     struct model_hndl* model = calloc(1, sizeof(struct model_hndl));
     /* Allocate handle memory */
@@ -34,10 +33,10 @@ struct model_hndl* model_to_gpu(struct model* m)
     unsigned int total_verts = 0;
     unsigned int total_indices = 0;
     for (unsigned int i = 0; i < model->num_meshes; ++i) {
-        struct mesh* mesh = m->meshes[i];
+        struct mesh_data* mesh = &m->meshes[i];
         struct mesh_hndl* mh = model->meshes + i;
-        mh->mat_idx = mesh->mat_index;
-        mh->mgroup_idx = mesh->mgroup_idx;
+        mh->mat_idx = mesh->mat_idx;
+        mh->mgroup_idx = mesh->group_idx;
 
         /* Create vao */
         glGenVertexArrays(1, &mh->vao);
@@ -55,82 +54,58 @@ struct model_hndl* model_to_gpu(struct model* m)
         glBufferData(GL_ARRAY_BUFFER, vsz * mesh->num_verts, 0, GL_STATIC_DRAW);
 
         void* vbuf = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-        for (size_t j = 0; j < mesh->num_verts; ++j) {
-            struct vertex* v = mesh->vertices + j;
-            memcpy(vbuf, v->position, 3 * sizeof(float));
-            vbuf += 3 * sizeof(float);
-        }
-        for (size_t j = 0; j < mesh->num_verts; ++j) {
-            struct vertex* v = mesh->vertices + j;
-            memcpy(vbuf, v->uvs, 2 * sizeof(float));
-            vbuf += 2 * sizeof(float);
-        }
-        for (size_t j = 0; j < mesh->num_verts; ++j) {
-            struct vertex* v = mesh->vertices + j;
-            memcpy(vbuf, v->normal, 3 * sizeof(float));
-            vbuf += 3 * sizeof(float);
-        }
-        for (size_t j = 0; j < mesh->num_verts; ++j) {
-            struct vertex* v = mesh->vertices + j;
-            memcpy(vbuf, v->tangent, 3 * sizeof(float));
-            vbuf += 3 * sizeof(float);
-        }
-        for (size_t j = 0; j < mesh->num_verts; ++j) {
-            struct vertex* v = mesh->vertices + j;
-            memcpy(vbuf, v->binormal, 3 * sizeof(float));
-            vbuf += 3 * sizeof(float);
-        }
-        glUnmapBuffer(GL_ARRAY_BUFFER);
-
-        GLvoid* offset = 0;
+        size_t offset = 0;
         GLuint pos_attrib = 0;
         glEnableVertexAttribArray(pos_attrib);
-        glVertexAttribPointer(pos_attrib, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), offset);
+        glVertexAttribPointer(pos_attrib, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (GLvoid*)offset);
+        memcpy(vbuf + offset, mesh->positions, mesh->num_verts * 3 * sizeof(float));
         offset += mesh->num_verts * 3 * sizeof(float);
 
         GLuint uv_attrib = 1;
         glEnableVertexAttribArray(uv_attrib);
-        glVertexAttribPointer(uv_attrib, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), offset);
+        glVertexAttribPointer(uv_attrib, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (GLvoid*)offset);
+        memcpy(vbuf + offset, mesh->texcoords, mesh->num_verts * 2 * sizeof(float));
         offset += mesh->num_verts * 2 * sizeof(float);
 
         GLuint nm_attrib = 2;
         glEnableVertexAttribArray(nm_attrib);
-        glVertexAttribPointer(nm_attrib, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), offset);
+        glVertexAttribPointer(nm_attrib, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (GLvoid*)offset);
+        memcpy(vbuf + offset, mesh->normals, mesh->num_verts * 3 * sizeof(float));
         offset += mesh->num_verts * 3 * sizeof(float);
 
         GLuint tn_attrib = 3;
         glEnableVertexAttribArray(tn_attrib);
-        glVertexAttribPointer(tn_attrib, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), offset);
+        glVertexAttribPointer(tn_attrib, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (GLvoid*)offset);
+        memcpy(vbuf + offset, mesh->tangents, mesh->num_verts * 3 * sizeof(float));
         offset += mesh->num_verts * 3 * sizeof(float);
 
         GLuint btn_attrib = 4;
         glEnableVertexAttribArray(btn_attrib);
-        glVertexAttribPointer(btn_attrib, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), offset);
+        glVertexAttribPointer(btn_attrib, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (GLvoid*)offset);
+        memcpy(vbuf + offset, mesh->bitangents, mesh->num_verts * 3 * sizeof(float));
+        glUnmapBuffer(GL_ARRAY_BUFFER);
 
         /* Create indice ebo */
         glGenBuffers(1, &mh->ebo);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mh->ebo);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                mesh->num_indices * sizeof(GLuint),
-                mesh->indices,
+                mesh->num_triangles * 3 * sizeof(GLuint),
+                mesh->triangles,
                 GL_STATIC_DRAW);
-        mh->indice_count = mesh->num_indices;
+        mh->indice_count = mesh->num_triangles * 3;
 
         /* Compute local AABB */
         mesh_calc_aabb(mesh, mh->aabb_min, mh->aabb_max);
 
         total_verts += mesh->num_verts;
-        total_indices += mesh->num_indices;
+        total_indices += mesh->num_triangles * 3;
     }
 
-    /* Move skeleton and frameset */
-    model->skel = m->skeleton;
-    model->fset = m->frameset;
-    model->mesh_groups = m->mesh_groups;
-    model->num_mesh_groups = m->num_mesh_groups;
-    m->skeleton = 0;
-    m->frameset = 0;
-    m->mesh_groups = 0;
+    /* Move group info */
+    model->num_mgroup_names = m->num_group_names;
+    model->mgroup_names = calloc(model->num_mgroup_names, sizeof(*model->mgroup_names));
+    for (size_t i = 0; i < model->num_mgroup_names; ++i)
+        model->mgroup_names[i] = strdup(m->group_names[i]);
 
     return model;
 }
@@ -148,15 +123,12 @@ struct model_hndl* model_to_gpu(struct model* m)
 struct model_hndl* model_from_file_to_gpu(const char* filename)
 {
     /* Load and parse model file */
-    struct model* m = 0;
-    TIMED_LOAD_BEGIN(filename)
-    m = model_from_file(filename);
-    model_generate_tangents(m);
-    TIMED_LOAD_END
+    struct model_data mdl;
+    model_data_from_file(&mdl, filename);
     /* Transfer data to gpu */
-    struct model_hndl* h = model_to_gpu(m);
+    struct model_hndl* h = model_to_gpu(&mdl);
     /* Free memory data */
-    model_delete(m);
+    model_data_free(&mdl);
     return h;
 }
 
@@ -171,20 +143,14 @@ void model_free_from_gpu(struct model_hndl* mdlh)
             glDeleteBuffers(1, &mh->wbo);
         glDeleteVertexArrays(1, &mh->vao);
     }
-    /* Free skeleton if exists */
-    if (mdlh->skel)
-        skeleton_delete(mdlh->skel);
-    /* Free frameset if exists */
-    if (mdlh->fset)
-        frameset_delete(mdlh->fset);
-    for (unsigned int i = 0; i < mdlh->num_mesh_groups; ++i)
-        mesh_group_delete(mdlh->mesh_groups[i]);
-    free(mdlh->mesh_groups);
+    for (unsigned int i = 0; i < mdlh->num_mgroup_names; ++i)
+        free((void*)mdlh->mgroup_names[i]);
+    free(mdlh->mgroup_names);
     free(mdlh->meshes);
     free(mdlh);
 }
 
-struct tex_hndl* tex_to_gpu(struct image* im)
+struct tex_hndl* tex_to_gpu(struct image_data* im)
 {
     GLuint id;
     glGenTextures(1, &id);
@@ -220,12 +186,10 @@ struct tex_hndl* tex_to_gpu(struct image* im)
 
 struct tex_hndl* tex_from_file_to_gpu(const char* filename)
 {
-    struct image* im = 0;
-    TIMED_LOAD_BEGIN(filename)
-    im = image_from_file(filename);
-    TIMED_LOAD_END
-    struct tex_hndl* th = tex_to_gpu(im);
-    image_delete(im);
+    struct image_data img;
+    image_data_from_file(&img, filename);
+    struct tex_hndl* th = tex_to_gpu(&img);
+    image_data_free(&img);
     return th;
 }
 
@@ -286,9 +250,10 @@ struct tex_hndl* tex_env_from_file_to_gpu(const char* filename)
     if (strcmp(strrchr(filename, '.'), ".hdr") == 0) {
         id = texture_cubemap_from_hdr(filename);
     } else {
-        struct image* im = image_from_file(filename);
-        id = tex_env_from_hcross(im->data, im->width, im->height, im->channels);
-        image_delete(im);
+        struct image_data img;
+        image_data_from_file(&img, filename);
+        id = tex_env_from_hcross(img.data, img.width, img.height, img.channels);
+        image_data_free(&img);
     }
     struct tex_hndl* th = calloc(1, sizeof(struct tex_hndl));
     th->id = id;

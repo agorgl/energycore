@@ -28,87 +28,46 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _GPURES_H_
-#define _GPURES_H_
+#ifndef _ASSET_DATA_H_
+#define _ASSET_DATA_H_
 
-#include <hashmap.h>
+#include <stdlib.h>
 
-struct mesh_hndl
-{
-    unsigned int vao;
-    unsigned int vbo;
-    unsigned int wbo;
-    unsigned int ebo;
-    unsigned int indice_count;
-    unsigned int mat_idx;
-    unsigned int mgroup_idx;
-    float aabb_min[3], aabb_max[3];
+struct image_data {
+    void* data;
+    size_t data_sz;
+    unsigned int width;
+    unsigned int height;
+    unsigned short channels;
+    unsigned short bit_depth;
+    unsigned short compression_type;
+    struct {
+        int compressed : 1;
+        int hdr : 1;
+    } flags;
 };
 
-struct model_hndl
-{
-    struct mesh_hndl* meshes;
-    unsigned int num_meshes;
-    const char** mgroup_names;
-    unsigned int num_mgroup_names;
+struct model_data {
+    struct mesh_data {
+        size_t num_verts;
+        float (*positions)[3];
+        float (*normals)[3];
+        float (*texcoords)[2];
+        float (*tangents)[3];
+        float (*bitangents)[3];
+        size_t num_triangles;
+        unsigned int (*triangles)[3];
+        size_t mat_idx;
+        size_t group_idx;
+    }* meshes;
+    size_t num_meshes;
+    const char** group_names;
+    size_t num_group_names;
 };
 
-struct tex_hndl { unsigned int id; };
+void model_data_from_file(struct model_data* mdl, const char* filepath);
+void model_data_free(struct model_data* mdl);
+void image_data_from_file(struct image_data* img, const char* filepath);
+void image_data_free(struct image_data* img);
 
-enum material_attr_type {
-    MAT_ALBEDO = 0,
-    MAT_NORMAL,
-    MAT_ROUGHNESS,
-    MAT_METALLIC,
-    MAT_SPECULAR,
-    MAT_GLOSSINESS,
-    MAT_EMISSION,
-    MAT_OCCLUSION,
-    MAT_DETAIL_ALBEDO,
-    MAT_DETAIL_NORMAL,
-    MAT_PARALLAX,
-    MAT_MAX
-};
-
-struct material {
-    struct material_attr {
-        struct {
-            float valf;
-            float val3f[3];
-            struct {
-                struct tex_hndl hndl;
-                float scl[2];
-            } tex;
-        } d;
-        enum {
-            MAT_DTYPE_VALF = 0,
-            MAT_DTYPE_VAL3F,
-            MAT_DTYPE_TEX
-        } dtype;
-    } attrs[MAT_MAX];
-};
-
-struct res_mngr {
-    struct hashmap mdl_store;
-    struct hashmap tex_store;
-    struct hashmap mat_store;
-};
-
-/* Geometry gpu data */
-struct model_hndl* model_from_file_to_gpu(const char* filename);
-void model_free_from_gpu(struct model_hndl* mdlh);
-/* Texture gpu data */
-struct tex_hndl* tex_from_file_to_gpu(const char* filename);
-struct tex_hndl* tex_env_from_file_to_gpu(const char* filename);
-void tex_free_from_gpu(struct tex_hndl* th);
-/* Resource manager */
-struct res_mngr* res_mngr_create();
-struct model_hndl* res_mngr_mdl_get(struct res_mngr* rmgr, const char* mdl_name);
-struct tex_hndl* res_mngr_tex_get(struct res_mngr* rmgr, const char* tex_name);
-struct material* res_mngr_mat_get(struct res_mngr* rmgr, const char* mat_name);
-void res_mngr_mdl_put(struct res_mngr* rmgr, const char* mdl_name, struct model_hndl* m);
-void res_mngr_tex_put(struct res_mngr* rmgr, const char* tex_name, struct tex_hndl* t);
-void res_mngr_mat_put(struct res_mngr* rmgr, const char* mat_name, struct material* mat);
-void res_mngr_destroy(struct res_mngr*);
-
-#endif /* ! _GPURES_H_ */
+#endif /* ! _ASSET_DATA_H_ */

@@ -1,0 +1,96 @@
+#include "asset_data.h"
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <prof.h>
+#include <assets/assetload.h>
+#include <assets/model/postprocess.h>
+
+#define timed_load(fname) \
+    for (timepoint_t _start_ms = millisecs(), _break = (printf("Loading: %-85s", fname), 1); \
+         _break; _break = 0, printf("[ %3lu ms ]\n", (unsigned long)(millisecs() - _start_ms)))
+
+void model_data_from_file(struct model_data* mdl, const char* filepath)
+{
+    struct model* m = 0;
+    timed_load(filepath) {
+        m = model_from_file(filepath);
+        model_generate_tangents(m);
+    }
+
+    mdl->num_meshes = m->num_meshes;
+    mdl->meshes = calloc(mdl->num_meshes, sizeof(*mdl->meshes));
+    for (size_t i = 0; i < mdl->num_meshes; ++i) {
+        struct mesh* mesh = m->meshes[i];
+        struct mesh_data* md = mdl->meshes + i;
+        md->num_verts = mesh->num_verts;
+
+        md->positions  = calloc(md->num_verts, sizeof(*md->positions));
+        md->normals    = calloc(md->num_verts, sizeof(*md->normals));
+        md->texcoords  = calloc(md->num_verts, sizeof(*md->texcoords));
+        md->tangents   = calloc(md->num_verts, sizeof(*md->tangents));
+        md->bitangents = calloc(md->num_verts, sizeof(*md->bitangents));
+        for (size_t j = 0; j < mesh->num_verts; ++j) {
+            memcpy(md->positions + j,  (mesh->vertices + j)->position, sizeof(*md->positions));
+            memcpy(md->normals + j,    (mesh->vertices + j)->normal,   sizeof(*md->normals));
+            memcpy(md->texcoords + j,  (mesh->vertices + j)->uvs,      sizeof(*md->texcoords));
+            memcpy(md->tangents + j,   (mesh->vertices + j)->tangent,  sizeof(*md->tangents));
+            memcpy(md->bitangents + j, (mesh->vertices + j)->binormal, sizeof(*md->bitangents));
+        }
+
+        md->num_triangles = mesh->num_indices * 3;
+        md->triangles = calloc(md->num_triangles, sizeof(*md->triangles));
+        memcpy(md->triangles, mesh->indices, mesh->num_indices * sizeof(*mesh->indices));
+
+        md->group_idx = mesh->mgroup_idx;
+        md->mat_idx = mesh->mat_index;
+    }
+
+    mdl->num_group_names = m->num_mesh_groups;
+    mdl->group_names = calloc(mdl->num_group_names, sizeof(*mdl->group_names));
+    for (size_t i = 0; i < mdl->num_group_names; ++i)
+        mdl->group_names[i] = strdup(m->mesh_groups[i]->name);
+
+    model_delete(m);
+}
+
+void model_data_free(struct model_data* mdl)
+{
+    for (size_t i = 0; i < mdl->num_meshes; ++i) {
+        struct mesh_data* md = &mdl->meshes[i];
+        free(md->positions);
+        free(md->normals);
+        free(md->texcoords);
+        free(md->tangents);
+        free(md->bitangents);
+        free(md->triangles);
+    }
+    free(mdl->meshes);
+
+    for (size_t i = 0; i < mdl->num_group_names; ++i)
+        free((void*)mdl->group_names[i]);
+    free(mdl->group_names);
+}
+
+void image_data_from_file(struct image_data* img, const char* filepath)
+{
+    struct image* im = 0;
+    timed_load(filepath)
+        im = image_from_file(filepath);
+    img->data      = im->data;
+    img->width     = im->width;
+    img->height    = im->height;
+    img->channels  = im->channels;
+    img->bit_depth = im->compression_type == 0 ? 8 : 0;
+    img->data_sz   = im->data_sz;
+    img->flags.hdr = 0;
+    img->flags.compressed = im->compression_type != 0;
+    img->compression_type = im->compression_type;
+    im->data = 0;
+    image_delete(im);
+}
+
+void image_data_free(struct image_data* img)
+{
+    free(img->data);
+}
