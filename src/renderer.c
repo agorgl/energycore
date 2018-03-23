@@ -214,10 +214,10 @@ static void upload_gbuffer_uniforms(GLuint shdr, float viewport[2], mat4* view, 
 /*-----------------------------------------------------------------
  * Geometry pass
  *-----------------------------------------------------------------*/
-static void material_setup(struct renderer_state* rs, struct renderer_mesh* rm, GLuint shdr)
+static void material_setup(struct renderer_state* rs, struct render_mesh* rm, GLuint shdr)
 {
     /* Albedo */
-    struct renderer_material_attr* rma = 0;
+    struct render_material_attr* rma = 0;
     rma = rm->material.attrs + RMAT_ALBEDO;
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
@@ -316,7 +316,7 @@ static void material_setup(struct renderer_state* rs, struct renderer_mesh* rm, 
     glUniform1i(glGetUniformLocation(shdr,  "mat.specular_mode"), specular_mode);
 }
 
-static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, float view[16], float proj[16])
+static void geometry_pass(struct renderer_state* rs, struct render_scene* rscn, float view[16], float proj[16])
 {
     /* Bind gbuf */
     struct renderer_internal_state* is = rs->internal;
@@ -352,9 +352,9 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
 
     /* Loop through meshes */
     is->dbginfo.num_visible_objs = 0;
-    for (unsigned int i = 0; i < ri->num_meshes; ++i) {
+    for (unsigned int i = 0; i < rscn->num_meshes; ++i) {
         /* Setup mesh to be rendered */
-        struct renderer_mesh* rm = ri->meshes + i;
+        struct render_mesh* rm = rscn->meshes + i;
 
         /* Upload model matrix */
         glUniformMatrix4fv(modl_mat_loc, 1, GL_FALSE, rm->model_mat);
@@ -403,18 +403,18 @@ static void geometry_pass(struct renderer_state* rs, struct renderer_input* ri, 
 /*-----------------------------------------------------------------
  * Light pass
  *-----------------------------------------------------------------*/
-static void render_sky(struct renderer_state* rs, struct renderer_input* ri, float* view, float* proj)
+static void render_sky(struct renderer_state* rs, struct render_scene* rscn, float* view, float* proj)
 {
-    switch (ri->sky_type) {
+    switch (rscn->sky_type) {
         case RST_TEXTURE: {
-            sky_texture_render(&rs->internal->sky_rndr.tex, (mat4*)view, (mat4*)proj, ri->sky_tex);
+            sky_texture_render(&rs->internal->sky_rndr.tex, (mat4*)view, (mat4*)proj, rscn->sky_tex);
             break;
         }
         case RST_PREETHAM: {
             struct sky_preetham_params sp_params;
             sky_preetham_default_params(&sp_params);
-            sp_params.inclination = ri->sky_pp.inclination;
-            sp_params.azimuth     = ri->sky_pp.azimuth;
+            sp_params.inclination = rscn->sky_pp.inclination;
+            sp_params.azimuth     = rscn->sky_pp.azimuth;
             sky_preetham_render(&rs->internal->sky_rndr.preeth, &sp_params, (mat4*)proj, (mat4*)view);
             break;
         }
@@ -424,7 +424,7 @@ static void render_sky(struct renderer_state* rs, struct renderer_input* ri, flo
     }
 }
 
-static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj, int direct_only)
+static void light_pass(struct renderer_state* rs, struct render_scene* rscn, mat4* view, mat4* proj, int direct_only)
 {
     /* Bind gbuffer input textures and target fbo */
     struct renderer_internal_state* is = rs->internal;
@@ -462,8 +462,8 @@ static void light_pass(struct renderer_state* rs, struct renderer_input* ri, mat
         glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
     /* Iterate through lights */
-    for (size_t i = 0; i < ri->num_lights; ++i) {
-        struct renderer_light* light = ri->lights + i;
+    for (size_t i = 0; i < rscn->num_lights; ++i) {
+        struct render_light* light = rscn->lights + i;
         switch (light->type) {
             case LT_DIRECTIONAL: {
                 /* Full screen quad for directional light */
@@ -558,7 +558,7 @@ static void postprocess_pass(struct renderer_state* rs, unsigned int cur_fb)
     postfx_blit_read_to_fb(&is->postfx, cur_fb);
 }
 
-static void render_scene(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj, int direct_only)
+static void render_scene(struct renderer_state* rs, struct render_scene* rscn, mat4* view, mat4* proj, int direct_only)
 {
     struct renderer_internal_state* is = rs->internal;
     /* Clear default buffers */
@@ -569,16 +569,16 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &cur_fb);
     /* Geometry pass */
     frame_prof_timepoint(is->fprof)
-        geometry_pass(rs, ri, view->m, proj->m);
+        geometry_pass(rs, rscn, view->m, proj->m);
     /* Copy depth to fb */
     gbuffer_blit_depth_to_fb(is->gbuf, cur_fb);
     /* Shadowmap pass*/
     if (rs->options.use_shadows && !direct_only) {
-        float* light_dir = ri->lights[0].type_data.dir.direction.xyz;
+        float* light_dir = rscn->lights[0].type_data.dir.direction.xyz;
         vec3 fru_pts[8]; vec4 fru_plns[6];
         shadowmap_render((&is->shdwmap), light_dir, view->m, proj->m, fru_pts, fru_plns) {
-            for (size_t i = 0; i < ri->num_meshes; ++i) {
-                struct renderer_mesh* rm = ri->meshes + i;
+            for (size_t i = 0; i < rscn->num_meshes; ++i) {
+                struct render_mesh* rm = rscn->meshes + i;
                 vec3 box_mm[2] = {
                     mat4_mul_vec3(*(mat4*)rm->model_mat, *(vec3*)rm->aabb.min),
                     mat4_mul_vec3(*(mat4*)rm->model_mat, *(vec3*)rm->aabb.max)
@@ -594,9 +594,9 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
     }
     /* Light pass */
     frame_prof_timepoint(is->fprof)
-        light_pass(rs, ri, (mat4*)view, (mat4*)proj, direct_only);
+        light_pass(rs, rscn, (mat4*)view, (mat4*)proj, direct_only);
     /* Sky */
-    render_sky(rs, ri, view->m, proj->m);
+    render_sky(rs, rscn, view->m, proj->m);
     /* PostFX pass */
     frame_prof_timepoint(is->fprof) {
         if (!direct_only)
@@ -609,27 +609,27 @@ static void render_scene(struct renderer_state* rs, struct renderer_input* ri, m
 /*-----------------------------------------------------------------
  * Visualizations
  *-----------------------------------------------------------------*/
-static void visualize_bboxes(struct renderer_state* rs, struct renderer_input* ri, float view[16])
+static void visualize_bboxes(struct renderer_state* rs, struct render_scene* rscn, float view[16])
 {
     /* Loop through meshes */
-    for (unsigned int i = 0; i < ri->num_meshes; ++i) {
+    for (unsigned int i = 0; i < rscn->num_meshes; ++i) {
         /* Setup mesh to be rendered */
-        struct renderer_mesh* rm = ri->meshes + i;
+        struct render_mesh* rm = rscn->meshes + i;
         /* Upload model matrix */
         bbox_rndr_vis(&rs->internal->bbox_rs, rm->model_mat, view, rs->internal->proj.m, rm->aabb.min, rm->aabb.max);
     }
 }
 
-static void visualize_normals(struct renderer_state* rs, struct renderer_input* ri, mat4* view, mat4* proj)
+static void visualize_normals(struct renderer_state* rs, struct render_scene* rscn, mat4* view, mat4* proj)
 {
     const GLuint shdr = rs->internal->shdrs.nm_vis;
     glUseProgram(shdr);
     glUniformMatrix4fv(glGetUniformLocation(shdr, "proj"), 1, GL_FALSE, proj->m);
     glUniformMatrix4fv(glGetUniformLocation(shdr, "view"), 1, GL_FALSE, view->m);
     GLuint mdl_mat_loc = glGetUniformLocation(shdr, "model");
-    for (unsigned int i = 0; i < ri->num_meshes; ++i) {
+    for (unsigned int i = 0; i < rscn->num_meshes; ++i) {
         /* Setup mesh to be rendered */
-        struct renderer_mesh* rm = ri->meshes + i;
+        struct render_mesh* rm = rscn->meshes + i;
         glUniformMatrix4fv(mdl_mat_loc, 1, GL_FALSE, rm->model_mat);
         glBindVertexArray(rm->vao);
         glDrawElements(GL_TRIANGLES, rm->indice_count, GL_UNSIGNED_INT, (void*)0);
@@ -638,20 +638,20 @@ static void visualize_normals(struct renderer_state* rs, struct renderer_input* 
     glUseProgram(0);
 }
 
-void renderer_gi_update(struct renderer_state* rs, struct renderer_input* ri)
+void renderer_gi_update(struct renderer_state* rs, struct render_scene* rscn)
 {
     /* Update fallback probe */
     struct gi_rndr* gir = &rs->internal->gi_rndr;
     mat4 pass_view, pass_proj;
     probe_render_faces(gir->probe_rndr, gir->fallback_probe.p, vec3_zero(), pass_view, pass_proj)
-        render_sky(rs, ri, pass_view.m, pass_proj.m);
+        render_sky(rs, rscn, pass_view.m, pass_proj.m);
 
     /* HACK: Temporarily replace gbuffer reference in renderer state */
     struct gbuffer* old_gbuf = rs->internal->gbuf;
     rs->internal->gbuf = gir->probe_gbuf;
     /* Update probes */
     gi_render_passes(gir, pass_view, pass_proj)
-        render_scene(rs, ri, &pass_view, &pass_proj, 1);
+        render_scene(rs, rscn, &pass_view, &pass_proj, 1);
     /* Restore original gbuffer reference */
     rs->internal->gbuf = old_gbuf;
 
@@ -662,7 +662,7 @@ void renderer_gi_update(struct renderer_state* rs, struct renderer_input* ri)
 /*-----------------------------------------------------------------
  * Public interface
  *-----------------------------------------------------------------*/
-void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view[16])
+void renderer_render(struct renderer_state* rs, struct render_scene* rscn, float view[16])
 {
     struct renderer_internal_state* is = rs->internal;
     /* Show panic screen if any critical error occured */
@@ -673,15 +673,15 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
 
     /* Render main scene */
     with_fprof(is->fprof, 1)
-        render_scene(rs, ri, (mat4*)view, &is->proj, 0);
+        render_scene(rs, rscn, (mat4*)view, &is->proj, 0);
 
     /* Visualize normals */
     if (rs->options.show_normals)
-        visualize_normals(rs, ri, (mat4*)view, &is->proj);
+        visualize_normals(rs, rscn, (mat4*)view, &is->proj);
 
     /* Visualize bboxes */
     if (rs->options.show_bboxes)
-        visualize_bboxes(rs, ri, view);
+        visualize_bboxes(rs, rscn, view);
 
     /* Visualize GI probes */
     if (rs->options.show_gidata)
@@ -723,7 +723,7 @@ void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float
         char buf[128];
         snprintf(buf, sizeof(buf), "GPass: %.3f\nLPass: %.3f\nPPass: %.3f\nVis/Tot: %u/%u",
                  is->dbginfo.gpass_msec, is->dbginfo.lpass_msec, is->dbginfo.ppass_msec,
-                 is->dbginfo.num_visible_objs, ri->num_meshes);
+                 is->dbginfo.num_visible_objs, rscn->num_meshes);
         dbgtxt_setfnt(FNT_GOHU);
         dbgtxt_prnt(buf, 5, 15);
         dbgtxt_setfnt(FNT_SLKSCR);

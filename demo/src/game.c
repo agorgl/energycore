@@ -14,7 +14,7 @@
 #define SCENE_FILE "ext/scenes/sample_scene.json"
 
 /* Fw declarations */
-static void prepare_renderer_input(struct game_context* ctx, struct renderer_input* ri);
+static void prepare_render_scene(struct game_context* ctx, struct render_scene* rscn);
 
 static void on_key(struct window* wnd, int key, int scancode, int action, int mods)
 {
@@ -27,7 +27,7 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
     else if (action == KEY_ACTION_RELEASE && key == KEY_N)
         ctx->rndr_state.options.show_normals = !ctx->rndr_state.options.show_normals;
     else if (action == KEY_ACTION_RELEASE && key == KEY_M)
-        ctx->cached_ri.sky_type = !ctx->cached_ri.sky_type;
+        ctx->cached_scene.sky_type = !ctx->cached_scene.sky_type;
     else if (action == KEY_ACTION_RELEASE && key == KEY_B)
         ctx->rndr_state.options.show_bboxes = !ctx->rndr_state.options.show_bboxes;
     else if (action == KEY_ACTION_RELEASE && key == KEY_C)
@@ -111,13 +111,13 @@ void game_init(struct game_context* ctx)
 
     /* Load sky texture from file into the GPU */
     ctx->sky_tex = tex_env_from_file_to_gpu("ext/envmaps/sun_clouds.hdr");
-    ctx->cached_ri.sky_type = RST_TEXTURE;
-    ctx->cached_ri.sky_tex = ctx->sky_tex->id;
-    ctx->cached_ri.sky_pp.inclination = 0.8f;
-    ctx->cached_ri.sky_pp.azimuth = 0.6f;
+    ctx->cached_scene.sky_type = RST_TEXTURE;
+    ctx->cached_scene.sky_tex = ctx->sky_tex->id;
+    ctx->cached_scene.sky_pp.inclination = 0.8f;
+    ctx->cached_scene.sky_pp.azimuth = 0.6f;
 
     /* Build initial renderer input */
-    prepare_renderer_input(ctx, &ctx->cached_ri);
+    prepare_render_scene(ctx, &ctx->cached_scene);
 }
 
 static vec3 sun_dir_from_params(float inclination, float azimuth)
@@ -162,34 +162,34 @@ void game_update(void* userdata, float dt)
     }
     /* Update sun position */
     if (window_key_state(ctx->wnd, KEY_KP2) == KEY_ACTION_PRESS)
-        ctx->cached_ri.sky_pp.inclination = clamp(ctx->cached_ri.sky_pp.inclination + 10e-3f, 0.0f, 1.0f);
+        ctx->cached_scene.sky_pp.inclination = clamp(ctx->cached_scene.sky_pp.inclination + 10e-3f, 0.0f, 1.0f);
     if (window_key_state(ctx->wnd, KEY_KP8) == KEY_ACTION_PRESS)
-        ctx->cached_ri.sky_pp.inclination = clamp(ctx->cached_ri.sky_pp.inclination - 10e-3f, 0.0f, 1.0f);
+        ctx->cached_scene.sky_pp.inclination = clamp(ctx->cached_scene.sky_pp.inclination - 10e-3f, 0.0f, 1.0f);
     if (window_key_state(ctx->wnd, KEY_KP4) == KEY_ACTION_PRESS)
-        ctx->cached_ri.sky_pp.azimuth = clamp(ctx->cached_ri.sky_pp.azimuth + 10e-3f, 0.0f, 1.0f);
+        ctx->cached_scene.sky_pp.azimuth = clamp(ctx->cached_scene.sky_pp.azimuth + 10e-3f, 0.0f, 1.0f);
     if (window_key_state(ctx->wnd, KEY_KP6) == KEY_ACTION_PRESS)
-        ctx->cached_ri.sky_pp.azimuth = clamp(ctx->cached_ri.sky_pp.azimuth - 10e-3f, 0.0f, 1.0f);
-    ctx->cached_ri.lights[0].type_data.dir.direction = sun_dir_from_params(ctx->cached_ri.sky_pp.inclination, ctx->cached_ri.sky_pp.azimuth);
+        ctx->cached_scene.sky_pp.azimuth = clamp(ctx->cached_scene.sky_pp.azimuth - 10e-3f, 0.0f, 1.0f);
+    ctx->cached_scene.lights[0].type_data.dir.direction = sun_dir_from_params(ctx->cached_scene.sky_pp.inclination, ctx->cached_scene.sky_pp.azimuth);
     /* Process input events */
     window_update(ctx->wnd);
 }
 
-static void prepare_renderer_input_lights(struct renderer_input* ri)
+static void prepare_render_scene_lights(struct render_scene* rscn)
 {
     /* Sample directional light */
-    ri->num_lights = 1;
-    ri->lights = calloc(ri->num_lights, sizeof(struct renderer_light));
-    ri->lights[0].type = LT_DIRECTIONAL;
-    ri->lights[0].color = vec3_new(1, 1, 1);
-    ri->lights[0].type_data.dir.direction = vec3_new(0.8, 1.0, 0.8);
+    rscn->num_lights = 1;
+    rscn->lights = calloc(rscn->num_lights, sizeof(*rscn->lights));
+    rscn->lights[0].type = LT_DIRECTIONAL;
+    rscn->lights[0].color = vec3_new(1, 1, 1);
+    rscn->lights[0].type_data.dir.direction = vec3_new(0.8, 1.0, 0.8);
 }
 
-static void prepare_renderer_input(struct game_context* ctx, struct renderer_input* ri)
+static void prepare_render_scene(struct game_context* ctx, struct render_scene* rscn)
 {
     struct world* world = ctx->world;
     /* Count total meshes */
     const size_t num_ents = entity_total(world->ecs);
-    ri->num_meshes = 0;
+    rscn->num_meshes = 0;
     for (unsigned int i = 0; i < num_ents; ++i) {
         entity_t e = entity_at(world->ecs, i);
         struct render_component* rc = render_component_lookup(world->ecs, e);
@@ -197,14 +197,14 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
             for (unsigned int j = 0; j < rc->model->num_meshes; ++j) {
                 struct mesh_hndl* mh = rc->model->meshes + j;
                 if (mh->mgroup_idx == rc->mesh_group_idx || (int)rc->mesh_group_idx == ~0)
-                    ++ri->num_meshes;
+                    ++rscn->num_meshes;
             }
         }
     }
 
     /* Populate renderer mesh inputs */
-    ri->meshes = malloc(ri->num_meshes * sizeof(struct renderer_mesh));
-    memset(ri->meshes, 0, ri->num_meshes * sizeof(struct renderer_mesh));
+    rscn->meshes = malloc(rscn->num_meshes * sizeof(*rscn->meshes));
+    memset(rscn->meshes, 0, rscn->num_meshes * sizeof(*rscn->meshes));
     unsigned int cur_mesh = 0;
     for (unsigned int i = 0; i < num_ents; ++i) {
         entity_t e = entity_at(world->ecs, i);
@@ -220,7 +220,7 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
             if (mh->mgroup_idx != rc->mesh_group_idx && (int)rc->mesh_group_idx != ~0)
                 continue;
             /* Target */
-            struct renderer_mesh* rm = ri->meshes + cur_mesh;
+            struct render_mesh* rm = rscn->meshes + cur_mesh;
             rm->vao = mh->vao;
             rm->indice_count = mh->indice_count;
             /* Material properties */
@@ -247,7 +247,7 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
                             break;
                     }
                     /* Copy to target */
-                    struct renderer_material_attr* rma = rm->material.attrs + k; /* Implicit mapping MAT_TYPE <-> RMAT_TYPE */
+                    struct render_material_attr* rma = rm->material.attrs + k; /* Implicit mapping MAT_TYPE <-> RMAT_TYPE */
                     rma->dtype = ma->dtype;
                     rma->d.tex.id = tex.id;
                     rma->d.valf = valf;
@@ -256,7 +256,7 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
                 }
             } else {
                 /* Default to white color */
-                struct renderer_material_attr* rma = rm->material.attrs + RMAT_ALBEDO;
+                struct render_material_attr* rma = rm->material.attrs + RMAT_ALBEDO;
                 rma->dtype = RMAT_DT_VAL3F;
                 rma->d.val3f[0] = 1.0f;
                 rma->d.val3f[1] = 1.0f;
@@ -271,7 +271,7 @@ static void prepare_renderer_input(struct game_context* ctx, struct renderer_inp
             ++cur_mesh;
         }
     }
-    prepare_renderer_input_lights(ri);
+    prepare_render_scene_lights(rscn);
 }
 
 void game_render(void* userdata, float interpolation)
@@ -280,13 +280,13 @@ void game_render(void* userdata, float interpolation)
 
     /* Update GI */
     if (ctx->gi_dirty) {
-        renderer_gi_update(&ctx->rndr_state, &ctx->cached_ri);
+        renderer_gi_update(&ctx->rndr_state, &ctx->cached_scene);
         ctx->gi_dirty = 0;
     }
 
     /* Render */
     mat4 iview = camctrl_interpolated_view(&ctx->cam, interpolation);
-    renderer_render(&ctx->rndr_state, &ctx->cached_ri, (float*)&iview);
+    renderer_render(&ctx->rndr_state, &ctx->cached_scene, (float*)&iview);
 
     /* Show rendered contents from the backbuffer */
     window_swap_buffers(ctx->wnd);
@@ -303,8 +303,8 @@ void game_perf_update(void* userdata, float msec, float fps)
 void game_shutdown(struct game_context* ctx)
 {
     /* Free cached renderer input */
-    free(ctx->cached_ri.lights);
-    free(ctx->cached_ri.meshes);
+    free(ctx->cached_scene.lights);
+    free(ctx->cached_scene.meshes);
 
     /* Unbind GPU handles */
     glUseProgram(0);

@@ -51,7 +51,7 @@ struct game_context
     struct tex_hndl* sky_tex;
     /* Renderer state and his cached input */
     struct renderer_state rndr_state;
-    struct renderer_input cached_ri;
+    struct render_scene cached_scene;
     int gi_dirty;
 };
 

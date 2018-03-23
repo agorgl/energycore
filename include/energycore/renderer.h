@@ -36,7 +36,7 @@
 /*-----------------------------------------------------------------
  * Renderer input
  *-----------------------------------------------------------------*/
-enum renderer_material_attr_type {
+enum render_material_attr_type {
     RMAT_ALBEDO = 0,
     RMAT_NORMAL,
     RMAT_ROUGHNESS,
@@ -51,8 +51,8 @@ enum renderer_material_attr_type {
     RMAT_MAX
 };
 
-struct renderer_material {
-    struct renderer_material_attr {
+struct render_material {
+    struct render_material_attr {
         struct {
             float valf;
             float val3f[3];
@@ -69,29 +69,23 @@ struct renderer_material {
     } attrs[RMAT_MAX];
 };
 
-struct renderer_mesh {
+struct render_mesh {
     /* Geometry handles */
     unsigned int vao;
     unsigned int indice_count;
     /* Model matrix */
     float model_mat[16];
     /* Material parameters */
-    struct renderer_material material;
+    struct render_material material;
     /* AABB */
     struct {
         float min[3], max[3];
     } aabb;
 };
 
-enum renderer_sky_type {
-    RST_TEXTURE,
-    RST_PREETHAM,
-    RST_NONE
-};
-
-struct renderer_light {
+struct render_light {
     /* Light type */
-    enum renderer_light_type {
+    enum render_light_type {
         LT_DIRECTIONAL,
         LT_POINT
     } type;
@@ -110,19 +104,23 @@ struct renderer_light {
 };
 
 /* Scene description passed to render function */
-struct renderer_input {
+struct render_scene {
     /* Meshes to render */
-    struct renderer_mesh* meshes;
+    struct render_mesh* meshes;
     unsigned int num_meshes;
     /* Sky type and parameters */
-    enum renderer_sky_type sky_type;
+    enum {
+        RST_TEXTURE,
+        RST_PREETHAM,
+        RST_NONE
+    } sky_type;
     unsigned int sky_tex; /* Used if sky_type is RST_TEXTURE */
     struct {
         float inclination;
         float azimuth;
     } sky_pp; /* Used if sky_type  is RST_PREETHAM */
     /* Lighting parameters */
-    struct renderer_light* lights;
+    struct render_light* lights;
     unsigned int num_lights;
 };
 
@@ -154,8 +152,8 @@ struct renderer_state {
 
 /* Public interface */
 void renderer_init(struct renderer_state* rs);
-void renderer_render(struct renderer_state* rs, struct renderer_input* ri, float view_mat[16]);
-void renderer_gi_update(struct renderer_state* rs, struct renderer_input* ri);
+void renderer_render(struct renderer_state* rs, struct render_scene* rscn, float view_mat[16]);
+void renderer_gi_update(struct renderer_state* rs, struct render_scene* rscn);
 void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int height);
 void renderer_destroy(struct renderer_state* rs);
 
