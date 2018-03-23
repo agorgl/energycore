@@ -45,8 +45,7 @@ typedef struct bbox2f { vec2f min, max; } bbox2f;
 typedef struct bbox3f { vec3f min, max; } bbox3f;
 typedef struct frame3f { vec3f x, y, z, o; } frame3f;
 typedef struct mat4f { vec4f x, y, z, w; } mat4f;
-typedef struct image4f { int w, h; float (*pixels)[4]; } image4f;
-typedef struct image4b { int w, h; unsigned char (*pixels)[4]; } image4b;
+typedef struct image { unsigned int w, h; unsigned short channels, bit_depth; void* data; size_t sz; int compression_type; } image;
 
 /* Math primitive constants */
 extern const quat4f identity_quat4f;
@@ -81,10 +80,8 @@ struct texture {
     const char* name;
     /* Path (default: "") */
     const char* path;
-    /* 8-bit data */
-    image4b ldr;
-    /* float data */
-    image4f hdr;
+    /* Image data */
+    image img;
 };
 
 /* Texture wrap mode */

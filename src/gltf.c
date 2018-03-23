@@ -1535,6 +1535,7 @@ struct scene* gltf_to_scene(const struct gltf* gltf)
         texture_init(txt);
         txt->name = gtxt->name ? strdup(gtxt->name) : 0;
         txt->path = strdup(startswith(gtxt->uri, "data:") ? "inlines" : gtxt->uri);
+#if 0
         // TODO get data from gtxt
         void* datab = 0, *dataf = 0;
         int imw = 0, imh = 0, ncomp = 0;
@@ -1587,6 +1588,7 @@ struct scene* gltf_to_scene(const struct gltf* gltf)
                 }
             }
         }
+#endif
         ++scn->num_textures;
         scn->textures = realloc(scn->textures, scn->num_textures * sizeof(*scn->textures));
         scn->textures[scn->num_textures - 1] = txt;

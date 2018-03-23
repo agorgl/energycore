@@ -29,16 +29,22 @@ void texture_init(struct texture* t)
 {
     t->name = 0;
     t->path = 0;
-    t->ldr  = (image4b){.w = 0, .h = 0, .pixels = 0};
-    t->hdr  = (image4f){.w = 0, .h = 0, .pixels = 0};
+    t->img  = (image){
+        .w                = 0,
+        .h                = 0,
+        .channels         = 0,
+        .bit_depth        = 0,
+        .data             = 0,
+        .sz               = 0,
+        .compression_type = 0
+    };
 }
 
 void texture_destroy(struct texture* t)
 {
     free((void*)t->name);
     free((void*)t->path);
-    free(t->ldr.pixels);
-    free(t->hdr.pixels);
+    free(t->img.data);
     memset(t, 0, sizeof(*t));
 }
 
