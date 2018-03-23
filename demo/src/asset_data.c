@@ -25,17 +25,15 @@ void model_data_from_file(struct model_data* mdl, const char* filepath)
         struct mesh_data* md = mdl->meshes + i;
         md->num_verts = mesh->num_verts;
 
-        md->positions  = calloc(md->num_verts, sizeof(*md->positions));
-        md->normals    = calloc(md->num_verts, sizeof(*md->normals));
-        md->texcoords  = calloc(md->num_verts, sizeof(*md->texcoords));
-        md->tangents   = calloc(md->num_verts, sizeof(*md->tangents));
-        md->bitangents = calloc(md->num_verts, sizeof(*md->bitangents));
+        md->positions = calloc(md->num_verts, sizeof(*md->positions));
+        md->normals   = calloc(md->num_verts, sizeof(*md->normals));
+        md->texcoords = calloc(md->num_verts, sizeof(*md->texcoords));
+        md->tangents  = calloc(md->num_verts, sizeof(*md->tangents));
         for (size_t j = 0; j < mesh->num_verts; ++j) {
-            memcpy(md->positions + j,  (mesh->vertices + j)->position, sizeof(*md->positions));
-            memcpy(md->normals + j,    (mesh->vertices + j)->normal,   sizeof(*md->normals));
-            memcpy(md->texcoords + j,  (mesh->vertices + j)->uvs,      sizeof(*md->texcoords));
-            memcpy(md->tangents + j,   (mesh->vertices + j)->tangent,  sizeof(*md->tangents));
-            memcpy(md->bitangents + j, (mesh->vertices + j)->binormal, sizeof(*md->bitangents));
+            memcpy(md->positions + j, (mesh->vertices + j)->position, sizeof(*md->positions));
+            memcpy(md->normals + j,   (mesh->vertices + j)->normal,   sizeof(*md->normals));
+            memcpy(md->texcoords + j, (mesh->vertices + j)->uvs,      sizeof(*md->texcoords));
+            memcpy(md->tangents + j,  (mesh->vertices + j)->tangent,  sizeof(*md->tangents));
         }
 
         md->num_triangles = mesh->num_indices * 3;
@@ -62,7 +60,6 @@ void model_data_free(struct model_data* mdl)
         free(md->normals);
         free(md->texcoords);
         free(md->tangents);
-        free(md->bitangents);
         free(md->triangles);
     }
     free(mdl->meshes);

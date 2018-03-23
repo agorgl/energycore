@@ -47,8 +47,7 @@ struct model_hndl* model_to_gpu(struct model_data* m)
             3 * sizeof(float)  /* Position */
           + 2 * sizeof(float)  /* UV */
           + 3 * sizeof(float)  /* Normal */
-          + 3 * sizeof(float)  /* Tangent */
-          + 3 * sizeof(float); /* Bitangent */
+          + 3 * sizeof(float); /* Tangent */
         glGenBuffers(1, &mh->vbo);
         glBindBuffer(GL_ARRAY_BUFFER, mh->vbo);
         glBufferData(GL_ARRAY_BUFFER, vsz * mesh->num_verts, 0, GL_STATIC_DRAW);
@@ -78,11 +77,6 @@ struct model_hndl* model_to_gpu(struct model_data* m)
         glVertexAttribPointer(tn_attrib, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (GLvoid*)offset);
         memcpy(vbuf + offset, mesh->tangents, mesh->num_verts * 3 * sizeof(float));
         offset += mesh->num_verts * 3 * sizeof(float);
-
-        GLuint btn_attrib = 4;
-        glEnableVertexAttribArray(btn_attrib);
-        glVertexAttribPointer(btn_attrib, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (GLvoid*)offset);
-        memcpy(vbuf + offset, mesh->bitangents, mesh->num_verts * 3 * sizeof(float));
         glUnmapBuffer(GL_ARRAY_BUFFER);
 
         /* Create indice ebo */
@@ -109,16 +103,6 @@ struct model_hndl* model_to_gpu(struct model_data* m)
 
     return model;
 }
-
-#define TIMED_LOAD_BEGIN(fname) \
-    do { \
-        printf("Loading: %-85s", fname); \
-        timepoint_t t1 = millisecs();
-
-#define TIMED_LOAD_END \
-        timepoint_t t2 = millisecs(); \
-        printf("[ %3lu ms ]\n", (unsigned long)(t2 - t1)); \
-    } while (0);
 
 struct model_hndl* model_from_file_to_gpu(const char* filename)
 {

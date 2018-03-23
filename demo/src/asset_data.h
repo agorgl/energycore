@@ -54,7 +54,6 @@ struct model_data {
         float (*normals)[3];
         float (*texcoords)[2];
         float (*tangents)[3];
-        float (*bitangents)[3];
         size_t num_triangles;
         unsigned int (*triangles)[3];
         size_t mat_idx;
