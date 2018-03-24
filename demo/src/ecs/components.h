@@ -32,8 +32,8 @@
 #define _COMPONENTS_H_
 
 #include <linalgb.h>
+#include <energycore/resource.h>
 #include "ecs.h"
-#include "../gpures.h"
 
 #define MAX_MATERIALS 16
 
@@ -58,9 +58,8 @@ struct transform_component {
 };
 
 struct render_component {
-    struct model_hndl* model;
-    size_t mesh_group_idx;
-    struct material* materials[MAX_MATERIALS];
+    rid mesh;
+    rid materials[MAX_MATERIALS];
 };
 
 /* Registers common component */

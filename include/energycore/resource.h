@@ -28,87 +28,103 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _GPURES_H_
-#define _GPURES_H_
+#ifndef _RESOURCE_H_
+#define _RESOURCE_H_
 
-#include <hashmap.h>
+#include "slot_map.h"
+#include "scene_asset.h"
 
-struct mesh_hndl
-{
-    unsigned int vao;
-    unsigned int vbo;
-    unsigned int wbo;
-    unsigned int ebo;
-    unsigned int indice_count;
-    unsigned int mat_idx;
-    unsigned int mgroup_idx;
-    float aabb_min[3], aabb_max[3];
+/* Abstract resource handle */
+#define INVALID_RID SM_INVALID_KEY
+typedef sm_key rid;
+
+/* Checks if given resource id reference is null */
+int rid_null(rid);
+
+/* Texture resource */
+struct render_texture {
+    unsigned int id;
 };
 
-struct model_hndl
-{
-    struct mesh_hndl* meshes;
-    unsigned int num_meshes;
-    const char** mgroup_names;
-    unsigned int num_mgroup_names;
+struct render_texture_info {
+    unsigned int wrap_s;
+    unsigned int wrap_t;
+    unsigned int filter_mag;
+    unsigned int filter_min;
+    float scale;
 };
 
-struct tex_hndl { unsigned int id; };
-
-enum material_attr_type {
-    MAT_ALBEDO = 0,
-    MAT_NORMAL,
-    MAT_ROUGHNESS,
-    MAT_METALLIC,
-    MAT_SPECULAR,
-    MAT_GLOSSINESS,
-    MAT_EMISSION,
-    MAT_OCCLUSION,
-    MAT_DETAIL_ALBEDO,
-    MAT_DETAIL_NORMAL,
-    MAT_PARALLAX,
-    MAT_MAX
+/* Material resource */
+struct render_material {
+    enum material_type type;
+    vec3f ke;
+    vec3f kd;
+    vec3f ks;
+    vec3f kr;
+    vec3f kt;
+    float rs;
+    float op;
+    rid ke_txt;
+    rid kd_txt;
+    rid ks_txt;
+    rid kr_txt;
+    rid kt_txt;
+    rid rs_txt;
+    rid bump_txt;
+    rid disp_txt;
+    rid norm_txt;
+    rid occ_txt;
+    rid kdd_txt;
+    rid normd_txt;
+    struct render_texture_info ke_txt_info;
+    struct render_texture_info kd_txt_info;
+    struct render_texture_info ks_txt_info;
+    struct render_texture_info kr_txt_info;
+    struct render_texture_info kt_txt_info;
+    struct render_texture_info rs_txt_info;
+    struct render_texture_info bump_txt_info;
+    struct render_texture_info disp_txt_info;
+    struct render_texture_info norm_txt_info;
+    struct render_texture_info occ_txt_info;
+    struct render_texture_info kdd_txt_info;
+    struct render_texture_info normd_txt_info;
 };
 
-struct material {
-    struct material_attr {
-        struct {
-            float valf;
-            float val3f[3];
-            struct {
-                struct tex_hndl hndl;
-                float scl[2];
-            } tex;
-        } d;
-        enum {
-            MAT_DTYPE_VALF = 0,
-            MAT_DTYPE_VAL3F,
-            MAT_DTYPE_TEX
-        } dtype;
-    } attrs[MAT_MAX];
+/* Mesh resource */
+struct render_mesh {
+    struct render_shape {
+        unsigned int vao;
+        unsigned int vbo;
+        unsigned int ebo;
+        unsigned int num_elems;
+        float bb_min[3], bb_max[3];
+        unsigned int mat_idx;
+    } shapes[16];
+    size_t num_shapes;
 };
 
-struct res_mngr {
-    struct hashmap mdl_store;
-    struct hashmap tex_store;
-    struct hashmap mat_store;
+/* Resource manager state */
+struct resmgr {
+    struct slot_map textures;
+    struct slot_map materials;
+    struct slot_map meshes;
 };
 
-/* Geometry gpu data */
-struct model_hndl* model_from_file_to_gpu(const char* filename);
-void model_free_from_gpu(struct model_hndl* mdlh);
-/* Texture gpu data */
-struct tex_hndl* tex_from_file_to_gpu(const char* filename);
-struct tex_hndl* tex_env_from_file_to_gpu(const char* filename);
-void tex_free_from_gpu(struct tex_hndl* th);
-/* Resource manager */
-struct res_mngr* res_mngr_create();
-struct model_hndl* res_mngr_mdl_get(struct res_mngr* rmgr, const char* mdl_name);
-struct tex_hndl* res_mngr_tex_get(struct res_mngr* rmgr, const char* tex_name);
-struct material* res_mngr_mat_get(struct res_mngr* rmgr, const char* mat_name);
-void res_mngr_mdl_put(struct res_mngr* rmgr, const char* mdl_name, struct model_hndl* m);
-void res_mngr_tex_put(struct res_mngr* rmgr, const char* tex_name, struct tex_hndl* t);
-void res_mngr_mat_put(struct res_mngr* rmgr, const char* mat_name, struct material* mat);
-void res_mngr_destroy(struct res_mngr*);
+/* Resource manager constructor / destructor */
+void resmgr_init(struct resmgr* rmgr);
+void resmgr_destroy(struct resmgr* rmgr);
+void resmgr_default_rmat(struct render_material* rmat);
 
-#endif /* ! _GPURES_H_ */
+/* Data to resource */
+rid resmgr_add_texture(struct resmgr* rmgr, struct texture* tex);
+rid resmgr_add_texture_env(struct resmgr* rmgr, struct texture* tex, int hcross);
+rid resmgr_add_texture_file(struct resmgr* rmgr, const char* filepath);
+rid resmgr_add_material(struct resmgr* rmgr, struct render_material* rmat);
+rid resmgr_add_mesh(struct resmgr* rmgr, struct mesh* sh);
+
+/* Reference to resource */
+struct render_texture* resmgr_get_texture(struct resmgr* rmgr, rid id);
+struct render_material* resmgr_get_material(struct resmgr* rmgr, rid id);
+struct render_mesh* resmgr_get_mesh(struct resmgr* rmgr, rid id);
+
+#endif /* ! _RESOURCE_H_ */

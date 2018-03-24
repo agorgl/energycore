@@ -83,6 +83,8 @@ struct render_component* render_component_create(ecs_t ecs, entity_t e)
 {
     struct render_component* d = component_add(ecs, e, RENDER, 0);
     memset(d, 0, sizeof(*d));
+    for (size_t i = 0; i < MAX_MATERIALS; ++i)
+        d->materials[i] = INVALID_RID;
     return d;
 }
 

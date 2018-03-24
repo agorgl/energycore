@@ -80,6 +80,7 @@ struct renderer_internal_state {
     struct frame_prof* fprof;
     struct {
         unsigned int num_visible_objs;
+        unsigned int num_total_objs;
         float gpass_msec;
         float lpass_msec;
         float ppass_msec;
@@ -99,6 +100,8 @@ void renderer_init(struct renderer_state* rs)
     rs->internal = calloc(1, sizeof(*rs->internal));
     struct renderer_internal_state* is = rs->internal;
 
+    /* Initialize resource manager */
+    resmgr_init(&rs->rmgr);
     /* Initial dimensions */
     int width = 1280, height = 720;
     is->viewport.x = width; is->viewport.y = height;
@@ -214,25 +217,27 @@ static void upload_gbuffer_uniforms(GLuint shdr, float viewport[2], mat4* view, 
 /*-----------------------------------------------------------------
  * Geometry pass
  *-----------------------------------------------------------------*/
-static void material_setup(struct renderer_state* rs, struct render_mesh* rm, GLuint shdr)
+static void material_setup(struct renderer_state* rs, struct render_material* rmat, GLuint shdr)
 {
     /* Albedo */
-    struct render_material_attr* rma = 0;
-    rma = rm->material.attrs + RMAT_ALBEDO;
+    struct render_texture* rt = 0; struct render_texture_info* rti = 0;
+    rt = resmgr_get_texture(&rs->rmgr, rmat->kd_txt);
+    rti = &rmat->kd_txt_info;
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
-    glUniform1i(glGetUniformLocation(shdr,  "mat.albedo_map.use"), rma->dtype == RMAT_DT_TEX);
-    glUniform2fv(glGetUniformLocation(shdr, "mat.albedo_map.scl"), 1, rma->d.tex.scl);
-    glUniform3fv(glGetUniformLocation(shdr, "mat.albedo_col"), 1, rma->d.val3f);
+    glBindTexture(GL_TEXTURE_2D, rt ? rt->id : 0);
+    glUniform1i(glGetUniformLocation(shdr,  "mat.albedo_map.use"), !!rt);
+    glUniform2fv(glGetUniformLocation(shdr, "mat.albedo_map.scl"), 1, (float[]){rti->scale, rti->scale});
+    glUniform3fv(glGetUniformLocation(shdr, "mat.albedo_col"), 1, (float*)&rmat->kd);
 
     /* Detail albedo */
     int use_detail_alb = 0;
     if (rs->options.use_detail_maps) {
-        rma = rm->material.attrs + RMAT_DETAIL_ALBEDO;
+        rt = resmgr_get_texture(&rs->rmgr, rmat->kdd_txt);
+        rti = &rmat->kdd_txt_info;
         glActiveTexture(GL_TEXTURE4);
-        glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
-        glUniform2fv(glGetUniformLocation(shdr, "mat.detail_albedo_map.scl"), 1, rma->d.tex.scl);
-        use_detail_alb = rma->dtype == RMAT_DT_TEX;
+        glBindTexture(GL_TEXTURE_2D, rt ? rt->id : 0);
+        glUniform2fv(glGetUniformLocation(shdr, "mat.detail_albedo_map.scl"), 1, (float[]){rti->scale, rti->scale});
+        use_detail_alb = !!rt;
     }
     glUniform1i(glGetUniformLocation(shdr, "mat.detail_albedo_map.use"), use_detail_alb);
 
@@ -240,18 +245,20 @@ static void material_setup(struct renderer_state* rs, struct render_mesh* rm, GL
     int use_nm = 0, use_detail_nm = 0;
     if (rs->options.use_normal_mapping) {
         /* Main */
-        rma = rm->material.attrs + RMAT_NORMAL;
+        rt = resmgr_get_texture(&rs->rmgr, rmat->norm_txt);
+        rti = &rmat->norm_txt_info;
         glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
-        glUniform2fv(glGetUniformLocation(shdr, "mat.normal_map.scl"), 1, rma->d.tex.scl);
-        use_nm = rma->dtype == RMAT_DT_TEX;
+        glBindTexture(GL_TEXTURE_2D, rt ? rt->id : 0);
+        glUniform2fv(glGetUniformLocation(shdr, "mat.normal_map.scl"), 1, (float[]){rti->scale, rti->scale});
+        use_nm = !!rt;
         /* Detail */
         if (rs->options.use_detail_maps) {
-            rma = rm->material.attrs + RMAT_DETAIL_NORMAL;
+            rt = resmgr_get_texture(&rs->rmgr, rmat->normd_txt);
+            rti = &rmat->normd_txt_info;
             glActiveTexture(GL_TEXTURE5);
-            glBindTexture(GL_TEXTURE_2D, rma->d.tex.id);
-            glUniform2fv(glGetUniformLocation(shdr, "mat.detail_normal_map.scl"), 1, rma->d.tex.scl);
-            use_detail_nm = rma->dtype == RMAT_DT_TEX;
+            glBindTexture(GL_TEXTURE_2D, rt ? rt->id : 0);
+            glUniform2fv(glGetUniformLocation(shdr, "mat.detail_normal_map.scl"), 1, (float[]){rti->scale, rti->scale});
+            use_detail_nm = !!rt;
         }
     }
     glUniform1i(glGetUniformLocation(shdr, "mat.normal_map.use"), use_nm);
@@ -263,46 +270,26 @@ static void material_setup(struct renderer_state* rs, struct render_mesh* rm, GL
     float roughness_val = 0.0f, metallic_val = 0.0f;
     int specular_mode = 0, glossiness_mode = 0;
     if (rs->options.use_rough_met_maps) {
-        /* Roughness map */
-        rma = rm->material.attrs + RMAT_ROUGHNESS;
-        if (rma->dtype == RMAT_DT_TEX) {
-            roughness_tex = rma->d.tex.id;
-            roughness_scl = rma->d.tex.scl;
-        } else if (rma->dtype == RMAT_DT_VALF) {
-            roughness_val = rma->d.valf;
+        /* Roughness / Glossiness map (alternative) */
+        rt = resmgr_get_texture(&rs->rmgr, rmat->rs_txt);
+        rti = &rmat->rs_txt_info;
+        if (rt) {
+            roughness_tex = rt->id;
+            roughness_scl = (float[]){rti->scale, rti->scale};
+        } else {
+            roughness_val = rmat->rs;
         }
-        /* Glossiness map (alternative) */
-        if (!roughness_tex) {
-            rma = rm->material.attrs + RMAT_GLOSSINESS;
-            if (rma->dtype == RMAT_DT_TEX) {
-                roughness_tex = rma->d.tex.id;
-                roughness_scl = rma->d.tex.scl;
-                glossiness_mode = 1;
-            } else if (rma->dtype == RMAT_DT_VALF) {
-                roughness_val = rma->d.valf;
-                glossiness_mode = 1;
-            }
+        glossiness_mode = rmat->type == MATERIAL_TYPE_SPECULAR_GLOSSINESS;
+        /* Metallic map / Specular map (alternative) */
+        rt = resmgr_get_texture(&rs->rmgr, rmat->ks_txt);
+        rti = &rmat->ks_txt_info;
+        if (rt) {
+            metallic_tex = rt->id;
+            metallic_scl = (float[]){rti->scale, rti->scale};
+        } else {
+            metallic_val = rmat->ks.x;
         }
-        /* Metallic map */
-        rma = rm->material.attrs + RMAT_METALLIC;
-        if (rma->dtype == RMAT_DT_TEX) {
-            metallic_tex = rma->d.tex.id;
-            metallic_scl = rma->d.tex.scl;
-        } else if (rma->dtype == RMAT_DT_VALF) {
-            metallic_val = rma->d.valf;
-        }
-        /* Specular map (alternative) */
-        if (!metallic_tex) {
-            rma = rm->material.attrs + RMAT_SPECULAR;
-            if (rma->dtype == RMAT_DT_TEX) {
-                metallic_tex = rma->d.tex.id;
-                metallic_scl = rma->d.tex.scl;
-                specular_mode = 1;
-            } else if (rma->dtype == RMAT_DT_VALF) {
-                metallic_val = rma->d.valf;
-                specular_mode = 1;
-            }
-        }
+        specular_mode = rmat->type == MATERIAL_TYPE_SPECULAR_GLOSSINESS || rmat->type == MATERIAL_TYPE_SPECULAR_ROUGHNESS;
     }
     glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, roughness_tex);
     glUniform1i(glGetUniformLocation(shdr,  "mat.roughness_map.use"), !!(roughness_tex));
@@ -314,6 +301,15 @@ static void material_setup(struct renderer_state* rs, struct render_mesh* rm, GL
     glUniform2fv(glGetUniformLocation(shdr, "mat.metallic_map.scl"), 1, metallic_scl);
     glUniform1fv(glGetUniformLocation(shdr, "mat.metallic"),  1, &metallic_val);
     glUniform1i(glGetUniformLocation(shdr,  "mat.specular_mode"), specular_mode);
+}
+
+static struct render_material* unset_render_material()
+{
+    static struct render_material rmat;
+    resmgr_default_rmat(&rmat);
+    rmat.kd = (vec3f){1.0, 1.0, 1.0};
+    rmat.rs = 1.0;
+    return &rmat;
 }
 
 static void geometry_pass(struct renderer_state* rs, struct render_scene* rscn, float view[16], float proj[16])
@@ -351,42 +347,54 @@ static void geometry_pass(struct renderer_state* rs, struct render_scene* rscn, 
     glUniform1i(glGetUniformLocation(shdr, "mat.detail_normal_map.tex"), 5);
 
     /* Loop through meshes */
-    is->dbginfo.num_visible_objs = 0;
-    for (unsigned int i = 0; i < rscn->num_meshes; ++i) {
+    is->dbginfo.num_visible_objs = is->dbginfo.num_total_objs = 0;
+    for (unsigned int i = 0; i < rscn->num_objects; ++i) {
         /* Setup mesh to be rendered */
-        struct render_mesh* rm = rscn->meshes + i;
+        struct render_object* ro = &rscn->objects[i];
 
         /* Upload model matrix */
-        glUniformMatrix4fv(modl_mat_loc, 1, GL_FALSE, rm->model_mat);
+        glUniformMatrix4fv(modl_mat_loc, 1, GL_FALSE, ro->model_mat);
 
         /* Set front face */
-        float model_det = mat4_det(*(mat4*)rm->model_mat);
+        float model_det = mat4_det(*(mat4*)ro->model_mat);
         glFrontFace(model_det < 0 ? GL_CW : GL_CCW);
 
-        /* Determine object visibility using occlusion culling */
-        unsigned int visible = 1;
-        if (rs->options.use_occlusion_culling) {
-            /* Begin occlusion query, use index i as handle */
-            occull_object_begin(&is->occl_st, i);
-            visible = occull_should_render(&is->occl_st, rm->aabb.min, rm->aabb.max);
-            if (!visible) {
-                occull_object_end(&is->occl_st);
-                continue;
+        /* Loop through mesh shapes */
+        struct render_mesh* rmsh = resmgr_get_mesh(&rs->rmgr, ro->mesh);
+        for (unsigned int j = 0; j < rmsh->num_shapes; ++j) {
+            /* Count total objects */
+            is->dbginfo.num_total_objs++;
+
+            /* Current shape and its material */
+            struct render_shape* rsh = &rmsh->shapes[j];
+            rid mid = ro->materials[rsh->mat_idx];
+            struct render_material* rmat = rid_null(mid) ? unset_render_material() : resmgr_get_material(&rs->rmgr, mid);
+
+            /* Determine object visibility using occlusion culling */
+            unsigned int visible = 1;
+            if (rs->options.use_occlusion_culling) {
+                /* Begin occlusion query, use current index as handle */
+                occull_object_begin(&is->occl_st, is->dbginfo.num_total_objs);
+                visible = occull_should_render(&is->occl_st, rsh->bb_min, rsh->bb_max);
+                if (!visible) {
+                    occull_object_end(&is->occl_st);
+                    continue;
+                }
             }
+            if (visible)
+                is->dbginfo.num_visible_objs++;
+
+            /* Material parameters */
+            material_setup(rs, rmat, shdr);
+
+            /* Render mesh */
+            glBindVertexArray(rsh->vao);
+            glDrawElements(GL_TRIANGLES, rsh->num_elems, GL_UNSIGNED_INT, (void*)0);
+
+            /* End occlusion query for current object */
+            if (rs->options.use_occlusion_culling)
+                occull_object_end(&is->occl_st);
         }
-        if (visible)
-            is->dbginfo.num_visible_objs++;
-
-        /* Material parameters */
-        material_setup(rs, rm, shdr);
-
-        /* Render mesh */
-        glBindVertexArray(rm->vao);
-        glDrawElements(GL_TRIANGLES, rm->indice_count, GL_UNSIGNED_INT, (void*)0);
-
-        /* End occlusion query for current object */
-        if (rs->options.use_occlusion_culling)
-            occull_object_end(&is->occl_st);
     }
 
     /* Reset bindings */
@@ -407,7 +415,8 @@ static void render_sky(struct renderer_state* rs, struct render_scene* rscn, flo
 {
     switch (rscn->sky_type) {
         case RST_TEXTURE: {
-            sky_texture_render(&rs->internal->sky_rndr.tex, (mat4*)view, (mat4*)proj, rscn->sky_tex);
+            GLuint sky_tex = resmgr_get_texture(&rs->rmgr, rscn->sky_tex)->id;
+            sky_texture_render(&rs->internal->sky_rndr.tex, (mat4*)view, (mat4*)proj, sky_tex);
             break;
         }
         case RST_PREETHAM: {
@@ -577,16 +586,20 @@ static void render_scene(struct renderer_state* rs, struct render_scene* rscn, m
         float* light_dir = rscn->lights[0].type_data.dir.direction.xyz;
         vec3 fru_pts[8]; vec4 fru_plns[6];
         shadowmap_render((&is->shdwmap), light_dir, view->m, proj->m, fru_pts, fru_plns) {
-            for (size_t i = 0; i < rscn->num_meshes; ++i) {
-                struct render_mesh* rm = rscn->meshes + i;
-                vec3 box_mm[2] = {
-                    mat4_mul_vec3(*(mat4*)rm->model_mat, *(vec3*)rm->aabb.min),
-                    mat4_mul_vec3(*(mat4*)rm->model_mat, *(vec3*)rm->aabb.max)
-                };
-                if (box_in_frustum(fru_pts, fru_plns, box_mm)){
-                    glUniformMatrix4fv(glGetUniformLocation(shdr, "model"), 1, GL_FALSE, rm->model_mat);
-                    glBindVertexArray(rm->vao);
-                    glDrawElements(GL_TRIANGLES, rm->indice_count, GL_UNSIGNED_INT, 0);
+            for (size_t i = 0; i < rscn->num_objects; ++i) {
+                struct render_object* ro = &rscn->objects[i];
+                struct render_mesh* rmsh = resmgr_get_mesh(&rs->rmgr, ro->mesh);
+                glUniformMatrix4fv(glGetUniformLocation(shdr, "model"), 1, GL_FALSE, ro->model_mat);
+                for (size_t j = 0; j < rmsh->num_shapes; ++j) {
+                    struct render_shape* rsh = &rmsh->shapes[j];
+                    vec3 box_mm[2] = {
+                        mat4_mul_vec3(*(mat4*)ro->model_mat, *(vec3*)rsh->bb_min),
+                        mat4_mul_vec3(*(mat4*)ro->model_mat, *(vec3*)rsh->bb_max)
+                    };
+                    if (box_in_frustum(fru_pts, fru_plns, box_mm)){
+                        glBindVertexArray(rsh->vao);
+                        glDrawElements(GL_TRIANGLES, rsh->num_elems, GL_UNSIGNED_INT, 0);
+                    }
                 }
             }
             glBindVertexArray(0);
@@ -611,12 +624,13 @@ static void render_scene(struct renderer_state* rs, struct render_scene* rscn, m
  *-----------------------------------------------------------------*/
 static void visualize_bboxes(struct renderer_state* rs, struct render_scene* rscn, float view[16])
 {
-    /* Loop through meshes */
-    for (unsigned int i = 0; i < rscn->num_meshes; ++i) {
-        /* Setup mesh to be rendered */
-        struct render_mesh* rm = rscn->meshes + i;
-        /* Upload model matrix */
-        bbox_rndr_vis(&rs->internal->bbox_rs, rm->model_mat, view, rs->internal->proj.m, rm->aabb.min, rm->aabb.max);
+    for (unsigned int i = 0; i < rscn->num_objects; ++i) {
+        struct render_object* ro = &rscn->objects[i];
+        struct render_mesh* rmsh = resmgr_get_mesh(&rs->rmgr, ro->mesh);
+        for (unsigned int j = 0; j < rmsh->num_shapes; ++j) {
+            struct render_shape* rsh = &rmsh->shapes[j];
+            bbox_rndr_vis(&rs->internal->bbox_rs, ro->model_mat, view, rs->internal->proj.m, rsh->bb_min, rsh->bb_max);
+        }
     }
 }
 
@@ -627,12 +641,15 @@ static void visualize_normals(struct renderer_state* rs, struct render_scene* rs
     glUniformMatrix4fv(glGetUniformLocation(shdr, "proj"), 1, GL_FALSE, proj->m);
     glUniformMatrix4fv(glGetUniformLocation(shdr, "view"), 1, GL_FALSE, view->m);
     GLuint mdl_mat_loc = glGetUniformLocation(shdr, "model");
-    for (unsigned int i = 0; i < rscn->num_meshes; ++i) {
-        /* Setup mesh to be rendered */
-        struct render_mesh* rm = rscn->meshes + i;
-        glUniformMatrix4fv(mdl_mat_loc, 1, GL_FALSE, rm->model_mat);
-        glBindVertexArray(rm->vao);
-        glDrawElements(GL_TRIANGLES, rm->indice_count, GL_UNSIGNED_INT, (void*)0);
+    for (unsigned int i = 0; i < rscn->num_objects; ++i) {
+        struct render_object* ro = &rscn->objects[i];
+        struct render_mesh* rmsh = resmgr_get_mesh(&rs->rmgr, ro->mesh);
+        glUniformMatrix4fv(mdl_mat_loc, 1, GL_FALSE, ro->model_mat);
+        for (unsigned int j = 0; j < rmsh->num_shapes; ++j) {
+            struct render_shape* rsh = &rmsh->shapes[j];
+            glBindVertexArray(rsh->vao);
+            glDrawElements(GL_TRIANGLES, rsh->num_elems, GL_UNSIGNED_INT, (void*)0);
+        }
     }
     glBindVertexArray(0);
     glUseProgram(0);
@@ -723,7 +740,7 @@ void renderer_render(struct renderer_state* rs, struct render_scene* rscn, float
         char buf[128];
         snprintf(buf, sizeof(buf), "GPass: %.3f\nLPass: %.3f\nPPass: %.3f\nVis/Tot: %u/%u",
                  is->dbginfo.gpass_msec, is->dbginfo.lpass_msec, is->dbginfo.ppass_msec,
-                 is->dbginfo.num_visible_objs, rscn->num_meshes);
+                 is->dbginfo.num_visible_objs, is->dbginfo.num_total_objs);
         dbgtxt_setfnt(FNT_GOHU);
         dbgtxt_prnt(buf, 5, 15);
         dbgtxt_setfnt(FNT_SLKSCR);
@@ -769,5 +786,6 @@ void renderer_destroy(struct renderer_state* rs)
     eyeadapt_destroy(&is->eyeadpt);
     postfx_destroy(&is->postfx);
     gbuffer_destroy(&is->main_gbuf);
+    resmgr_destroy(&rs->rmgr);
     free(rs->internal);
 }

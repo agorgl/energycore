@@ -41,14 +41,10 @@ struct game_context
     struct window* wnd;
     /* Master run flag, indicates when the game should exit */
     int* should_terminate;
-    /* GPU Resource Manager */
-    struct res_mngr* rmgr;
     /* World */
     struct world* world;
     /* Camera control */
     struct camctrl cam;
-    /* Sky */
-    struct tex_hndl* sky_tex;
     /* Renderer state and his cached input */
     struct renderer_state rndr_state;
     struct render_scene cached_scene;

@@ -31,8 +31,8 @@
 #ifndef _WORLD_EXT_H_
 #define _WORLD_EXT_H_
 
-#include "gpures.h"
+#include <energycore/resource.h>
 
-struct world* world_external(const char* scene_file, struct res_mngr* rmgr);
+struct world* world_external(const char* scene_file, struct resmgr* rmgr);
 
 #endif /* ! _WORLD_EXT_H_ */

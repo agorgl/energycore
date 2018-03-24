@@ -32,55 +32,15 @@
 #define _RENDERER_H_
 
 #include <linalgb.h>
+#include "resource.h"
 
 /*-----------------------------------------------------------------
  * Renderer input
  *-----------------------------------------------------------------*/
-enum render_material_attr_type {
-    RMAT_ALBEDO = 0,
-    RMAT_NORMAL,
-    RMAT_ROUGHNESS,
-    RMAT_METALLIC,
-    RMAT_SPECULAR,
-    RMAT_GLOSSINESS,
-    RMAT_EMISSION,
-    RMAT_OCCLUSION,
-    RMAT_DETAIL_ALBEDO,
-    RMAT_DETAIL_NORMAL,
-    RMAT_PARALLAX,
-    RMAT_MAX
-};
-
-struct render_material {
-    struct render_material_attr {
-        struct {
-            float valf;
-            float val3f[3];
-            struct {
-                unsigned int id;
-                float scl[2];
-            } tex;
-        } d;
-        enum {
-            RMAT_DT_VALF = 0,
-            RMAT_DT_VAL3F,
-            RMAT_DT_TEX
-        } dtype;
-    } attrs[RMAT_MAX];
-};
-
-struct render_mesh {
-    /* Geometry handles */
-    unsigned int vao;
-    unsigned int indice_count;
-    /* Model matrix */
+struct render_object {
+    rid mesh;
+    rid materials[16];
     float model_mat[16];
-    /* Material parameters */
-    struct render_material material;
-    /* AABB */
-    struct {
-        float min[3], max[3];
-    } aabb;
 };
 
 struct render_light {
@@ -105,16 +65,16 @@ struct render_light {
 
 /* Scene description passed to render function */
 struct render_scene {
-    /* Meshes to render */
-    struct render_mesh* meshes;
-    unsigned int num_meshes;
+    /* Objects to render */
+    struct render_object* objects;
+    unsigned int num_objects;
     /* Sky type and parameters */
     enum {
         RST_TEXTURE,
         RST_PREETHAM,
         RST_NONE
     } sky_type;
-    unsigned int sky_tex; /* Used if sky_type is RST_TEXTURE */
+    rid sky_tex; /* Used if sky_type is RST_TEXTURE */
     struct {
         float inclination;
         float azimuth;
@@ -131,6 +91,8 @@ struct render_scene {
 struct renderer_state {
     /* Internals */
     struct renderer_internal_state* internal;
+    /* Resource manager */
+    struct resmgr rmgr;
     /* Options */
     struct {
         unsigned int show_bboxes;

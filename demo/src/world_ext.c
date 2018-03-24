@@ -3,111 +3,194 @@
 #include <stdio.h>
 #include <prof.h>
 #include <hashmap.h>
-#include "gpures.h"
 #include "ecs/world.h"
 #include "scene_file.h"
+#include "asset_data.h"
 #include "util.h"
 
-static inline int mesh_group_offset_from_name(struct model_hndl* m, const char* mgroup_name)
+struct submesh_info {
+    const char* model;
+    const char* mgroup_name;
+};
+
+static size_t submesh_info_hash(hm_ptr key)
 {
-    for (unsigned int i = 0; i < m->num_mgroup_names; ++i) {
-        if (strcmp(m->mgroup_names[i], mgroup_name) == 0) {
-            return i;
-        }
-    }
-    return -2;
+    struct submesh_info* si = hm_pcast(key);
+    size_t h1 = hm_str_hash(hm_cast(si->model));
+    size_t h2 = hm_str_hash(hm_cast(si->mgroup_name));
+    return h1 ^ h2;
 }
 
-struct world* world_external(const char* scene_file, struct res_mngr* rmgr)
+static int submesh_info_eql(hm_ptr k1, hm_ptr k2)
+{
+    struct submesh_info* s1 = hm_pcast(k1);
+    struct submesh_info* s2 = hm_pcast(k2);
+    return strcmp(s1->model, s2->model) == 0
+        && strcmp(s1->mgroup_name, s2->mgroup_name) == 0;
+}
+
+static struct shape* mesh_data_to_shape(struct mesh_data* mdata)
+{
+    struct shape* shp = calloc(1, sizeof(*shp));
+    shp->num_pos = shp->num_norm = shp->num_texcoord = shp->num_tangsp = mdata->num_verts;
+    shp->pos      = calloc(shp->num_pos,      sizeof(*shp->pos));
+    shp->norm     = calloc(shp->num_norm,     sizeof(*shp->norm));
+    shp->texcoord = calloc(shp->num_texcoord, sizeof(*shp->texcoord));
+    shp->tangsp   = calloc(shp->num_tangsp,   sizeof(*shp->tangsp));
+    memcpy(shp->pos,      mdata->positions, shp->num_pos * sizeof(*shp->pos));
+    memcpy(shp->norm,     mdata->normals,   shp->num_norm * sizeof(*shp->norm));
+    memcpy(shp->texcoord, mdata->texcoords, shp->num_texcoord * sizeof(*shp->texcoord));
+    for (size_t i = 0; i < shp->num_tangsp; ++i) {
+        for (size_t k = 0; k < 3; ++k)
+            ((float*)&shp->tangsp[i])[k] = mdata->tangents[i][k];
+    }
+    shp->num_triangles = mdata->num_triangles;
+    shp->triangles = calloc(shp->num_triangles, sizeof(*shp->triangles));
+    memcpy(shp->triangles, mdata->triangles, shp->num_triangles * sizeof(*shp->triangles));
+    return shp;
+}
+
+struct world* world_external(const char* scene_file, struct resmgr* rmgr)
 {
     /* Load scene file */
     struct scene_file* sc = scene_file_load(scene_file);
 
     /* Load models */
+    struct hashmap model_handles_map;
+    hashmap_init(&model_handles_map, submesh_info_hash, submesh_info_eql);
     bench("[+] Mdl time")
     for (size_t i = 0; i < sc->num_models; ++i) {
         struct scene_model* m = sc->models + i;
-        struct model_hndl* p = res_mngr_mdl_get(rmgr, m->ref);
-        if (!p) {
-            /* Load, parse and upload model */
-            struct model_hndl* model = model_from_file_to_gpu(m->path);
-            res_mngr_mdl_put(rmgr, m->ref, model);
+        /* Load, parse and upload model */
+        struct model_data mdl;
+        model_data_from_file(&mdl, m->path);
+        for (size_t j = 0; j < mdl.num_group_names; ++j) {
+            struct mesh mesh;
+            _mesh_init(&mesh);
+            for (size_t k = 0; k < mdl.num_meshes; ++k) {
+                struct mesh_data* mdata = &mdl.meshes[k];
+                if (mdata->group_idx == j) {
+                    ++mesh.num_shapes;
+                    mesh.shapes = realloc(mesh.shapes, mesh.num_shapes * sizeof(*mesh.shapes));
+                    mesh.shapes[mesh.num_shapes - 1] = mesh_data_to_shape(mdata);
+                }
+            }
+            rid id = resmgr_add_mesh(rmgr, &mesh);
+            struct render_mesh* rmsh = resmgr_get_mesh(rmgr, id);
+            for (size_t k = 0; k < rmsh->num_shapes; ++k)
+                rmsh->shapes[k].mat_idx = mdl.meshes[k].mat_idx;
+            _mesh_destroy(&mesh);
+            /* Store handle to temporary hashmap to use by object references later */
+            struct submesh_info* si = calloc(1, sizeof(*si));
+            si->model = strdup(m->ref);
+            si->mgroup_name = strdup(mdl.group_names[j]);
+            hashmap_put(&model_handles_map, hm_cast(si), *((hm_ptr*)&id));
         }
+        model_data_free(&mdl);
     }
 
     /* Load textures */
+    struct hashmap texture_handles_map;
+    hashmap_init(&texture_handles_map, hm_str_hash, hm_str_eql);
     bench("[+] Tex time")
     for (size_t i = 0; i < sc->num_textures; ++i) {
         struct scene_texture* t = sc->textures + i;
-        struct tex_hndl* p = res_mngr_tex_get(rmgr, t->ref);
-        if (!p) {
+        if (!hashmap_exists(&texture_handles_map, hm_cast(t->ref))) {
             /* Load, parse and upload texture */
-            struct tex_hndl* tex = tex_from_file_to_gpu(t->path);
-            res_mngr_tex_put(rmgr, t->ref, tex);
+            struct image_data img_data;
+            image_data_from_file(&img_data, t->path);
+            struct texture tex = {
+                .name = 0,
+                .path = 0,
+                .img  = (image) {
+                    .w                = img_data.width,
+                    .h                = img_data.height,
+                    .channels         = img_data.channels,
+                    .bit_depth        = img_data.bit_depth,
+                    .data             = img_data.data,
+                    .sz               = img_data.data_sz,
+                    .compression_type = img_data.compression_type
+                }
+            };
+            rid id = resmgr_add_texture(rmgr, &tex);
+            hashmap_put(&texture_handles_map, hm_cast(t->ref), *((hm_ptr*)&id));
+            image_data_free(&img_data);
         }
     }
 
     /* Load materials */
+    struct hashmap material_handles_map;
+    hashmap_init(&material_handles_map, hm_str_hash, hm_str_eql);
     for (size_t i = 0; i < sc->num_materials; ++i) {
         struct scene_material* m = sc->materials + i;
-        struct material* p = res_mngr_mat_get(rmgr, m->ref);
-        if (!p) {
-            /* Store material */
-            struct material* mat = calloc(1, sizeof(struct material));
-            /* Set texture parameters */
+        if (!hashmap_exists(&material_handles_map, hm_cast(m->ref))) {
+            struct render_material rmat;
+            resmgr_default_rmat(&rmat);
+            rmat.rs = 0.9;
+            rmat.type = MATERIAL_TYPE_METALLIC_ROUGHNESS;
+
+            int using_gloss = 0, using_spec = 0;
             for (int j = 0; j < STT_MAX; ++j) {
-                struct material_attr* mattr = mat->attrs + j; /* Implicit mapping STT_TYPE <-> MAT_TYPE */
                 const char* tex_ref = m->textures[j].tex_ref;
-                struct tex_hndl* p = tex_ref ? res_mngr_tex_get(rmgr, tex_ref) : 0;
-                if (p) {
-                    mattr->dtype = MAT_DTYPE_TEX;
-                    mattr->d.tex.hndl.id = p->id;
-                    mattr->d.tex.scl[0]  = m->textures[j].scale[0];
-                    mattr->d.tex.scl[1]  = m->textures[j].scale[1];
-                } else {
-                    switch (j) {
-                        case MAT_ALBEDO:
-                            mattr->dtype = MAT_DTYPE_VAL3F;
-                            mattr->d.val3f[0] = 0.0f;
-                            mattr->d.val3f[1] = 0.0f;
-                            mattr->d.val3f[2] = 0.0f;
-                            break;
-                        case MAT_ROUGHNESS:
-                            mattr->dtype = MAT_DTYPE_VALF;
-                            mattr->d.valf = 0.8f;
-                            break;
-                        case MAT_METALLIC:
-                            mattr->dtype = MAT_DTYPE_VALF;
-                            mattr->d.valf = 0.0f;
-                            break;
-                        case MAT_GLOSSINESS:
-                            mattr->dtype = MAT_DTYPE_VALF;
-                            mattr->d.valf = 0.2f;
-                            break;
-                        case MAT_SPECULAR:
-                            mattr->dtype = MAT_DTYPE_VAL3F;
-                            mattr->d.val3f[0] = 0.0f;
-                            mattr->d.val3f[1] = 0.0f;
-                            mattr->d.val3f[2] = 0.0f;
-                            break;
-                        case MAT_EMISSION:
-                            mattr->dtype = MAT_DTYPE_VAL3F;
-                            mattr->d.val3f[0] = 0.0f;
-                            mattr->d.val3f[1] = 0.0f;
-                            mattr->d.val3f[2] = 0.0f;
-                            break;
-                        case MAT_OCCLUSION:
-                            mattr->dtype = MAT_DTYPE_VALF;
-                            mattr->d.valf = 0.0f;
-                            break;
-                        default:
-                            mattr->dtype = MAT_DTYPE_VALF;
-                            mattr->d.valf = 0.0f;
-                            break;
-                    }
+                float scl = m->textures[j].scale[0];
+                hm_ptr* p = tex_ref ? hashmap_get(&texture_handles_map, hm_cast(tex_ref)) : 0;
+                if (!p)
+                    continue;
+                rid tid = *(rid*)p;
+                switch (j) {
+                    case STT_ALBEDO:
+                        rmat.kd_txt = tid;
+                        rmat.kd_txt_info.scale = scl;
+                        break;
+                    case STT_NORMAL:
+                        rmat.norm_txt = tid;
+                        rmat.norm_txt_info.scale = scl;
+                        break;
+                    case STT_ROUGHNESS:
+                        rmat.rs_txt = tid;
+                        rmat.rs_txt_info.scale = scl;
+                        using_gloss = 0;
+                        break;
+                    case STT_METALLIC:
+                        rmat.ks_txt = tid;
+                        rmat.ks_txt_info.scale = scl;
+                        using_spec = 0;
+                        break;
+                    case STT_SPECULAR:
+                        rmat.ks_txt = tid;
+                        rmat.ks_txt_info.scale = scl;
+                        using_spec = 1;
+                        break;
+                    case STT_GLOSSINESS:
+                        rmat.rs_txt = tid;
+                        rmat.rs_txt_info.scale = scl;
+                        using_gloss = 1;
+                        break;
+                    case STT_EMISSION:
+                        rmat.ke_txt = tid;
+                        rmat.ke_txt_info.scale = scl;
+                        break;
+                    case STT_OCCLUSION:
+                        rmat.occ_txt = tid;
+                        rmat.occ_txt_info.scale = scl;
+                        break;
+                    case STT_DETAIL_ALBEDO:
+                        rmat.kdd_txt = tid;
+                        rmat.kdd_txt_info.scale = scl;
+                        break;
+                    case STT_DETAIL_NORMAL:
+                        rmat.normd_txt = tid;
+                        rmat.normd_txt_info.scale = scl;
+                        break;
                 }
             }
-            res_mngr_mat_put(rmgr, m->ref, mat);
+            if (using_spec) {
+                rmat.type = MATERIAL_TYPE_SPECULAR_GLOSSINESS;
+                if (!using_gloss)
+                    rmat.type = MATERIAL_TYPE_SPECULAR_ROUGHNESS;
+            }
+            rid id = resmgr_add_material(rmgr, &rmat);
+            hashmap_put(&material_handles_map, hm_cast(m->ref), *((hm_ptr*)&id));
         }
     }
 
@@ -125,25 +208,15 @@ struct world* world_external(const char* scene_file, struct res_mngr* rmgr)
         entity_t e = entity_create(world->ecs);
         /* Create and set render component */
         if (so->mdl_ref) {
-            struct model_hndl* mhdl = res_mngr_mdl_get(rmgr, so->mdl_ref);
-            int mgroup_idx = ~0;
-            if (so->mgroup_name)
-                mgroup_idx = mesh_group_offset_from_name(mhdl, so->mgroup_name);
-            if (mgroup_idx != -2) {
+            struct submesh_info si = { .model = so->mdl_ref, .mgroup_name = so->mgroup_name };
+            hm_ptr* p = hashmap_get(&model_handles_map, hm_cast(&si));
+            if (p) {
+                rid id = *(rid*)hm_pcast(p);
                 struct render_component* rendr_c = render_component_create(world->ecs, e);
-                rendr_c->model = mhdl;
-                rendr_c->mesh_group_idx = mgroup_idx;
-                for (unsigned int j = 0, cur_mat = 0; j < rendr_c->model->num_meshes; ++j) {
-                    struct mesh_hndl* mh = rendr_c->model->meshes + j;
-                    if (mh->mgroup_idx == rendr_c->mesh_group_idx || (int)mgroup_idx == ~0) {
-                        if (!(cur_mat < so->num_mat_refs && cur_mat < MAX_MATERIALS))
-                            break;
-                        if (!rendr_c->materials[mh->mat_idx]) {
-                            struct material* p = res_mngr_mat_get(rmgr, so->mat_refs[cur_mat++]);
-                            if (p)
-                                rendr_c->materials[mh->mat_idx] = p;
-                        }
-                    }
+                rendr_c->mesh = id;
+                for (unsigned int j = 0; j < MAX_MATERIALS && j < so->num_mat_refs; ++j) {
+                    rid* mid = (rid*)hashmap_get(&material_handles_map, hm_cast(so->mat_refs[j]));
+                    rendr_c->materials[j] = *mid;
                 }
             } else {
                 printf("Mesh group offset not found for %s!\n", so->mgroup_name);
@@ -175,6 +248,16 @@ struct world* world_external(const char* scene_file, struct res_mngr* rmgr)
             transform_component_set_parent(world->ecs, tc_child, tc_parnt);
         }
     }
+    hashmap_destroy(&material_handles_map);
+    hashmap_destroy(&texture_handles_map);
+    struct hashmap_iter it;
+    hashmap_for(model_handles_map, it) {
+        struct submesh_info* si = hm_pcast(it.p->key);
+        free((void*)si->mgroup_name);
+        free((void*)si->model);
+        free(si);
+    }
+    hashmap_destroy(&model_handles_map);
     hashmap_destroy(&transform_handles_map);
     free(transform_handles);
     scene_file_destroy(sc);

@@ -5,7 +5,6 @@
 #include <math.h>
 #include <glad/glad.h>
 #include <gfxwnd/window.h>
-#include "gpures.h"
 #include "util.h"
 #include "ecs/world.h"
 #include "ecs/components.h"
@@ -88,8 +87,9 @@ void game_init(struct game_context* ctx)
     wnd_callbacks.fb_size_cb = on_fb_size;
     window_set_callbacks(ctx->wnd, &wnd_callbacks);
 
-    /* Create resource manager */
-    ctx->rmgr = res_mngr_create();
+    /* Initialize renderer */
+    renderer_init(&ctx->rndr_state);
+    ctx->gi_dirty = 1;
 
     /* Pick scene file, try environment variable first */
     const char* scene_file = getenv("EC_SCENE");
@@ -98,21 +98,16 @@ void game_init(struct game_context* ctx)
 
     /* Load data into GPU and construct world entities */
     bench("[+] Tot time")
-        ctx->world = world_external(scene_file, ctx->rmgr);
+        ctx->world = world_external(scene_file, &ctx->rndr_state.rmgr);
 
     /* Initialize camera */
     camctrl_defaults(&ctx->cam);
     ctx->cam.pos = vec3_new(0.0, 1.0, 3.0);
     camctrl_setdir(&ctx->cam, vec3_normalize(vec3_mul(ctx->cam.pos, -1)));
 
-    /* Initialize renderer */
-    renderer_init(&ctx->rndr_state);
-    ctx->gi_dirty = 1;
-
     /* Load sky texture from file into the GPU */
-    ctx->sky_tex = tex_env_from_file_to_gpu("ext/envmaps/sun_clouds.hdr");
+    ctx->cached_scene.sky_tex = resmgr_add_texture_file(&ctx->rndr_state.rmgr, "ext/envmaps/sun_clouds.hdr");
     ctx->cached_scene.sky_type = RST_TEXTURE;
-    ctx->cached_scene.sky_tex = ctx->sky_tex->id;
     ctx->cached_scene.sky_pp.inclination = 0.8f;
     ctx->cached_scene.sky_pp.azimuth = 0.6f;
 
@@ -189,87 +184,27 @@ static void prepare_render_scene(struct game_context* ctx, struct render_scene* 
     struct world* world = ctx->world;
     /* Count total meshes */
     const size_t num_ents = entity_total(world->ecs);
-    rscn->num_meshes = 0;
+    rscn->num_objects = 0;
     for (unsigned int i = 0; i < num_ents; ++i) {
         entity_t e = entity_at(world->ecs, i);
         struct render_component* rc = render_component_lookup(world->ecs, e);
-        if (rc) {
-            for (unsigned int j = 0; j < rc->model->num_meshes; ++j) {
-                struct mesh_hndl* mh = rc->model->meshes + j;
-                if (mh->mgroup_idx == rc->mesh_group_idx || (int)rc->mesh_group_idx == ~0)
-                    ++rscn->num_meshes;
-            }
-        }
+        if (rc)
+            ++rscn->num_objects;
     }
 
     /* Populate renderer mesh inputs */
-    rscn->meshes = malloc(rscn->num_meshes * sizeof(*rscn->meshes));
-    memset(rscn->meshes, 0, rscn->num_meshes * sizeof(*rscn->meshes));
-    unsigned int cur_mesh = 0;
-    for (unsigned int i = 0; i < num_ents; ++i) {
+    rscn->objects = calloc(rscn->num_objects, sizeof(*rscn->objects));
+    for (unsigned int i = 0, cur_obj = 0; i < num_ents; ++i) {
         entity_t e = entity_at(world->ecs, i);
         struct render_component* rc = render_component_lookup(world->ecs, e);
         if (!rc)
             continue;
         mat4 transform = transform_world_mat(world->ecs, e);
-        struct model_hndl* mdlh = rc->model;
-        for (unsigned int j = 0; j < mdlh->num_meshes; ++j) {
-            /* Source */
-            struct mesh_hndl* mh = mdlh->meshes + j;
-            /* Skip meshes not in assigned mesh group */
-            if (mh->mgroup_idx != rc->mesh_group_idx && (int)rc->mesh_group_idx != ~0)
-                continue;
-            /* Target */
-            struct render_mesh* rm = rscn->meshes + cur_mesh;
-            rm->vao = mh->vao;
-            rm->indice_count = mh->indice_count;
-            /* Material properties */
-            struct material* mat = rc->materials[mh->mat_idx];
-            if (mat) {
-                for (unsigned int k = 0; k < MAT_MAX; ++k) {
-                    struct material_attr* ma = mat->attrs + k;
-                    /* Defaults */
-                    struct {unsigned int id; float* scl;} tex = {0, (float[]){1.0f, 1.0f}};
-                    float valf = 0.0f; float val3f[3] = {0.0f, 0.0f, 0.0f};
-                    /* Fill in local */
-                    switch (ma->dtype) {
-                        case MAT_DTYPE_VALF:
-                            valf = ma->d.valf;
-                            break;
-                        case MAT_DTYPE_VAL3F:
-                            val3f[0] = ma->d.val3f[0];
-                            val3f[1] = ma->d.val3f[1];
-                            val3f[2] = ma->d.val3f[2];
-                            break;
-                        case MAT_DTYPE_TEX:
-                            tex.id  = ma->d.tex.hndl.id;
-                            tex.scl = ma->d.tex.scl;
-                            break;
-                    }
-                    /* Copy to target */
-                    struct render_material_attr* rma = rm->material.attrs + k; /* Implicit mapping MAT_TYPE <-> RMAT_TYPE */
-                    rma->dtype = ma->dtype;
-                    rma->d.tex.id = tex.id;
-                    rma->d.valf = valf;
-                    memcpy(rma->d.tex.scl, tex.scl, 2 * sizeof(float));
-                    memcpy(rma->d.val3f, val3f, sizeof(val3f));
-                }
-            } else {
-                /* Default to white color */
-                struct render_material_attr* rma = rm->material.attrs + RMAT_ALBEDO;
-                rma->dtype = RMAT_DT_VAL3F;
-                rma->d.val3f[0] = 1.0f;
-                rma->d.val3f[1] = 1.0f;
-                rma->d.val3f[2] = 1.0f;
-                rma = rm->material.attrs + RMAT_ROUGHNESS;
-                rma->dtype = RMAT_DT_VALF;
-                rma->d.valf = 0.8f;
-            }
-            memcpy(rm->aabb.min, mh->aabb_min, 3 * sizeof(float));
-            memcpy(rm->aabb.max, mh->aabb_max, 3 * sizeof(float));
-            memcpy(rm->model_mat, transform.m, 16 * sizeof(float));
-            ++cur_mesh;
-        }
+        /* Target */
+        struct render_object* ro = &rscn->objects[cur_obj++];
+        memcpy(ro->model_mat, transform.m, 16 * sizeof(float));
+        memcpy(ro->materials, rc->materials, sizeof(ro->materials));
+        ro->mesh = rc->mesh;
     }
     prepare_render_scene_lights(rscn);
 }
@@ -304,7 +239,7 @@ void game_shutdown(struct game_context* ctx)
 {
     /* Free cached renderer input */
     free(ctx->cached_scene.lights);
-    free(ctx->cached_scene.meshes);
+    free(ctx->cached_scene.objects);
 
     /* Unbind GPU handles */
     glUseProgram(0);
@@ -312,17 +247,11 @@ void game_shutdown(struct game_context* ctx)
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    /* Free sky texture */
-    tex_free_from_gpu(ctx->sky_tex);
-
     /* Destroy renderer */
     renderer_destroy(&ctx->rndr_state);
 
     /* Destroy world */
     world_destroy(ctx->world);
-
-    /* Destroy resource manager */
-    res_mngr_destroy(ctx->rmgr);
 
     /* Close window */
     window_destroy(ctx->wnd);
