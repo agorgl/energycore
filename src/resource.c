@@ -3,6 +3,7 @@
 #include <assert.h>
 #include "opengl.h"
 #include "asset.h"
+#include "vcopt.h"
 
 int rid_null(rid id)
 {
@@ -337,6 +338,14 @@ static void mesh_calc_aabb(struct shape* s, float min[3], float max[3])
     }
 }
 
+static void optimize_indices(unsigned int* indices, size_t num_indices, size_t num_verts)
+{
+    unsigned int* optimized_indices = calloc(num_indices, sizeof(*optimized_indices));
+    forsyth_reorder_indices(optimized_indices, indices, num_indices / 3, num_verts);
+    memcpy(indices, optimized_indices, num_indices * sizeof(*indices));
+    free(optimized_indices);
+}
+
 void add_shape(struct render_shape* rsh, struct shape* sh)
 {
     GLuint vao;
@@ -381,6 +390,7 @@ void add_shape(struct render_shape* rsh, struct shape* sh)
     offset += sizeof(*sh->tangsp) * num_verts;
     glUnmapBuffer(GL_ARRAY_BUFFER);
 
+    optimize_indices((unsigned int*)sh->triangles, sh->num_triangles * 3, sh->num_pos);
     GLuint ebo;
     glGenBuffers(1, &ebo);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
