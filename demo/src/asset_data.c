@@ -36,7 +36,7 @@ void model_data_from_file(struct model_data* mdl, const char* filepath)
             memcpy(md->tangents + j,  (mesh->vertices + j)->tangent,  sizeof(*md->tangents));
         }
 
-        md->num_triangles = mesh->num_indices * 3;
+        md->num_triangles = mesh->num_indices / 3;
         md->triangles = calloc(md->num_triangles, sizeof(*md->triangles));
         memcpy(md->triangles, mesh->indices, mesh->num_indices * sizeof(*mesh->indices));
 
