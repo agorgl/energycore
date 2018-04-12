@@ -46,6 +46,9 @@ struct renderer_internal_state {
         unsigned int dir_light;
         unsigned int env_light;
         struct {
+            unsigned int bloom_bright;
+            unsigned int bloom_blur;
+            unsigned int bloom_combine;
             unsigned int tonemap;
             unsigned int gamma;
             unsigned int smaa;
@@ -166,6 +169,7 @@ void renderer_init(struct renderer_state* rs)
     rs->options.use_detail_maps = 1;
     rs->options.use_shadows = 0;
     rs->options.use_envlight = 1;
+    rs->options.use_bloom = 0;
     rs->options.use_tonemapping = 1;
     rs->options.use_gamma_correction = 1;
     rs->options.show_bboxes = 0;
@@ -178,21 +182,24 @@ void renderer_init(struct renderer_state* rs)
 static void renderer_shdr_fetch(struct renderer_state* rs)
 {
     struct renderer_internal_state* is = rs->internal;
-    is->shdrs.geom_pass      = resint_shdr_fetch("geom_pass");
-    is->shdrs.dir_light      = resint_shdr_fetch("dir_light");
-    is->shdrs.env_light      = resint_shdr_fetch("env_light");
-    is->shdrs.fx.tonemap     = resint_shdr_fetch("tonemap_fx");
-    is->shdrs.fx.gamma       = resint_shdr_fetch("gamma_fx");
-    is->shdrs.fx.smaa        = resint_shdr_fetch("smaa_fx");
-    is->shdrs.nm_vis         = resint_shdr_fetch("norm_vis");
-    is->shdrs.probe_vis      = resint_shdr_fetch("probe_vis");
-    is->shdrs.ibl.irr_gen    = resint_shdr_fetch("irr_conv");
-    is->shdrs.ibl.brdf_lut   = resint_shdr_fetch("brdf_lut");
-    is->shdrs.ibl.prefilter  = resint_shdr_fetch("prefilter");
-    is->sky_rndr.preeth.shdr = resint_shdr_fetch("sky_prth");
-    is->eyeadpt.gl.shdr_clr  = resint_shdr_fetch("eyeadapt_clr");
-    is->eyeadpt.gl.shdr_hist = resint_shdr_fetch("eyeadapt_hist");
-    is->eyeadpt.gl.shdr_expo = resint_shdr_fetch("eyeadapt_expo");
+    is->shdrs.geom_pass        = resint_shdr_fetch("geom_pass");
+    is->shdrs.dir_light        = resint_shdr_fetch("dir_light");
+    is->shdrs.env_light        = resint_shdr_fetch("env_light");
+    is->shdrs.fx.bloom_bright  = resint_shdr_fetch("bloom_bright");
+    is->shdrs.fx.bloom_blur    = resint_shdr_fetch("bloom_blur");
+    is->shdrs.fx.bloom_combine = resint_shdr_fetch("bloom_combine");
+    is->shdrs.fx.tonemap       = resint_shdr_fetch("tonemap_fx");
+    is->shdrs.fx.gamma         = resint_shdr_fetch("gamma_fx");
+    is->shdrs.fx.smaa          = resint_shdr_fetch("smaa_fx");
+    is->shdrs.nm_vis           = resint_shdr_fetch("norm_vis");
+    is->shdrs.probe_vis        = resint_shdr_fetch("probe_vis");
+    is->shdrs.ibl.irr_gen      = resint_shdr_fetch("irr_conv");
+    is->shdrs.ibl.brdf_lut     = resint_shdr_fetch("brdf_lut");
+    is->shdrs.ibl.prefilter    = resint_shdr_fetch("prefilter");
+    is->sky_rndr.preeth.shdr   = resint_shdr_fetch("sky_prth");
+    is->eyeadpt.gl.shdr_clr    = resint_shdr_fetch("eyeadapt_clr");
+    is->eyeadpt.gl.shdr_hist   = resint_shdr_fetch("eyeadapt_hist");
+    is->eyeadpt.gl.shdr_expo   = resint_shdr_fetch("eyeadapt_expo");
 }
 
 static void pnkscr_err_cb(void* ud, const char* msg)
@@ -548,7 +555,36 @@ static void postprocess_pass(struct renderer_state* rs, unsigned int cur_fb)
         /* Neighborhood blending step */
         glUniform1i(glGetUniformLocation(shdr, "ustep"), 2);
         glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, postfx_orig_tex(&is->postfx));
+        glBindTexture(GL_TEXTURE_2D, postfx_stashed_tex(&is->postfx));
+        postfx_pass(&is->postfx);
+    }
+    if (rs->options.use_bloom) {
+        postfx_stash_cur(&is->postfx);
+        shdr = is->shdrs.fx.bloom_bright;
+        glUseProgram(shdr);
+        glUniform1f(glGetUniformLocation(shdr, "bloom_threshold"), 2.0);
+        postfx_pass(&is->postfx);
+
+        shdr = is->shdrs.fx.bloom_blur;
+        glUseProgram(shdr);
+        const unsigned int blur_passes = 2;
+        vec2 tex_dims = vec2_new(is->postfx.width, is->postfx.height);
+        for (int m = 1; m >= 0; --m) {
+            glUniform1i(glGetUniformLocation(shdr, "downmode"), m);
+            for (unsigned int i = 0; i < blur_passes; ++i) {
+                glUniform2f(glGetUniformLocation(shdr, "src_sz"), tex_dims.x, tex_dims.y);
+                tex_dims = vec2_mul(tex_dims, m ? 0.5 : 2.0);
+                glUniform2f(glGetUniformLocation(shdr, "dst_sz"), tex_dims.x, tex_dims.y);
+                glViewport(0, 0, tex_dims.x, tex_dims.y);
+                postfx_pass(&is->postfx);
+            }
+        }
+
+        shdr = is->shdrs.fx.bloom_combine;
+        glUseProgram(shdr);
+        glUniform1i(glGetUniformLocation(shdr, "tex2"), 1);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, postfx_stashed_tex(&is->postfx));
         postfx_pass(&is->postfx);
     }
     if (rs->options.use_tonemapping) {

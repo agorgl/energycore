@@ -74,6 +74,21 @@ static const struct shdr_info {
         .fs_loc = "fx/smaa_pass_fs.glsl"
     },
     {
+        .name = "bloom_bright",
+        .vs_loc = "passthrough_vs.glsl",
+        .fs_loc = "fx/bloom_bright.glsl"
+    },
+    {
+        .name = "bloom_blur",
+        .vs_loc = "passthrough_vs.glsl",
+        .fs_loc = "fx/bloom_blur.glsl"
+    },
+    {
+        .name = "bloom_combine",
+        .vs_loc = "passthrough_vs.glsl",
+        .fs_loc = "fx/bloom_combine.glsl"
+    },
+    {
         .name = "eyeadapt_clr",
         .cs_loc = "fx/eyeadapt_clr.glsl"
     },

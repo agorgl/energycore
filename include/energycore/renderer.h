@@ -106,6 +106,7 @@ struct renderer_state {
         unsigned int use_detail_maps;
         unsigned int use_shadows;
         unsigned int use_envlight;
+        unsigned int use_bloom;
         unsigned int use_tonemapping;
         unsigned int use_gamma_correction;
         unsigned int use_antialiasing;

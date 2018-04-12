@@ -17,8 +17,8 @@ void postfx_init(struct postfx* pfx, unsigned int width, unsigned int height)
     glGenTextures(2, (GLuint*)&pfx->glh.color);
     glGenTextures(2, (GLuint*)&pfx->glh.depth);
 
-    glGenTextures(1, (GLuint*)&pfx->glh.original);
-    glBindTexture(GL_TEXTURE_2D, pfx->glh.original);
+    glGenTextures(1, (GLuint*)&pfx->glh.stashed);
+    glBindTexture(GL_TEXTURE_2D, pfx->glh.stashed);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -85,6 +85,14 @@ void postfx_pass(struct postfx* pfx)
     pfx->cur_fbo = !pfx->cur_fbo;
 }
 
+void postfx_stash_cur(struct postfx* pfx)
+{
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, pfx->glh.fbo[pfx->cur_fbo]);
+    glBindTexture(GL_TEXTURE_2D, pfx->glh.stashed);
+    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, pfx->width, pfx->height);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 void postfx_blit_fb_to_read(struct postfx* pfx, unsigned int fb)
 {
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, pfx->glh.fbo[pfx->cur_fbo]);
@@ -94,7 +102,7 @@ void postfx_blit_fb_to_read(struct postfx* pfx, unsigned int fb)
         0, 0, pfx->width, pfx->height,
         GL_COLOR_BUFFER_BIT, GL_NEAREST
     );
-    glBindTexture(GL_TEXTURE_2D, pfx->glh.original);
+    glBindTexture(GL_TEXTURE_2D, pfx->glh.stashed);
     glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, pfx->width, pfx->height);
     glBindTexture(GL_TEXTURE_2D, 0);
     glBindFramebuffer(GL_FRAMEBUFFER, pfx->glh.fbo[pfx->cur_fbo]);
@@ -112,14 +120,14 @@ void postfx_blit_read_to_fb(struct postfx* pfx, unsigned int fb)
     glBindFramebuffer(GL_FRAMEBUFFER, fb);
 }
 
-unsigned int postfx_orig_tex(struct postfx* pfx)
+unsigned int postfx_stashed_tex(struct postfx* pfx)
 {
-    return pfx->glh.original;
+    return pfx->glh.stashed;
 }
 
 void postfx_destroy(struct postfx* pfx)
 {
-    glDeleteTextures(1, &pfx->glh.original);
+    glDeleteTextures(1, &pfx->glh.stashed);
     glDeleteTextures(2, pfx->glh.depth);
     glDeleteTextures(2, pfx->glh.color);
     glDeleteFramebuffers(2, pfx->glh.fbo);
