@@ -24,14 +24,32 @@ struct {
     float metallic;
 } d;
 
+// Reconstruct world space position from depth at given texcoord
+vec3 ws_pos_from_depth(vec2 st, float depth)
+{
+    float z = depth * 2.0 - 1.0;
+    vec4 pos = vec4(st * 2.0 - 1.0, z, 1.0);
+    pos = u_inv_view_proj * pos;
+    return pos.xyz / pos.w;
+}
+
+// Depth at a given texcoord
+float gbuffer_depth(vec2 coord)
+{
+    return textureLod(gbuf.depth, coord, 0).r;
+}
+
+vec3 gbuffer_position(vec2 coord)
+{
+    float depth = gbuffer_depth(coord);
+    return ws_pos_from_depth(coord, depth);
+}
+
 vec3 reconstruct_wpos_from_depth()
 {
     vec2 st = gl_FragCoord.xy / u_screen;
-    float z = texelFetch(gbuf.depth, ivec2(gl_FragCoord.xy), 0).r;
-    z = z * 2.0 - 1.0;
-    vec4 spos = vec4(st * 2.0 - 1.0, z, 1.0);
-    spos = u_inv_view_proj * spos;
-    return spos.xyz / spos.w;
+    float z = gbuffer_depth(st);
+    return ws_pos_from_depth(st, z);
 }
 
 void fetch_gbuffer_data()
