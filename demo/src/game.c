@@ -76,7 +76,7 @@ void game_init(struct game_context* ctx)
     /* Create window */
     const char* title = "EnergyCore";
     int width = 1280, height = 720, mode = 0;
-    ctx->wnd = window_create(title, width, height, mode, (struct context_params){OPENGL, {3, 3}, 1});
+    ctx->wnd = window_create(title, width, height, mode, (struct context_params){OPENGL, {4, 3}, 1});
 
     /* Assosiate context to be accessed from callback functions */
     window_set_userdata(ctx->wnd, ctx);
