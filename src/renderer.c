@@ -79,6 +79,7 @@ struct renderer_internal_state {
     /* Cached values */
     vec2 viewport;
     mat4 proj;
+    float cnear, cfar;
     /* Frame profiler and debug info's */
     struct frame_prof* fprof;
     struct {
@@ -790,7 +791,9 @@ void renderer_resize(struct renderer_state* rs, unsigned int width, unsigned int
     glViewport(0, 0, width, height);
     is->viewport.x = width;
     is->viewport.y = height;
-    is->proj = mat4_perspective(radians(60.0f), 0.1f, 30000.0f, ((float)width / height));
+    is->cnear = 0.1f;
+    is->cfar = 30000.0f;
+    is->proj = mat4_perspective(radians(60.0f), is->cnear, is->cfar, ((float)width / height));
     /* Recreate all fb textures */
     gbuffer_destroy(is->gbuf);
     gbuffer_init(is->gbuf, width, height);
