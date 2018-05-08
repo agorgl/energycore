@@ -20,6 +20,7 @@
 #include "dbgtxt.h"
 #include "mrtdbg.h"
 #include "postfx.h"
+#include "ssao.h"
 #include "eyeadapt.h"
 #include "resint.h"
 #include "panicscr.h"
@@ -74,6 +75,8 @@ struct renderer_internal_state {
     struct gbuffer* gbuf; /* Active */
     /* Occlusion culling */
     struct occull_state occl_st;
+    /* SSAO */
+    struct ssao ssao;
     /* Eye adaptation */
     struct eyeadapt eyeadpt;
     /* Cached values */
@@ -122,6 +125,8 @@ void renderer_init(struct renderer_state* rs)
     register_gl_error_handler(pnkscr_err_cb, &is->ps_rndr);
     /* Initialize embedded resources */
     resint_init();
+    /* Initialize SSAO state */
+    ssao_init(&is->ssao, width, height);
     /* Initialize internal eye adaptation state */
     eyeadapt_init(&is->eyeadpt);
     /* Initialize internal texture sky state */
@@ -173,6 +178,7 @@ void renderer_init(struct renderer_state* rs)
     rs->options.use_bloom = 0;
     rs->options.use_tonemapping = 1;
     rs->options.use_gamma_correction = 1;
+    rs->options.use_ssao = 0;
     rs->options.show_bboxes = 0;
     rs->options.show_normals = 0;
     rs->options.show_fprof = 1;
@@ -198,6 +204,8 @@ static void renderer_shdr_fetch(struct renderer_state* rs)
     is->shdrs.ibl.brdf_lut     = resint_shdr_fetch("brdf_lut");
     is->shdrs.ibl.prefilter    = resint_shdr_fetch("prefilter");
     is->sky_rndr.preeth.shdr   = resint_shdr_fetch("sky_prth");
+    is->ssao.gl.ao_shdr        = resint_shdr_fetch("ssao");
+    is->ssao.gl.blur_shdr      = resint_shdr_fetch("ssao_blur");
     is->eyeadpt.gl.shdr_clr    = resint_shdr_fetch("eyeadapt_clr");
     is->eyeadpt.gl.shdr_hist   = resint_shdr_fetch("eyeadapt_hist");
     is->eyeadpt.gl.shdr_expo   = resint_shdr_fetch("eyeadapt_expo");
@@ -495,6 +503,12 @@ static void light_pass(struct renderer_state* rs, struct render_scene* rscn, mat
         }
     }
 
+    /* Ambient Occlussion */
+    if (rs->options.use_ssao) {
+        ssao_ao_pass(&is->ssao, is->viewport.xy, view->m, proj->m);
+        ssao_blur_pass(&is->ssao);
+    }
+
     /* Environmental lighting */
     if (rs->options.use_envlight && !direct_only) {
         /* Pick probe */
@@ -516,6 +530,11 @@ static void light_pass(struct renderer_state* rs, struct render_scene* rscn, mat
         glUniform1i(glGetUniformLocation(shdr, "brdf_lut"), 7);
         glActiveTexture(GL_TEXTURE7);
         glBindTexture(GL_TEXTURE_2D, is->textures.brdf_lut);
+        /* Occlussion */
+        glUniform1i(glGetUniformLocation(shdr, "occlussion"), 8);
+        glUniform1i(glGetUniformLocation(shdr, "use_occlussion"), rs->options.use_ssao);
+        glActiveTexture(GL_TEXTURE8);
+        glBindTexture(GL_TEXTURE_2D, is->ssao.gl.blur_ctex);
         /* Screen pass */
         render_quad();
     }
@@ -753,7 +772,7 @@ void renderer_render(struct renderer_state* rs, struct render_scene* rscn, float
                 .type   = 0, .layer  = 0,
                 .mode   = MRTDBG_MODE_RGB,
             },{
-                .handle = is->gbuf->roughness_metallic_buf,
+                .handle = is->ssao.gl.blur_ctex,
                 .type   = 0, .layer  = 0,
                 .mode   = MRTDBG_MODE_MONO_R,
             },{
@@ -822,6 +841,7 @@ void renderer_destroy(struct renderer_state* rs)
     sky_texture_destroy(&is->sky_rndr.tex);
     resint_destroy();
     glutils_deinit();
+    ssao_destroy(&is->ssao);
     eyeadapt_destroy(&is->eyeadpt);
     postfx_destroy(&is->postfx);
     gbuffer_destroy(&is->main_gbuf);

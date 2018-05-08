@@ -43,6 +43,8 @@ static void on_key(struct window* wnd, int key, int scancode, int action, int mo
         ctx->rndr_state.options.use_shadows = !ctx->rndr_state.options.use_shadows;
     else if (action == KEY_ACTION_RELEASE && key == KEY_X)
         ctx->rndr_state.options.use_envlight = !ctx->rndr_state.options.use_envlight;
+    else if (action == KEY_ACTION_RELEASE && key == KEY_Z)
+        ctx->rndr_state.options.use_ssao = !ctx->rndr_state.options.use_ssao;
     else if (action == KEY_ACTION_RELEASE && key == KEY_F)
         ctx->rndr_state.options.use_bloom = !ctx->rndr_state.options.use_bloom;
     else if (action == KEY_ACTION_RELEASE && key == KEY_H)

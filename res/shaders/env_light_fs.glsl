@@ -5,6 +5,7 @@
 #include "inc/sh.glsl"
 #endif
 out vec4 color;
+in vec2 uv;
 
 uniform vec3 view_pos;
 
@@ -15,7 +16,8 @@ uniform samplerCube pf_map;
 uniform vec3 sh_coeffs[SH_COEFF_NUM];
 #endif
 uniform sampler2D brdf_lut;
-
+uniform bool use_occlussion;
+uniform sampler2D occlussion;
 
 void main()
 {
@@ -40,7 +42,7 @@ void main()
     vec3 V = normalize(view_pos - d.ws_pos);
 
     // Ambient
-    vec3 ao = vec3(1.0); // TODO
+    float ao = use_occlussion ? texture(occlussion, uv).r : 1.0;
     float intensity = 0.2;
     vec3 environ = env_radiance(
         d.normal, V, d.albedo, d.metallic,
