@@ -489,6 +489,8 @@ void scene_update_transforms(struct scene* scn);
 vec2f scene_compute_animation_range(const struct scene* scn);
 /* Update the normals of a shape. Supports only non-facevarying shapes. */
 void shape_compute_normals(struct shape* shp);
+/* Compute per-vertex tangent frame for triangle meshes. */
+void shape_compute_tangent_frame(struct shape* shp);
 /* Computes a shape bounding box using a quick computation that ignores radius. */
 bbox3f shape_compute_bounds(const struct shape* shp);
 /* Compute a scene bounding box. */

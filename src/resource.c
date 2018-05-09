@@ -412,8 +412,12 @@ rid resmgr_add_mesh(struct resmgr* rmgr, struct mesh* m)
     struct render_mesh rm;
     memset(&rm, 0, sizeof(rm));
     rm.num_shapes = m->num_shapes;
-    for (size_t i = 0; i < m->num_shapes; ++i)
-        add_shape(&rm.shapes[i], m->shapes[i]);
+    for (size_t i = 0; i < m->num_shapes; ++i) {
+        struct shape* shp = m->shapes[i];
+        shape_compute_normals(shp);
+        shape_compute_tangent_frame(shp);
+        add_shape(&rm.shapes[i], shp);
+    }
     return slot_map_insert(&rmgr->meshes, &rm);
 }
 

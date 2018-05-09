@@ -402,3 +402,127 @@ void scene_destroy(struct scene* s)
     }
     free(s->skins);
 }
+
+static vec3f vec3f_add(vec3f v1, vec3f v2){ return (vec3f){v1.x + v2.x, v1.y + v2.y, v1.z + v2.z}; }
+static vec3f vec3f_sub(vec3f v1, vec3f v2){ return (vec3f){v1.x - v2.x, v1.y - v2.y, v1.z - v2.z}; }
+static float vec3f_dot(vec3f a, vec3f b){ return a.x * b.x + a.y * b.y + a.z * b.z; }
+
+static vec3f vec3f_cross(vec3f v1, vec3f v2)
+{
+    return (vec3f){
+        (v1.y * v2.z) - (v1.z * v2.y),
+        (v1.z * v2.x) - (v1.x * v2.z),
+        (v1.x * v2.y) - (v1.y * v2.x)
+    };
+}
+
+static vec3f vec3f_normalize(vec3f v)
+{
+    float len = sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+    return len == 0.f
+        ? (vec3f){0.f, 0.f, 0.f}
+        : (vec3f){v.x/len, v.y/len, v.z/len};
+}
+
+static vec3f vec3f_orthonormalize(vec3f a, vec3f b)
+{
+    float dot = vec3f_dot(a, b);
+    return vec3f_normalize((vec3f){
+        a.x - b.x * dot,
+        a.y - b.y * dot,
+        a.z - b.z * dot
+    });
+}
+
+void shape_compute_normals(struct shape* shp)
+{
+    if (shp->norm)
+        return;
+
+    shp->num_norm = shp->num_pos;
+    shp->norm = calloc(shp->num_norm, sizeof(*shp->norm));
+    for (size_t i = 0; i < shp->num_triangles; ++i) {
+        vec3i tr = shp->triangles[i];
+        vec3f e1 = vec3f_sub(shp->pos[tr.y], shp->pos[tr.x]);
+        vec3f e2 = vec3f_sub(shp->pos[tr.z], shp->pos[tr.x]);
+        vec3f nm = vec3f_cross(e1, e2);
+        nm = vec3f_normalize(nm);
+        shp->norm[tr.x] = vec3f_add(shp->norm[tr.x], nm);
+        shp->norm[tr.y] = vec3f_add(shp->norm[tr.y], nm);
+        shp->norm[tr.z] = vec3f_add(shp->norm[tr.z], nm);
+    }
+
+    for (size_t i = 0; i < shp->num_norm; ++i)
+        shp->norm[i] = vec3f_normalize(shp->norm[i]);
+}
+
+static void triangle_tangents_from_uv(vec3f* tu, vec3f* tv, vec3f v[3], vec2f uv[3])
+{
+    vec3f p = vec3f_sub(v[1], v[0]);
+    vec3f q = vec3f_sub(v[2], v[0]);
+    vec2f s = {uv[1].x - uv[0].x, uv[2].x - uv[0].x};
+    vec2f t = {uv[1].y - uv[0].y, uv[2].y - uv[0].y};
+    float d = s.x * t.y - s.y * t.x;
+    if (d != 0.0) {
+        *tu = (vec3f){(t.y * p.x - t.x * q.x) / d,
+                      (t.y * p.y - t.x * q.y) / d,
+                      (t.y * p.z - t.x * q.z) / d};
+        *tv = (vec3f){(s.x * q.x - s.y * p.x) / d,
+                      (s.x * q.y - s.y * p.y) / d,
+                      (s.x * q.z - s.y * p.z) / d};
+    } else {
+        *tu = (vec3f){1, 0, 0};
+        *tv = (vec3f){0, 1, 0};
+    }
+}
+
+/* Compute per-vertex tangent frame for triangle meshes.
+ * Tangent space is defined by a four component vector.
+ * The first three components are the tangent with respect to the U texcoord.
+ * The fourth component is the sign of the tangent wrt the V texcoord.
+ * Tangent frame is useful in normal mapping. */
+void shape_compute_tangent_frame(struct shape* shp)
+{
+    if (shp->tangsp)
+        return;
+
+    vec3f* tngu = calloc(shp->num_pos, sizeof(*tngu));
+    vec3f* tngv = calloc(shp->num_pos, sizeof(*tngv));
+    for (size_t i = 0; i < shp->num_triangles; ++i) {
+        vec3i tr = shp->triangles[i];
+        vec3f tu, tv;
+        triangle_tangents_from_uv(&tu, &tv,
+            (vec3f[]){shp->pos[tr.x],
+                      shp->pos[tr.y],
+                      shp->pos[tr.z]},
+            (vec2f[]){shp->texcoord[tr.x],
+                      shp->texcoord[tr.y],
+                      shp->texcoord[tr.z]});
+        tu = vec3f_normalize(tu);
+        tv = vec3f_normalize(tv);
+
+        tngu[tr.x] = vec3f_add(tngu[tr.x], tu);
+        tngu[tr.y] = vec3f_add(tngu[tr.y], tu);
+        tngu[tr.z] = vec3f_add(tngu[tr.z], tu);
+
+        tngv[tr.x] = vec3f_add(tngv[tr.x], tv);
+        tngv[tr.y] = vec3f_add(tngv[tr.y], tv);
+        tngv[tr.z] = vec3f_add(tngv[tr.z], tv);
+    }
+    for (size_t i = 0; i < shp->num_pos; ++i) {
+        tngu[i] = vec3f_normalize(tngu[i]);
+        tngv[i] = vec3f_normalize(tngv[i]);
+    }
+
+    shp->num_tangsp = shp->num_pos;
+    shp->tangsp = calloc(shp->num_tangsp, sizeof(*shp->tangsp));
+    for (size_t i = 0; i < shp->num_norm; ++i) {
+        vec3f nm = shp->norm[i], tu = tngu[i], tv = tngv[i];
+        tu = vec3f_orthonormalize(tu, nm);
+        float s = (vec3f_dot(vec3f_cross(nm, tu), tv) < 0) ? -1.0f : 1.0f;
+        shp->tangsp[i] = (vec4f){tu.x, tu.y, tu.z, s};
+    }
+
+    free(tngu);
+    free(tngv);
+}
