@@ -1750,7 +1750,7 @@ struct scene* gltf_to_scene(const struct gltf* gltf)
                 gltf_accessor_view_init(&av, gltf, &gltf->accessors[gprim->indices]);
                 switch (gprim->mode) {
                     case GLTF_TRIANGLES: {
-                        prim->num_triangles = av.size;
+                        prim->num_triangles = av.size / 3;
                         prim->triangles = calloc(prim->num_triangles, sizeof(*prim->triangles));
                         for (size_t i = 0; i < av.size / 3; ++i) {
                             prim->triangles[i] = (vec3i){
