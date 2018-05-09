@@ -517,6 +517,10 @@ static void gltf_parse_mesh_primitive(struct gltf_mesh_primitive* p, struct json
         return;
     }
 
+    /* Defaults */
+    p->mode = GLTF_TRIANGLES;
+    p->material = -1;
+
     /* Iterate through attributes */
     struct json_object_s* o = j->payload;
     for (struct json_object_element_s* e = o->start; e; e = e->next) {
@@ -720,6 +724,11 @@ static void gltf_parse_node(struct gltf_node* n, struct json_value_s* j)
         assert(0 && "Expected json object");
         return;
     }
+
+    /* Defaults */
+    n->camera = -1;
+    n->skin = -1;
+    n->mesh = -1;
 
     /* Iterate through attributes */
     struct json_object_s* o = j->payload;
