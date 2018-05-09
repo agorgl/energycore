@@ -1887,15 +1887,21 @@ struct scene* gltf_to_scene(const struct gltf* gltf)
     for (size_t i = 0; i < gltf->num_nodes; ++i) {
         struct gltf_node* gnode = &gltf->nodes[i];
         struct node* node = calloc(1, sizeof(*node));
+        node_init(node);
         node->name = strdup(gnode->name);
         node->cam = (!gnode->camera) ? 0 : scn->cameras[gnode->camera];
-        //TODO: Make mesh instance
-        //node->msh = (!gnode->mesh) ? 0 : scn->meshes[gnode->mesh];
+        struct mesh_instance* msh_ist = calloc(1, sizeof(*msh_ist));
+        mesh_instance_init(msh_ist);
+        msh_ist->msh = scn->meshes[gnode->mesh];
+        node->ist = msh_ist;
         node->translation = *(vec3f*)gnode->translation;
         node->rotation = *(quat4f*)gnode->rotation;
         node->scaling = *(vec3f*)gnode->scale;
         //TODO: Matrix to frame
         //node->matrix = *(mat4f*)gnode->matrix;
+        ++scn->num_instances;
+        scn->instances = realloc(scn->instances, scn->num_instances * sizeof(*scn->instances));
+        scn->instances[scn->num_instances - 1] = msh_ist;
         ++scn->num_nodes;
         scn->nodes = realloc(scn->nodes, scn->num_nodes * sizeof(*scn->nodes));
         scn->nodes[scn->num_nodes - 1] = node;
