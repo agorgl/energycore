@@ -1651,7 +1651,7 @@ struct scene* gltf_to_scene(const struct gltf* gltf)
             struct gltf_mesh_primitive* gprim = &gmesh->primitives[l];
             struct shape* prim = calloc(1, sizeof(*prim));
             shape_init(prim);
-            if (gprim->material)
+            if (gprim->material >= 0)
                 prim->mat = scn->materials[gprim->material];
             /* Vertex data */
             for (size_t j = 0; j < gprim->num_attributes; ++j) {
@@ -1708,7 +1708,7 @@ struct scene* gltf_to_scene(const struct gltf* gltf)
                 }
             }
             /* Indices */
-            if (!gprim->indices) {
+            if (gprim->indices < 0) {
                 switch (gprim->mode) {
                     case GLTF_TRIANGLES: {
                         prim->num_triangles = prim->num_pos / 3;
@@ -1898,19 +1898,21 @@ struct scene* gltf_to_scene(const struct gltf* gltf)
         struct node* node = calloc(1, sizeof(*node));
         node_init(node);
         node->name = strdup(gnode->name);
-        node->cam = (!gnode->camera) ? 0 : scn->cameras[gnode->camera];
-        struct mesh_instance* msh_ist = calloc(1, sizeof(*msh_ist));
-        mesh_instance_init(msh_ist);
-        msh_ist->msh = scn->meshes[gnode->mesh];
-        node->ist = msh_ist;
+        node->cam = (gnode->camera < 0) ? 0 : scn->cameras[gnode->camera];
         node->translation = *(vec3f*)gnode->translation;
         node->rotation = *(quat4f*)gnode->rotation;
         node->scaling = *(vec3f*)gnode->scale;
         //TODO: Matrix to frame
         //node->matrix = *(mat4f*)gnode->matrix;
-        ++scn->num_instances;
-        scn->instances = realloc(scn->instances, scn->num_instances * sizeof(*scn->instances));
-        scn->instances[scn->num_instances - 1] = msh_ist;
+        if (gnode->mesh >= 0) {
+            struct mesh_instance* msh_ist = calloc(1, sizeof(*msh_ist));
+            mesh_instance_init(msh_ist);
+            msh_ist->msh = scn->meshes[gnode->mesh];
+            node->ist = msh_ist;
+            ++scn->num_instances;
+            scn->instances = realloc(scn->instances, scn->num_instances * sizeof(*scn->instances));
+            scn->instances[scn->num_instances - 1] = msh_ist;
+        }
         ++scn->num_nodes;
         scn->nodes = realloc(scn->nodes, scn->num_nodes * sizeof(*scn->nodes));
         scn->nodes[scn->num_nodes - 1] = node;
