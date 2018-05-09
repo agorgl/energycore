@@ -1671,8 +1671,10 @@ struct scene* gltf_to_scene(const struct gltf* gltf)
                 } else if ((strcmp(semantic, "TEXCOORD") == 0) || (strcmp(semantic, "TEXCOORD_0") == 0)) {
                     prim->num_texcoord = av.size;
                     prim->texcoord = calloc(prim->num_texcoord, sizeof(*prim->texcoord));
-                    for (size_t i = 0; i < prim->num_texcoord; ++i)
+                    for (size_t i = 0; i < prim->num_texcoord; ++i) {
                         prim->texcoord[i] = gltf_accessor_view_getv2f(&av, i);
+                        prim->texcoord[i].y = 1.0 - prim->texcoord[i].y;
+                    }
                 } else if (strcmp(semantic, "TEXCOORD_1") == 0) {
                     prim->num_texcoord1 = av.size;
                     prim->texcoord1 = calloc(prim->num_texcoord1, sizeof(*prim->texcoord1));
