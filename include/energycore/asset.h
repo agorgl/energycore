@@ -32,7 +32,10 @@
 #define _ASSET_H_
 
 #include <stdlib.h>
+#include "scene_asset.h"
 
+/* External asset utils */
+struct scene* scene_from_file(const char* fpath);
 /* Shader utils */
 unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char* fs_src);
 /* Texture utils */

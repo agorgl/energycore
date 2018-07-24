@@ -1,8 +1,10 @@
 #include "world_ext.h"
 #include <string.h>
+#include <assert.h>
 #include <stdio.h>
 #include <prof.h>
 #include <hashmap.h>
+#include <energycore/asset.h>
 #include "ecs/world.h"
 #include "scene_file.h"
 #include "asset_data.h"
@@ -62,31 +64,66 @@ struct world* world_external(const char* scene_file, struct resmgr* rmgr)
     for (size_t i = 0; i < sc->num_models; ++i) {
         struct scene_model* m = sc->models + i;
         /* Load, parse and upload model */
-        struct model_data mdl;
-        model_data_from_file(&mdl, m->path);
-        for (size_t j = 0; j < mdl.num_group_names; ++j) {
-            struct mesh mesh;
-            _mesh_init(&mesh);
-            for (size_t k = 0; k < mdl.num_meshes; ++k) {
-                struct mesh_data* mdata = &mdl.meshes[k];
-                if (mdata->group_idx == j) {
-                    ++mesh.num_shapes;
-                    mesh.shapes = realloc(mesh.shapes, mesh.num_shapes * sizeof(*mesh.shapes));
-                    mesh.shapes[mesh.num_shapes - 1] = mesh_data_to_shape(mdata);
+        struct scene* sc = scene_from_file(m->path);
+        if (sc) {
+            for (size_t j = 0; j < sc->num_nodes; ++j) {
+                /* Check if mesh node */
+                struct node* node = sc->nodes[j];
+                if (!node->ist)
+                    continue;
+                /* Create mesh resource */
+                struct mesh* mesh = node->ist->msh;
+                rid id = resmgr_add_mesh(rmgr, mesh);
+                struct render_mesh* rmsh = resmgr_get_mesh(rmgr, id);
+                /* Setup material indexes */
+                uint32_t cnt = 0;
+                struct hashmap mat_idx_map;
+                hashmap_init(&mat_idx_map, hm_u64_hash, hm_u64_eql);
+                for (size_t k = 0; k < rmsh->num_shapes; ++k) {
+                    struct material* mptr = mesh->shapes[k]->mat;
+                    hm_ptr* p = hashmap_get(&mat_idx_map, hm_cast(mptr));
+                    if (p) {
+                        rmsh->shapes[k].mat_idx = *p;
+                    } else {
+                        uint32_t nidx = cnt++;
+                        hashmap_put(&mat_idx_map, hm_cast(mptr), hm_cast(nidx));
+                        rmsh->shapes[k].mat_idx = nidx;
+                    }
                 }
+                hashmap_destroy(&mat_idx_map);
+                /* Store handle to temporary hashmap to use by object references later */
+                struct submesh_info* si = calloc(1, sizeof(*si));
+                si->model = strdup(m->ref);
+                si->mgroup_name = strdup(node->name);
+                hashmap_put(&model_handles_map, hm_cast(si), *((hm_ptr*)&id));
             }
-            rid id = resmgr_add_mesh(rmgr, &mesh);
-            struct render_mesh* rmsh = resmgr_get_mesh(rmgr, id);
-            for (size_t k = 0; k < rmsh->num_shapes; ++k)
-                rmsh->shapes[k].mat_idx = mdl.meshes[k].mat_idx;
-            _mesh_destroy(&mesh);
-            /* Store handle to temporary hashmap to use by object references later */
-            struct submesh_info* si = calloc(1, sizeof(*si));
-            si->model = strdup(m->ref);
-            si->mgroup_name = strdup(mdl.group_names[j]);
-            hashmap_put(&model_handles_map, hm_cast(si), *((hm_ptr*)&id));
+        } else {
+            struct model_data mdl;
+            model_data_from_file(&mdl, m->path);
+            for (size_t j = 0; j < mdl.num_group_names; ++j) {
+                struct mesh mesh;
+                _mesh_init(&mesh);
+                for (size_t k = 0; k < mdl.num_meshes; ++k) {
+                    struct mesh_data* mdata = &mdl.meshes[k];
+                    if (mdata->group_idx == j) {
+                        ++mesh.num_shapes;
+                        mesh.shapes = realloc(mesh.shapes, mesh.num_shapes * sizeof(*mesh.shapes));
+                        mesh.shapes[mesh.num_shapes - 1] = mesh_data_to_shape(mdata);
+                    }
+                }
+                rid id = resmgr_add_mesh(rmgr, &mesh);
+                struct render_mesh* rmsh = resmgr_get_mesh(rmgr, id);
+                for (size_t k = 0; k < rmsh->num_shapes; ++k)
+                    rmsh->shapes[k].mat_idx = mdl.meshes[k].mat_idx;
+                _mesh_destroy(&mesh);
+                /* Store handle to temporary hashmap to use by object references later */
+                struct submesh_info* si = calloc(1, sizeof(*si));
+                si->model = strdup(m->ref);
+                si->mgroup_name = strdup(mdl.group_names[j]);
+                hashmap_put(&model_handles_map, hm_cast(si), *((hm_ptr*)&id));
+            }
+            model_data_free(&mdl);
         }
-        model_data_free(&mdl);
     }
 
     /* Load textures */

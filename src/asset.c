@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <math.h>
 #include "opengl.h"
+#include "gltf.h"
 #include "hdrfile.h"
 #include "tar.h"
 
@@ -36,6 +37,21 @@ static void* read_file_to_mem_buf(const char* fpath)
     fclose(f);
 
     return data_buf;
+}
+
+/*-----------------------------------------------------------------
+ * Scene Loading
+ *-----------------------------------------------------------------*/
+struct scene* scene_from_file(const char* fpath)
+{
+    const char* ext = strrchr(fpath, '.');
+    if (strcmp(ext, ".gltf") != 0)
+        return 0;
+
+    struct gltf* gltf = gltf_file_load(fpath);
+    struct scene* scene = gltf_to_scene(gltf);
+    gltf_destroy(gltf);
+    return scene;
 }
 
 /*-----------------------------------------------------------------
