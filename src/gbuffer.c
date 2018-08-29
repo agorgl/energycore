@@ -34,7 +34,7 @@ void gbuffer_init(struct gbuffer* gb, int width, int height)
         },
         {
             &gb->normal_buf,
-            GL_RGB16F,
+            GL_RG16F,
             GL_RG,
             GL_FLOAT,
             GL_COLOR_ATTACHMENT1
