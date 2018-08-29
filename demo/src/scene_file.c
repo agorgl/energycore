@@ -131,11 +131,11 @@ static void copy_scene_object(struct scene_object* dst, struct scene_object* src
 
 static const char* complex_ref(const char* guid, const char* file_id)
 {
-    size_t sz = strlen(guid) + strlen(file_id) + 3;
+    size_t sz = strlen(guid) + 2 + strlen(file_id) + 1;
     char* nr = calloc(sz, sizeof(char));
-    strncat(nr, guid, strlen(guid));
-    strncat(nr, "::", 2);
-    strncat(nr, file_id, strlen(file_id));
+    strcat(nr, guid);
+    strcat(nr, "::");
+    strcat(nr, file_id);
     return nr;
 }
 
