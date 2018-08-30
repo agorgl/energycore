@@ -401,6 +401,7 @@ void scene_destroy(struct scene* s)
         free(s->skins[i]);
     }
     free(s->skins);
+    free(s);
 }
 
 static vec3f vec3f_add(vec3f v1, vec3f v2){ return (vec3f){v1.x + v2.x, v1.y + v2.y, v1.z + v2.z}; }

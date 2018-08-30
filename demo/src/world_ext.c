@@ -97,6 +97,7 @@ struct world* world_external(const char* scene_file, struct resmgr* rmgr)
                 si->mgroup_name = strdup(node->name);
                 hashmap_put(&model_handles_map, hm_cast(si), *((hm_ptr*)&id));
             }
+            scene_destroy(sc);
         } else {
             struct model_data mdl;
             model_data_from_file(&mdl, m->path);
