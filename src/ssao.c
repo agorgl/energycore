@@ -129,6 +129,7 @@ void ssao_blur_pass(struct ssao* s)
 
 void ssao_destroy(struct ssao* s)
 {
+    free(s->kernel);
     glDeleteTextures(1, &s->gl.noise_tex);
     glDeleteTextures(1, &s->gl.ao_ctex);
     glDeleteTextures(1, &s->gl.blur_ctex);
