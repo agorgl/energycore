@@ -135,12 +135,12 @@ struct world* world_external(const char* scene_file, struct resmgr* rmgr)
         struct scene_texture* t = sc->textures + i;
         if (!hashmap_exists(&texture_handles_map, hm_cast(t->ref))) {
             /* Load, parse and upload texture */
-            struct image_data img_data;
-            image_data_from_file(&img_data, t->path);
-            struct texture tex = {
-                .name = 0,
-                .path = 0,
-                .img  = (image) {
+            image im = image_from_file(t->path);
+            if (!im.data) {
+                /* Try with external loader */
+                struct image_data img_data;
+                image_data_from_file(&img_data, t->path);
+                im  = (image) {
                     .w                = img_data.width,
                     .h                = img_data.height,
                     .channels         = img_data.channels,
@@ -148,11 +148,16 @@ struct world* world_external(const char* scene_file, struct resmgr* rmgr)
                     .data             = img_data.data,
                     .sz               = img_data.data_sz,
                     .compression_type = img_data.compression_type
-                }
+                };
+            }
+            struct texture tex = {
+                .name = 0,
+                .path = 0,
+                .img  = im,
             };
             rid id = resmgr_add_texture(rmgr, &tex);
             hashmap_put(&texture_handles_map, hm_cast(t->ref), *((hm_ptr*)&id));
-            image_data_free(&img_data);
+            free(im.data);
         }
     }
 

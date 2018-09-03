@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <prof.h>
+#include <stb_image.h>
 #include <assets/assetload.h>
 #include <assets/model/postprocess.h>
 
@@ -71,23 +72,18 @@ void model_data_free(struct model_data* mdl)
 
 void image_data_from_file(struct image_data* img, const char* filepath)
 {
-    struct image* im = 0;
+    int width = 0, height = 0, channels = 0;
+    void* data = 0;
+    stbi_set_flip_vertically_on_load(1);
     timed_load(filepath)
-        im = image_from_file(filepath);
-    img->data      = im->data;
-    img->width     = im->width;
-    img->height    = im->height;
-    img->channels  = im->channels;
-    img->bit_depth = im->compression_type == 0 ? 8 : 0;
-    img->data_sz   = im->data_sz;
+        data = stbi_load(filepath, &width, &height, &channels, 0);
+    img->data      = data;
+    img->width     = width;
+    img->height    = height;
+    img->channels  = channels;
+    img->bit_depth = 8;
+    img->data_sz   = 0;
     img->flags.hdr = 0;
-    img->flags.compressed = im->compression_type != 0;
-    img->compression_type = im->compression_type;
-    im->data = 0;
-    image_delete(im);
-}
-
-void image_data_free(struct image_data* img)
-{
-    free(img->data);
+    img->flags.compressed = 0;
+    img->compression_type = 0;
 }

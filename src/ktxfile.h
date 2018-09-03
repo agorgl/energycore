@@ -28,22 +28,26 @@
 /*   ' ') '( (/                                                                                                      */
 /*     '   '  `                                                                                                      */
 /*********************************************************************************************************************/
-#ifndef _ASSET_H_
-#define _ASSET_H_
+#ifndef _KTXFILE_H_
+#define _KTXFILE_H_
 
 #include <stdlib.h>
-#include "scene_asset.h"
 
-/* External asset utils */
-image image_from_file(const char* fpath);
-struct scene* scene_from_file(const char* fpath);
-/* Shader utils */
-unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char* fs_src);
-/* Texture utils */
-unsigned int texture_from_ktx(const char* filename);
-unsigned int texture_from_hdr(const char* filename);
-unsigned int texture_cubemap_from_hdr(const char* fpath);
-/* Embedded files */
-int embedded_file(void** data, size_t* sz, const char* fpath);
+struct ktx_image {
+    void* data;
+    size_t data_sz;
+    unsigned int width;
+    unsigned int height;
+    unsigned short channels;
+    unsigned short bit_depth;
+    unsigned short compression_type;
+    struct {
+        int compressed : 1;
+        int hdr : 1;
+    } flags;
+};
 
-#endif /* ! _ASSET_H_ */
+int ktx_image_read(struct ktx_image* ktx, const void* fdata);
+void ktx_image_free(struct ktx_image* ktx);
+
+#endif /* ! _KTXFILE_H_ */

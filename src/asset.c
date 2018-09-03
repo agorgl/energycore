@@ -8,6 +8,7 @@
 #include "opengl.h"
 #include "gltf.h"
 #include "hdrfile.h"
+#include "ktxfile.h"
 #include "tar.h"
 
 /*-----------------------------------------------------------------
@@ -37,6 +38,35 @@ static void* read_file_to_mem_buf(const char* fpath)
     fclose(f);
 
     return data_buf;
+}
+
+/*-----------------------------------------------------------------
+ * Image Loading
+ *-----------------------------------------------------------------*/
+image image_from_file(const char* fpath)
+{
+    const char* ext = strrchr(fpath, '.');
+    if (strcmp(ext, ".ktx") != 0)
+        return (image){};
+
+    void* fdata = read_file_to_mem_buf(fpath);
+    struct ktx_image ktx;
+    ktx_image_read(&ktx, fdata);
+
+    image im = (image) {
+        .w                = ktx.width,
+        .h                = ktx.height,
+        .channels         = ktx.channels,
+        .bit_depth        = ktx.bit_depth,
+        .data             = ktx.data,
+        .sz               = ktx.data_sz,
+        .compression_type = ktx.compression_type
+    };
+    ktx.data = 0; /* Move ownership to returned struct */
+
+    ktx_image_free(&ktx);
+    free(fdata);
+    return im;
 }
 
 /*-----------------------------------------------------------------

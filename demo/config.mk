@@ -1,5 +1,5 @@
 PRJTYPE = Executable
-LIBS = energycore envmapproc opencl assetloader orb physfs vorbis ogg freetype png jpeg tiff zlib gfxwnd glfw glad macu
+LIBS = energycore stbimg envmapproc opencl assetloader orb physfs vorbis ogg freetype png jpeg tiff zlib gfxwnd glfw glad macu
 ifeq ($(TARGET_OS), Windows)
 	LIBS += opengl32 gdi32 winmm ole32 user32 shell32
 else
