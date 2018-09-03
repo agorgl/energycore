@@ -3,7 +3,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
-#include <emproc/sh.h>
 #include "opengl.h"
 #include "probe.h"
 #include "gbuffer.h"
@@ -15,9 +14,6 @@ void gi_rndr_init(struct gi_rndr* r)
     /* Initialize subrenderers */
     r->probe_rndr = calloc(1, sizeof(struct probe_rndr));
     probe_rndr_init(r->probe_rndr);
-    /* Initialize probe processing */
-    r->probe_proc = calloc(1, sizeof(struct probe_proc));
-    probe_proc_init(r->probe_proc);
     /* Fallback probe */
     struct probe* fp = calloc(1, sizeof(struct probe));
     probe_init(fp);
@@ -41,8 +37,6 @@ void gi_rndr_destroy(struct gi_rndr* r)
         free(p);
     }
     free(r->pdata);
-    probe_proc_destroy(r->probe_proc);
-    free(r->probe_proc);
     probe_rndr_destroy(r->probe_rndr);
     free(r->probe_rndr);
 }
@@ -95,11 +89,11 @@ void gi_update_end(struct gi_rndr* r)
 
 void gi_preprocess(struct gi_rndr* r, unsigned int irr_conv_shdr, unsigned int prefilter_shdr)
 {
-    probe_preprocess(r->probe_proc, r->fallback_probe.p, irr_conv_shdr, prefilter_shdr);
-    probe_extract_shcoeffs(r->probe_proc, r->fallback_probe.sh_coeffs, r->fallback_probe.p);
+    probe_preprocess(r->fallback_probe.p, irr_conv_shdr, prefilter_shdr);
+    probe_extract_shcoeffs(r->fallback_probe.sh_coeffs, r->fallback_probe.p);
     for (unsigned int i = 0; i < r->num_probes; ++i) {
-        probe_preprocess(r->probe_proc, r->pdata[i].p, irr_conv_shdr, prefilter_shdr);
-        probe_extract_shcoeffs(r->probe_proc, r->pdata[i].sh_coeffs, r->pdata[i].p);
+        probe_preprocess(r->pdata[i].p, irr_conv_shdr, prefilter_shdr);
+        probe_extract_shcoeffs(r->pdata[i].sh_coeffs, r->pdata[i].p);
     }
 }
 
@@ -108,7 +102,7 @@ void gi_upload_sh_coeffs(unsigned int shdr, double sh_coef[25][3])
     const char* uniform_name = "sh_coeffs";
     size_t uniform_name_len = strlen(uniform_name);
     glUseProgram(shdr);
-    for (unsigned int i = 0; i < SH_COEFF_NUM; ++i) {
+    for (unsigned int i = 0; i < 25; ++i) {
         /* Construct uniform name ("sh_coeffs" + "[" + i + "]" + '\0') */
         size_t uname_sz = uniform_name_len + 1 + 2 + 1 + 1;
         char* uname = calloc(uname_sz, 1);

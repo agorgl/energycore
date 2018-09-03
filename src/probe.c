@@ -2,10 +2,9 @@
 #include <string.h>
 #include <assert.h>
 #include <math.h>
-#include <emproc/sh.h>
-#include <emproc/filter_util.h>
 #include "opengl.h"
 #include "glutils.h"
+#include "shcomp.h"
 
 /*-----------------------------------------------------------------
  * Probe
@@ -156,16 +155,7 @@ void probe_render_end(struct probe_rndr* pr)
 /*-----------------------------------------------------------------
  * Probe Processing
  *-----------------------------------------------------------------*/
-void probe_proc_init(struct probe_proc* pp)
-{
-    /* Build normal/solid angle index */
-    const unsigned int side = PROBE_CUBEMAP_SIZE;
-    float* nsa_idx = malloc(normal_solid_angle_index_sz(side));
-    normal_solid_angle_index_build(nsa_idx, side, EM_TYPE_VSTRIP);
-    pp->nsa_idx = nsa_idx;
-}
-
-void probe_extract_shcoeffs(struct probe_proc* pp, double sh_coef[25][3], struct probe* p)
+void probe_extract_shcoeffs(double sh_coef[25][3], struct probe* p)
 {
     const int side = PROBE_CUBEMAP_SIZE;
     /* Allocate memory buffer for cubemap pixels */
@@ -182,21 +172,14 @@ void probe_extract_shcoeffs(struct probe_proc* pp, double sh_coef[25][3], struct
     }
 
     /* Calc sh coeffs */
-    struct envmap em;
-    em.width = side;
-    em.height = side * 6;
-    em.channels = 3;
-    em.data = cm_buf;
-    em.type = EM_TYPE_VSTRIP;
-    sh_coeffs(sh_coef, &em, pp->nsa_idx);
+    sh_coeffs(sh_coef, cm_buf, side);
 
     /* Free temporary pixel buffer */
     free(cm_buf);
 }
 
-unsigned int probe_convolute_irradiance_diff(struct probe_proc* pp, struct probe* p, unsigned int irr_conv_shdr)
+unsigned int probe_convolute_irradiance_diff(struct probe* p, unsigned int irr_conv_shdr)
 {
-    (void) pp;
     /* Create an irradiance cubemap, and re-scale capture fbo to irradiance scale */
     const unsigned int res = 32;
     GLuint irradiance_map;
@@ -252,9 +235,8 @@ unsigned int probe_convolute_irradiance_diff(struct probe_proc* pp, struct probe
     return irradiance_map;
 }
 
-unsigned int probe_convolute_irradiance_spec(struct probe_proc* pp, struct probe* p, unsigned int prefilter_shdr)
+unsigned int probe_convolute_irradiance_spec(struct probe* p, unsigned int prefilter_shdr)
 {
-    (void) pp;
     /* Create a pre-filter cubemap, and re-scale capture fbo to prefilter scale */
     const unsigned int res = 128;
     GLuint prefilter_map;
@@ -321,20 +303,14 @@ unsigned int probe_convolute_irradiance_spec(struct probe_proc* pp, struct probe
     return prefilter_map;
 }
 
-void probe_preprocess(struct probe_proc* pp, struct probe* p, unsigned int irr_conv_shdr, unsigned int prefilt_shdr)
+void probe_preprocess(struct probe* p, unsigned int irr_conv_shdr, unsigned int prefilt_shdr)
 {
     if (p->irr_diffuse_cm)
         glDeleteTextures(1, &p->irr_diffuse_cm);
     if (p->prefiltered_cm)
         glDeleteTextures(1, &p->prefiltered_cm);
-    p->irr_diffuse_cm = probe_convolute_irradiance_diff(pp, p, irr_conv_shdr);
-    p->prefiltered_cm = probe_convolute_irradiance_spec(pp, p, prefilt_shdr);
-}
-
-void probe_proc_destroy(struct probe_proc* pp)
-{
-    /* Free normal/solid angle index */
-    free(pp->nsa_idx);
+    p->irr_diffuse_cm = probe_convolute_irradiance_diff(p, irr_conv_shdr);
+    p->prefiltered_cm = probe_convolute_irradiance_spec(p, prefilt_shdr);
 }
 
 /*-----------------------------------------------------------------

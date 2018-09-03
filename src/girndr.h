@@ -37,8 +37,6 @@
 struct gi_rndr {
     /* Sub renderers */
     struct probe_rndr* probe_rndr;
-    /* Probe processing */
-    struct probe_proc* probe_proc;
     /* Mini gbuffer used when updating probes */
     struct gbuffer* probe_gbuf;
     /* Probes */
