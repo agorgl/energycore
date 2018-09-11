@@ -47,7 +47,7 @@ typedef int(*eql_fn_t)(hash_key_t a, hash_key_t b);
 
 struct hash_table {
     struct hash_entry* table;
-    uint32_t* states; /* TODO: pack 2-bits per entry */
+    char* states; /* TODO: pack 2-bits per entry */
     size_t size;
     size_t capacity;
     hash_fn_t hash_fn;
