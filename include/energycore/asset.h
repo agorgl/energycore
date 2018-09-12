@@ -34,6 +34,8 @@
 #include <stdlib.h>
 #include "scene_asset.h"
 
+/* External files */
+void read_file_to_mem_buf(void** buf, size_t* buf_sz, const char* fpath);
 /* External asset utils */
 image image_from_file(const char* fpath);
 struct scene* scene_from_file(const char* fpath);

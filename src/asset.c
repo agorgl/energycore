@@ -16,7 +16,7 @@
  * Helpers
  *-----------------------------------------------------------------*/
 /* Reads file from disk to memory allocating needed space */
-static void read_file_to_mem_buf(void** buf, size_t* buf_sz, const char* fpath)
+void read_file_to_mem_buf(void** buf, size_t* buf_sz, const char* fpath)
 {
     /* Zero out input */
     *buf = 0;

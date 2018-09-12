@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include <assets/fileload.h>
 #include <hashmap.h>
 #include <json.h>
+#include <energycore/asset.h>
 
 struct scene_prefab {
     struct scene_object* objects;
@@ -142,13 +142,12 @@ static const char* complex_ref(const char* guid, const char* file_id)
 struct scene_file* scene_file_load(const char* filepath)
 {
     /* Load file data */
-    long data_buf_sz = filesize(filepath);
-    if (data_buf_sz == -1) {
+    void* data_buf; size_t data_buf_sz;
+    read_file_to_mem_buf(&data_buf, &data_buf_sz, filepath);
+    if (!data_buf) {
         printf("File not found: %s\n", filepath);
         return 0;
     }
-    unsigned char* data_buf = malloc(data_buf_sz * sizeof(char));
-    read_file_to_mem(filepath, data_buf, data_buf_sz);
 
     /* Parse json */
     struct json_value_s* root = json_parse(data_buf, data_buf_sz);
