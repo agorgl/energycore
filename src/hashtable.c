@@ -1,41 +1,60 @@
 #include "hashtable.h"
 #include <string.h>
+#include <assert.h>
 #include <math.h>
 
 #define HASH_TABLE_DEFAULT_INITIAL_CAPACITY 32
 #define HASH_TABLE_UPSIZE_LOAD_FACTOR 0.5
 
-struct hash_table* hash_table_create(hash_fn_t hash_fn, eql_fn_t eql_fn, size_t capacity)
+/* MSB set indicates that this hash is deleted */
+#define is_deleted(hash) ((hash >> 31) != 0)
+#define is_power_of_two(n) (n > 0 && ((n & (n - 1)) == 0))
+#define index_from_hash(hash, capacity) (hash & (capacity - 1))
+
+static void hash_table_init(struct hash_table* ht, hash_fn_t hash_fn, eql_fn_t eql_fn, size_t capacity)
 {
-    struct hash_table* ht = malloc(sizeof(*ht));
     ht->size     = 0;
-    ht->capacity = capacity ? capacity : HASH_TABLE_DEFAULT_INITIAL_CAPACITY;
+    ht->capacity = capacity;
     ht->hash_fn  = hash_fn;
     ht->eql_fn   = eql_fn;
     ht->table    = calloc(ht->capacity, sizeof(*ht->table));
-    ht->states   = calloc(ht->capacity, sizeof(*ht->states));
+    ht->hashes   = calloc(ht->capacity, sizeof(*ht->hashes));
+    assert(is_power_of_two(ht->capacity));
+}
+
+struct hash_table* hash_table_create(hash_fn_t hash_fn, eql_fn_t eql_fn)
+{
+    struct hash_table* ht = calloc(1, sizeof(*ht));
+    hash_table_init(ht, hash_fn, eql_fn, HASH_TABLE_DEFAULT_INITIAL_CAPACITY);
     return ht;
 }
 
 void hash_table_destroy(struct hash_table* ht)
 {
-    free(ht->states);
+    free(ht->hashes);
     free(ht->table);
     free(ht);
 }
 
-#define entry_is_free(ht, index) (ht->states[index] == 0)
-#define entry_is_present(ht, index) (ht->states[index] == 1)
-#define entry_is_deleted(ht, index) (ht->states[index] == 2)
-#define entry_set_present(ht, index) (ht->states[index] = 1)
-#define entry_set_deleted(ht, index) (ht->states[index] = 2)
+static uint32_t hash_key(struct hash_table* ht, hash_key_t key)
+{
+    uint32_t h = ht->hash_fn(key);
+    /* MSB is used to indicate a deleted elem, so clear it */
+    h &= 0x7fffffff;
+    /* Ensure that we never return 0 as a hash,
+     * since we use 0 to indicate that the elem has never
+     * been used at all */
+    h |= h == 0;
+    return h;
+}
 
 static void hash_table_resize(struct hash_table* ht, size_t new_capacity)
 {
-    struct hash_table* nht = hash_table_create(ht->hash_fn, ht->eql_fn, new_capacity);
+    struct hash_table* nht = calloc(1, sizeof(*nht));
+    hash_table_init(nht, ht->hash_fn, ht->eql_fn, new_capacity);
     hash_table_foreach(ht, e)
         hash_table_insert(nht, e->key, e->val);
-    free(ht->states);
+    free(ht->hashes);
     free(ht->table);
     *ht = *nht;
     free(nht);
@@ -49,52 +68,59 @@ void hash_table_insert(struct hash_table* ht, hash_key_t k, hash_val_t v)
         hash_table_resize(ht, new_cap);
     }
 
-    struct hash_entry* e = 0;
-    uint32_t hash = ht->hash_fn(k);
-    size_t index = hash % ht->capacity;
-    for (size_t i = 1; entry_is_present(ht, index); ++i) {
-        e = ht->table + index;
-        if (ht->eql_fn(e->key, k)) {
+    uint32_t hash = hash_key(ht, k);
+    for (size_t i = 0; ; ++i) {
+        size_t index         = index_from_hash((hash + i), ht->capacity);
+        uint32_t cur_hash    = ht->hashes[index];
+        struct hash_entry* e = ht->table + index;
+
+        /* Found empty or deleted slot, insert */
+        if (cur_hash == 0 || is_deleted(cur_hash)) {
+            e->key = k;
+            e->val = v;
+            ht->hashes[index] = hash;
+            ++ht->size;
+            return;
+        }
+
+        /* Found occupied slot with same hash and key, replace value */
+        if (hash == cur_hash && ht->eql_fn(e->key, k)) {
             e->val = v;
             return;
         }
-        index = (hash + i) % ht->capacity;
     }
-
-    entry_set_present(ht, index);
-    e = ht->table + index;
-    e->key = k;
-    e->val = v;
-    ++ht->size;
 }
 
-struct hash_entry* hash_table_search(struct hash_table* ht, hash_key_t k)
+static inline size_t lookup_index(struct hash_table* ht, hash_key_t k)
 {
-    uint32_t hash = ht->hash_fn(k);
-    size_t index = hash % ht->capacity;
-    for (size_t i = 1; !entry_is_free(ht, index); ++i) {
-        struct hash_entry e = ht->table[index];
-        if (entry_is_present(ht, index) && ht->eql_fn(e.key, k))
-            return ht->table + index;
-        index = (hash + i) % ht->capacity;
+    uint32_t hash = hash_key(ht, k);
+    for(size_t i = 0; ; ++i) {
+        size_t index = index_from_hash((hash + i), ht->capacity);
+        uint32_t cur_hash = ht->hashes[index];
+        if (cur_hash == 0)
+            break;
+        if (!is_deleted(cur_hash) && hash == cur_hash && ht->eql_fn(ht->table[index].key, k))
+            return index;
     }
-    return 0;
+    return -1;
 }
 
-struct hash_entry* hash_table_remove(struct hash_table* ht, hash_key_t k)
+hash_val_t* hash_table_search(struct hash_table* ht, hash_key_t k)
 {
-    uint32_t hash = ht->hash_fn(k);
-    size_t index = hash % ht->capacity;
-    for (size_t i = 1; index < ht->capacity && !entry_is_free(ht, index); ++i) {
-        struct hash_entry* e = ht->table + index;
-        if (entry_is_present(ht, index) && ht->eql_fn(e->key, k)) {
-            entry_set_deleted(ht, index);
-            --(ht->size);
-            return e;
-        }
-        index = (hash + i) % ht->capacity;
+    size_t index = lookup_index(ht, k);
+    return (ssize_t)index == -1 ? 0 : &ht->table[index].val;
+}
+
+int hash_table_remove(struct hash_table* ht, hash_key_t k)
+{
+    size_t index = lookup_index(ht, k);
+    if ((ssize_t)index == -1)
+        return 0;
+    else {
+        ht->hashes[index] |= 0x80000000; /* Mark as deleted */
+        --(ht->size);
+        return 1;
     }
-    return 0;
 }
 
 struct hash_entry* hash_table_next_entry(struct hash_table* ht, struct hash_entry* entry)
@@ -102,7 +128,8 @@ struct hash_entry* hash_table_next_entry(struct hash_table* ht, struct hash_entr
     struct hash_entry* e = 0;
     size_t index = !entry ? 0 : ((entry - ht->table) + 1);
     for (; index < ht->capacity; ++index) {
-        if (entry_is_present(ht, index)) {
+        uint32_t cur_hash = ht->hashes[index];
+        if ((cur_hash != 0 && !is_deleted(cur_hash))) {
             e = ht->table + index;
             break;
         }
@@ -125,4 +152,14 @@ uint32_t hash_table_string_hash(hash_key_t k)
 int hash_table_string_eql(hash_key_t k1, hash_key_t k2)
 {
     return strcmp((const char*)k1, (const char*)k2) == 0;
+}
+
+uint32_t hash_table_int_hash(hash_key_t k)
+{
+    return (2166136261ul ^ k) * 0x01000193;
+}
+
+int hash_table_int_eql(hash_key_t k1, hash_key_t k2)
+{
+    return k1 == k2;
 }
