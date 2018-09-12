@@ -15,29 +15,35 @@
  * Helpers
  *-----------------------------------------------------------------*/
 /* Reads file from disk to memory allocating needed space */
-static void* read_file_to_mem_buf(const char* fpath)
+static void read_file_to_mem_buf(void** buf, size_t* buf_sz, const char* fpath)
 {
+    /* Zero out input */
+    *buf = 0;
+    *buf_sz = 0;
+
     /* Check file for existence */
     FILE* f = 0;
     f = fopen(fpath, "rb");
     if (!f)
-        return 0;
+        return;
 
     /* Gather size */
     fseek(f, 0, SEEK_END);
     long file_sz = ftell(f);
     if (file_sz == -1) {
         fclose(f);
-        return 0;
+        return;
     }
 
     /* Read contents into memory buffer */
     rewind(f);
-    void* data_buf = malloc(file_sz);
+    void* data_buf = calloc(1, file_sz + 1);
     fread(data_buf, 1, file_sz, f);
     fclose(f);
 
-    return data_buf;
+    /* Store buffer and size */
+    *buf = data_buf;
+    *buf_sz = file_sz;
 }
 
 /*-----------------------------------------------------------------
@@ -49,7 +55,8 @@ image image_from_file(const char* fpath)
     if (strcmp(ext, ".ktx") != 0)
         return (image){};
 
-    void* fdata = read_file_to_mem_buf(fpath);
+    void* fdata; size_t fsize;
+    read_file_to_mem_buf(&fdata, &fsize, fpath);
     struct ktx_image ktx;
     ktx_image_read(&ktx, fdata);
 
@@ -109,7 +116,8 @@ struct ktx_header {
 unsigned int texture_from_ktx(const char* fpath)
 {
     /* Read file */
-    void* data_buf = read_file_to_mem_buf(fpath);
+    void* data_buf; size_t data_buf_sz;
+    read_file_to_mem_buf(&data_buf, &data_buf_sz, fpath);
 
     /* Header read and check */
     const unsigned char magic[12] = KTX_MAGIC;
@@ -172,7 +180,8 @@ unsigned int texture_from_ktx(const char* fpath)
 unsigned int texture_from_hdr(const char* fpath)
 {
     /* Gather texture data */
-    void* fdata = read_file_to_mem_buf(fpath);
+    void* fdata; size_t fsize;
+    read_file_to_mem_buf(&fdata, &fsize, fpath);
     float* data; unsigned int width, height;
     hdr_image_read(&data, &width, &height, fdata);
     free(fdata);
@@ -266,7 +275,8 @@ static void dir_to_uv_equi(float uv[2], float v[3])
 unsigned int texture_cubemap_from_hdr(const char* fpath)
 {
     /* Gather texture data */
-    void* fdata = read_file_to_mem_buf(fpath);
+    void* fdata; size_t fsize;
+    read_file_to_mem_buf(&fdata, &fsize, fpath);
     float (*data)[3]; unsigned int width, height;
     hdr_image_read((float**)&data, &width, &height, fdata);
     free(fdata);
