@@ -7,6 +7,7 @@
 #include <math.h>
 #include "opengl.h"
 #include "gltf.h"
+#include "wvfobj.h"
 #include "hdrfile.h"
 #include "ktxfile.h"
 #include "tar.h"
@@ -82,13 +83,21 @@ image image_from_file(const char* fpath)
 struct scene* scene_from_file(const char* fpath)
 {
     const char* ext = strrchr(fpath, '.');
-    if (strcmp(ext, ".gltf") != 0)
-        return 0;
-
-    struct gltf* gltf = gltf_file_load(fpath);
-    struct scene* scene = gltf_to_scene(gltf);
-    gltf_destroy(gltf);
-    return scene;
+    if (strcmp(ext, ".gltf") == 0) {
+        struct gltf* gltf = gltf_file_load(fpath);
+        struct scene* scene = gltf_to_scene(gltf);
+        gltf_destroy(gltf);
+        return scene;
+    } else if (strcmp(ext, ".obj") == 0) {
+        void* fdata; size_t fsize;
+        read_file_to_mem_buf(&fdata, &fsize, fpath);
+        obj_model_t* obj = obj_model_parse(fdata, fsize);
+        struct scene* scene = obj_to_scene(obj);
+        obj_model_free(obj);
+        free(fdata);
+        return scene;
+    }
+    return 0;
 }
 
 /*-----------------------------------------------------------------
