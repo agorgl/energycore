@@ -5,10 +5,14 @@
 #include <prof.h>
 #include <hashmap.h>
 #include <energycore/asset.h>
+#include <stb_image.h>
 #include "ecs/world.h"
 #include "scene_file.h"
-#include "asset_data.h"
 #include "util.h"
+
+#define timed_load(fname) \
+    for (timepoint_t _start_ms = millisecs(), _break = (printf("Loading: %-120s", fname), 1); \
+         _break; _break = 0, printf("[ %3lu ms ]\n", (unsigned long)(millisecs() - _start_ms)))
 
 struct submesh_info {
     const char* model;
@@ -31,25 +35,26 @@ static int submesh_info_eql(hm_ptr k1, hm_ptr k2)
         && strcmp(s1->mgroup_name, s2->mgroup_name) == 0;
 }
 
-static struct shape* mesh_data_to_shape(struct mesh_data* mdata)
+static image image_from_file_helper(const char* path)
 {
-    struct shape* shp = calloc(1, sizeof(*shp));
-    shp->num_pos = shp->num_norm = shp->num_texcoord = shp->num_tangsp = mdata->num_verts;
-    shp->pos      = calloc(shp->num_pos,      sizeof(*shp->pos));
-    shp->norm     = calloc(shp->num_norm,     sizeof(*shp->norm));
-    shp->texcoord = calloc(shp->num_texcoord, sizeof(*shp->texcoord));
-    shp->tangsp   = calloc(shp->num_tangsp,   sizeof(*shp->tangsp));
-    memcpy(shp->pos,      mdata->positions, shp->num_pos * sizeof(*shp->pos));
-    memcpy(shp->norm,     mdata->normals,   shp->num_norm * sizeof(*shp->norm));
-    memcpy(shp->texcoord, mdata->texcoords, shp->num_texcoord * sizeof(*shp->texcoord));
-    for (size_t i = 0; i < shp->num_tangsp; ++i) {
-        for (size_t k = 0; k < 3; ++k)
-            ((float*)&shp->tangsp[i])[k] = mdata->tangents[i][k];
+    image im = image_from_file(path);
+    if (!im.data) {
+        /* Try with external loader */
+        int width = 0, height = 0, channels = 0;
+        void* data = 0;
+        stbi_set_flip_vertically_on_load(1);
+        data = stbi_load(path, &width, &height, &channels, 0);
+        im  = (image) {
+            .w                = width,
+            .h                = height,
+            .channels         = channels,
+            .bit_depth        = 8,
+            .data             = data,
+            .sz               = 0,
+            .compression_type = 0
+        };
     }
-    shp->num_triangles = mdata->num_triangles;
-    shp->triangles = calloc(shp->num_triangles, sizeof(*shp->triangles));
-    memcpy(shp->triangles, mdata->triangles, shp->num_triangles * sizeof(*shp->triangles));
-    return shp;
+    return im;
 }
 
 struct world* world_external(const char* scene_file, struct resmgr* rmgr)
@@ -64,67 +69,41 @@ struct world* world_external(const char* scene_file, struct resmgr* rmgr)
     for (size_t i = 0; i < sc->num_models; ++i) {
         struct scene_model* m = sc->models + i;
         /* Load, parse and upload model */
-        struct scene* sc = scene_from_file(m->path);
-        if (sc) {
-            for (size_t j = 0; j < sc->num_nodes; ++j) {
-                /* Check if mesh node */
-                struct node* node = sc->nodes[j];
-                if (!node->ist)
-                    continue;
-                /* Create mesh resource */
-                struct mesh* mesh = node->ist->msh;
-                rid id = resmgr_add_mesh(rmgr, mesh);
-                struct render_mesh* rmsh = resmgr_get_mesh(rmgr, id);
-                /* Setup material indexes */
-                uint32_t cnt = 0;
-                struct hashmap mat_idx_map;
-                hashmap_init(&mat_idx_map, hm_u64_hash, hm_u64_eql);
-                for (size_t k = 0; k < rmsh->num_shapes; ++k) {
-                    struct material* mptr = mesh->shapes[k]->mat;
-                    hm_ptr* p = hashmap_get(&mat_idx_map, hm_cast(mptr));
-                    if (p) {
-                        rmsh->shapes[k].mat_idx = *p;
-                    } else {
-                        uint32_t nidx = cnt++;
-                        hashmap_put(&mat_idx_map, hm_cast(mptr), hm_cast(nidx));
-                        rmsh->shapes[k].mat_idx = nidx;
-                    }
+        struct scene* sc = 0;
+        timed_load(m->path)
+            sc = scene_from_file(m->path);
+        for (size_t j = 0; j < sc->num_nodes; ++j) {
+            /* Check if mesh node */
+            struct node* node = sc->nodes[j];
+            if (!node->ist)
+                continue;
+            /* Create mesh resource */
+            struct mesh* mesh = node->ist->msh;
+            rid id = resmgr_add_mesh(rmgr, mesh);
+            struct render_mesh* rmsh = resmgr_get_mesh(rmgr, id);
+            /* Setup material indexes */
+            uint32_t cnt = 0;
+            struct hashmap mat_idx_map;
+            hashmap_init(&mat_idx_map, hm_u64_hash, hm_u64_eql);
+            for (size_t k = 0; k < rmsh->num_shapes; ++k) {
+                struct material* mptr = mesh->shapes[k]->mat;
+                hm_ptr* p = hashmap_get(&mat_idx_map, hm_cast(mptr));
+                if (p) {
+                    rmsh->shapes[k].mat_idx = *p;
+                } else {
+                    uint32_t nidx = cnt++;
+                    hashmap_put(&mat_idx_map, hm_cast(mptr), hm_cast(nidx));
+                    rmsh->shapes[k].mat_idx = nidx;
                 }
-                hashmap_destroy(&mat_idx_map);
-                /* Store handle to temporary hashmap to use by object references later */
-                struct submesh_info* si = calloc(1, sizeof(*si));
-                si->model = strdup(m->ref);
-                si->mgroup_name = strdup(node->name);
-                hashmap_put(&model_handles_map, hm_cast(si), *((hm_ptr*)&id));
             }
-            scene_destroy(sc);
-        } else {
-            struct model_data mdl;
-            model_data_from_file(&mdl, m->path);
-            for (size_t j = 0; j < mdl.num_group_names; ++j) {
-                struct mesh mesh;
-                _mesh_init(&mesh);
-                for (size_t k = 0; k < mdl.num_meshes; ++k) {
-                    struct mesh_data* mdata = &mdl.meshes[k];
-                    if (mdata->group_idx == j) {
-                        ++mesh.num_shapes;
-                        mesh.shapes = realloc(mesh.shapes, mesh.num_shapes * sizeof(*mesh.shapes));
-                        mesh.shapes[mesh.num_shapes - 1] = mesh_data_to_shape(mdata);
-                    }
-                }
-                rid id = resmgr_add_mesh(rmgr, &mesh);
-                struct render_mesh* rmsh = resmgr_get_mesh(rmgr, id);
-                for (size_t k = 0; k < rmsh->num_shapes; ++k)
-                    rmsh->shapes[k].mat_idx = mdl.meshes[k].mat_idx;
-                _mesh_destroy(&mesh);
-                /* Store handle to temporary hashmap to use by object references later */
-                struct submesh_info* si = calloc(1, sizeof(*si));
-                si->model = strdup(m->ref);
-                si->mgroup_name = strdup(mdl.group_names[j]);
-                hashmap_put(&model_handles_map, hm_cast(si), *((hm_ptr*)&id));
-            }
-            model_data_free(&mdl);
+            hashmap_destroy(&mat_idx_map);
+            /* Store handle to temporary hashmap to use by object references later */
+            struct submesh_info* si = calloc(1, sizeof(*si));
+            si->model = strdup(m->ref);
+            si->mgroup_name = strdup(node->name);
+            hashmap_put(&model_handles_map, hm_cast(si), *((hm_ptr*)&id));
         }
+        scene_destroy(sc);
     }
 
     /* Load textures */
@@ -135,21 +114,9 @@ struct world* world_external(const char* scene_file, struct resmgr* rmgr)
         struct scene_texture* t = sc->textures + i;
         if (!hashmap_exists(&texture_handles_map, hm_cast(t->ref))) {
             /* Load, parse and upload texture */
-            image im = image_from_file(t->path);
-            if (!im.data) {
-                /* Try with external loader */
-                struct image_data img_data;
-                image_data_from_file(&img_data, t->path);
-                im  = (image) {
-                    .w                = img_data.width,
-                    .h                = img_data.height,
-                    .channels         = img_data.channels,
-                    .bit_depth        = img_data.bit_depth,
-                    .data             = img_data.data,
-                    .sz               = img_data.data_sz,
-                    .compression_type = img_data.compression_type
-                };
-            }
+            image im;
+            timed_load(t->path)
+                im = image_from_file_helper(t->path);
             struct texture tex = {
                 .name = 0,
                 .path = 0,
