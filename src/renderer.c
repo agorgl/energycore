@@ -24,8 +24,6 @@
 #include "eyeadapt.h"
 #include "resint.h"
 #include "panicscr.h"
-#include "smaa_area_tex.h"
-#include "smaa_search_tex.h"
 
 /*-----------------------------------------------------------------
  * Internal state
@@ -151,20 +149,27 @@ void renderer_init(struct renderer_state* rs)
     /* Initialize multiple render targets debugger */
     mrtdbg_init();
     /* Load internal textures */
+    image im; void* fdata; size_t fsize;
+    embedded_file(&fdata, &fsize, "textures/smaa_area_tex.dds");
+    im = image_from_buffer(fdata, fsize, ".dds");
     glGenTextures(1, &is->textures.smaa.area);
     glBindTexture(GL_TEXTURE_2D, is->textures.smaa.area);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, AREATEX_WIDTH, AREATEX_HEIGHT, 0, GL_RG, GL_UNSIGNED_BYTE, areaTexBytes);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG8, im.w, im.h, 0, GL_BGR, GL_UNSIGNED_BYTE, im.data);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    free(im.data);
+    embedded_file(&fdata, &fsize, "textures/smaa_search_tex.dds");
+    im = image_from_buffer(fdata, fsize, ".dds");
     glGenTextures(1, &is->textures.smaa.search);
     glBindTexture(GL_TEXTURE_2D, is->textures.smaa.search);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, SEARCHTEX_WIDTH, SEARCHTEX_HEIGHT, 0, GL_RED, GL_UNSIGNED_BYTE, searchTexBytes);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, im.w, im.h, 0, GL_RED, GL_UNSIGNED_BYTE, im.data);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    free(im.data);
     glBindTexture(GL_TEXTURE_2D, 0);
     /* Setup IBL */
     is->textures.brdf_lut = brdf_lut_generate(is->shdrs.ibl.brdf_lut);
