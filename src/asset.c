@@ -10,6 +10,7 @@
 #include "wvfobj.h"
 #include "hdrfile.h"
 #include "ktxfile.h"
+#include "ddsfile.h"
 #include "tar.h"
 
 /*-----------------------------------------------------------------
@@ -50,30 +51,93 @@ void read_file_to_mem_buf(void** buf, size_t* buf_sz, const char* fpath)
 /*-----------------------------------------------------------------
  * Image Loading
  *-----------------------------------------------------------------*/
+static int image_type_supported(const char* ext)
+{
+    if (strcmp(ext, ".ktx") == 0)
+        return 1;
+    if (strcmp(ext, ".dds") == 0)
+        return 1;
+    return 0;
+}
+
+image image_from_buffer(const void* buffer, size_t sz, const char* fhint)
+{
+    image im = {};
+    if (!image_type_supported(fhint))
+        return im;
+
+    if (strcmp(fhint, ".ktx") == 0) {
+        struct ktx_image ktx;
+        ktx_image_read(&ktx, buffer);
+        im = (image) {
+            .w                = ktx.width,
+            .h                = ktx.height,
+            .channels         = ktx.channels,
+            .bit_depth        = ktx.bit_depth,
+            .data             = ktx.data,
+            .sz               = ktx.data_sz,
+            .compression_type = ktx.compression_type
+        };
+        ktx.data = 0; /* Move ownership to returned struct */
+        ktx_image_free(&ktx);
+    } else if (strcmp(fhint, ".dds") == 0) {
+        struct dds_image* dds = dds_image_read(buffer, sz);
+        if (dds->type == DDS_TEXTURE_TYPE_2D) {
+            int channels = 0, compression_type = 0;
+            switch (dds->format) {
+                case DDS_TEXTURE_FORMAT_RGBA:
+                case DDS_TEXTURE_FORMAT_BGRA:
+                    channels = 4;
+                    break;
+                case DDS_TEXTURE_FORMAT_RGB:
+                case DDS_TEXTURE_FORMAT_BGR:
+                    channels = 3;
+                    break;
+                case DDS_TEXTURE_FORMAT_R:
+                    channels = 1;
+                    break;
+                case DDS_TEXTURE_FORMAT_COMPRESSED_RGBA_S3TC_DXT1:
+                    compression_type = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
+                    break;
+                case DDS_TEXTURE_FORMAT_COMPRESSED_RGBA_S3TC_DXT3:
+                    compression_type = GL_COMPRESSED_RGBA_S3TC_DXT3_EXT;
+                    break;
+                case DDS_TEXTURE_FORMAT_COMPRESSED_RGBA_S3TC_DXT5:
+                    compression_type = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+                    break;
+                default:
+                    compression_type = 0;
+                    break;
+            }
+            struct dds_mipmap* m = &(dds->surfaces[0].mipmaps[0]);
+            im = (image) {
+                .w                = m->width,
+                .h                = m->height,
+                .channels         = channels,
+                .bit_depth        = compression_type != 0 ? 0 : 8,
+                .data             = m->pixels,
+                .sz               = m->size,
+                .compression_type = compression_type
+            };
+            m->pixels = 0; /* Move ownership to returned struct */
+        }
+        dds_image_free(dds);
+    }
+    return im;
+}
+
 image image_from_file(const char* fpath)
 {
     const char* ext = strrchr(fpath, '.');
-    if (strcmp(ext, ".ktx") != 0)
-        return (image){};
+    image im = {};
+    if (!image_type_supported(ext))
+        return im;
 
     void* fdata; size_t fsize;
     read_file_to_mem_buf(&fdata, &fsize, fpath);
-    struct ktx_image ktx;
-    ktx_image_read(&ktx, fdata);
-
-    image im = (image) {
-        .w                = ktx.width,
-        .h                = ktx.height,
-        .channels         = ktx.channels,
-        .bit_depth        = ktx.bit_depth,
-        .data             = ktx.data,
-        .sz               = ktx.data_sz,
-        .compression_type = ktx.compression_type
-    };
-    ktx.data = 0; /* Move ownership to returned struct */
-
-    ktx_image_free(&ktx);
+    im = image_from_buffer(fdata, fsize, ext);
     free(fdata);
+
     return im;
 }
 

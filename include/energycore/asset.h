@@ -38,6 +38,7 @@
 void read_file_to_mem_buf(void** buf, size_t* buf_sz, const char* fpath);
 /* External asset utils */
 image image_from_file(const char* fpath);
+image image_from_buffer(const void* buffer, size_t sz, const char* fhint);
 struct scene* scene_from_file(const char* fpath);
 /* Shader utils */
 unsigned int shader_from_srcs(const char* vs_src, const char* gs_src, const char* fs_src);
