@@ -547,8 +547,10 @@ obj_model_t* obj_model_parse(const char* buf, size_t len)
         return 0;
     }
     /* If default name is missing, set it to "root_group" */
-    if (obj->num_shapes == 1 && strcmp(obj->shapes[0].name, "") == 0)
+    if (obj->num_shapes == 1 && strcmp(obj->shapes[0].name, "") == 0) {
+        free((void*)obj->shapes[0].name);
         obj->shapes[0].name = strdup("root_group");
+    }
     return obj;
 }
 
