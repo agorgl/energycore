@@ -3,7 +3,6 @@
 #include <string.h>
 #include <assert.h>
 #include <math.h>
-#include <glad/glad.h>
 #include <gfxwnd/window.h>
 #include "util.h"
 #include "ecs/world.h"
@@ -244,12 +243,6 @@ void game_shutdown(struct game_context* ctx)
     /* Free cached renderer input */
     free(ctx->cached_scene.lights);
     free(ctx->cached_scene.objects);
-
-    /* Unbind GPU handles */
-    glUseProgram(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
 
     /* Destroy renderer */
     renderer_destroy(&ctx->rndr_state);
