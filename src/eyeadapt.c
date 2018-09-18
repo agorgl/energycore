@@ -6,9 +6,11 @@
 #include <prof.h>
 #include "opengl.h"
 
+#define NUM_HISTOGRAM_BINS 64
+
 struct histogram_buf {
     float lum_range[2];
-    uint32_t histogram[64];
+    uint32_t histogram[NUM_HISTOGRAM_BINS];
     float exposure_cur, exposure_prev;
 };
 
@@ -37,7 +39,7 @@ void eyeadapt_luminance_hist(struct eyeadapt* s)
 
     glUseProgram(s->gl.shdr_clr);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, s->gl.ssbo);
-    glDispatchCompute(1, 1, 1);
+    glDispatchCompute(NUM_HISTOGRAM_BINS / 16, 1, 1);
 
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
