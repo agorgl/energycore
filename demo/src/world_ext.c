@@ -6,7 +6,6 @@
 #include <hashmap.h>
 #include <energycore/asset.h>
 #include <stb_image.h>
-#include "ecs/world.h"
 #include "scene_file.h"
 #include "util.h"
 
@@ -57,7 +56,7 @@ static image image_from_file_helper(const char* path)
     return im;
 }
 
-struct world* world_external(const char* scene_file, struct resmgr* rmgr)
+world_t world_external(const char* scene_file, struct resmgr* rmgr)
 {
     /* Load scene file */
     struct scene_file* sc = scene_file_load(scene_file);
@@ -205,7 +204,7 @@ struct world* world_external(const char* scene_file, struct resmgr* rmgr)
     }
 
     /* Initialize world */
-    struct world* world = world_create();
+    world_t world = world_create();
     /* Used to later populate parent relations */
     entity_t* transform_handles = calloc(sc->num_objects, sizeof(entity_t));
     struct hashmap transform_handles_map;
@@ -215,14 +214,14 @@ struct world* world_external(const char* scene_file, struct resmgr* rmgr)
         /* Scene object refering to */
         struct scene_object* so = sc->objects + i;
         /* Create entity */
-        entity_t e = entity_create(world->ecs);
+        entity_t e = entity_create(world);
         /* Create and set render component */
         if (so->mdl_ref) {
             struct submesh_info si = { .model = so->mdl_ref, .mgroup_name = so->mgroup_name };
             hm_ptr* p = hashmap_get(&model_handles_map, hm_cast(&si));
             if (p) {
                 rid id = *(rid*)hm_pcast(p);
-                struct render_component* rendr_c = render_component_create(world->ecs, e);
+                struct render_component* rendr_c = render_component_create(world, e);
                 rendr_c->mesh = id;
                 for (unsigned int j = 0; j < MAX_MATERIALS && j < so->num_mat_refs; ++j) {
                     rid* mid = (rid*)hashmap_get(&material_handles_map, hm_cast(so->mat_refs[j]));
@@ -236,8 +235,8 @@ struct world* world_external(const char* scene_file, struct resmgr* rmgr)
         float* pos = so->transform.translation;
         float* rot = so->transform.rotation;
         float* scl = so->transform.scaling;
-        transform_component_create(world->ecs, e);
-        transform_component_set_pose(world->ecs, e, (struct transform_pose) {
+        transform_component_create(world, e);
+        transform_component_set_pose(world, e, (struct transform_pose) {
             vec3_new(scl[0], scl[1], scl[2]),
             quat_new(rot[0], rot[1], rot[2], rot[3]),
             vec3_new(pos[0], pos[1], pos[2])
@@ -255,7 +254,7 @@ struct world* world_external(const char* scene_file, struct resmgr* rmgr)
             uint32_t pidx = *(uint32_t*)hashmap_get(&transform_handles_map, hm_cast(so->parent_ref));
             entity_t tc_child = transform_handles[cidx];
             entity_t tc_parnt = transform_handles[pidx];
-            transform_component_set_parent(world->ecs, tc_child, tc_parnt);
+            transform_component_set_parent(world, tc_child, tc_parnt);
         }
     }
     hashmap_destroy(&material_handles_map);

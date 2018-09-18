@@ -33,6 +33,7 @@
 
 #include <linalgb.h>
 #include <energycore/renderer.h>
+#include "ecs/world.h"
 #include "camctrl.h"
 
 struct game_context
@@ -42,7 +43,7 @@ struct game_context
     /* Master run flag, indicates when the game should exit */
     int* should_terminate;
     /* World */
-    struct world* world;
+    world_t world;
     /* Camera control */
     struct camctrl cam;
     /* Renderer state and his cached input */

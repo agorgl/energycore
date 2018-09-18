@@ -31,8 +31,9 @@
 #ifndef _WORLD_EXT_H_
 #define _WORLD_EXT_H_
 
+#include "ecs/world.h"
 #include <energycore/resource.h>
 
-struct world* world_external(const char* scene_file, struct resmgr* rmgr);
+world_t world_external(const char* scene_file, struct resmgr* rmgr);
 
 #endif /* ! _WORLD_EXT_H_ */

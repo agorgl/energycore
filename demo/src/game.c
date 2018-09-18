@@ -5,8 +5,6 @@
 #include <math.h>
 #include <gfxwnd/window.h>
 #include "util.h"
-#include "ecs/world.h"
-#include "ecs/components.h"
 #include "world_ext.h"
 
 #define SCENE_FILE "ext/scenes/sample_scene.json"
@@ -184,13 +182,13 @@ static void prepare_render_scene_lights(struct render_scene* rscn)
 
 static void prepare_render_scene(struct game_context* ctx, struct render_scene* rscn)
 {
-    struct world* world = ctx->world;
+    world_t world = ctx->world;
     /* Count total meshes */
-    const size_t num_ents = entity_total(world->ecs);
+    const size_t num_ents = entity_total(world);
     rscn->num_objects = 0;
     for (unsigned int i = 0; i < num_ents; ++i) {
-        entity_t e = entity_at(world->ecs, i);
-        struct render_component* rc = render_component_lookup(world->ecs, e);
+        entity_t e = entity_at(world, i);
+        struct render_component* rc = render_component_lookup(world, e);
         if (rc)
             ++rscn->num_objects;
     }
@@ -198,11 +196,11 @@ static void prepare_render_scene(struct game_context* ctx, struct render_scene* 
     /* Populate renderer mesh inputs */
     rscn->objects = calloc(rscn->num_objects, sizeof(*rscn->objects));
     for (unsigned int i = 0, cur_obj = 0; i < num_ents; ++i) {
-        entity_t e = entity_at(world->ecs, i);
-        struct render_component* rc = render_component_lookup(world->ecs, e);
+        entity_t e = entity_at(world, i);
+        struct render_component* rc = render_component_lookup(world, e);
         if (!rc)
             continue;
-        mat4 transform = transform_world_mat(world->ecs, e);
+        mat4 transform = transform_world_mat(world, e);
         /* Target */
         struct render_object* ro = &rscn->objects[cur_obj++];
         memcpy(ro->model_mat, transform.m, 16 * sizeof(float));

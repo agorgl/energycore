@@ -32,14 +32,52 @@
 #define _WORLD_H_
 
 #include "ecs.h"
-#include "components.h"
+#include <linalgb.h>
+#include <energycore/resource.h>
 
-struct world {
-    ecs_t ecs;
+#define MAX_MATERIALS 16
+
+typedef ecs_t world_t;
+
+enum component_type {
+    TRANSFORM = 1,
+    RENDER,
+    MAX_COMPONENT_TYPE
 };
 
-struct world* world_create();
-void world_update(struct world* wrld, float dt);
-void world_destroy(struct world* wrld);
+struct transform_component {
+    struct transform_pose {
+        vec3 scale;
+        quat rotation;
+        vec3 translation;
+    } pose;
+    mat4 local_mat;
+    mat4 world_mat;
+    entity_t parent;
+    entity_t first_child;
+    entity_t next_sibling;
+    entity_t prev_sibling;
+};
+
+struct render_component {
+    rid mesh;
+    rid materials[MAX_MATERIALS];
+};
+
+/* World interface */
+world_t world_create();
+void world_update(world_t w, float dt);
+void world_destroy(world_t w);
+
+/* Transform component interface */
+struct transform_component* transform_component_create(world_t w, entity_t e);
+struct transform_component* transform_component_lookup(world_t w, entity_t e);
+void transform_component_set_pose(world_t w, entity_t e, struct transform_pose pose);
+void transform_component_set_parent(world_t w, entity_t child, entity_t parent);
+mat4 transform_world_mat(world_t w, entity_t e);
+
+/* Render component interface */
+struct render_component* render_component_create(world_t w, entity_t e);
+struct render_component* render_component_lookup(world_t w, entity_t e);
 
 #endif /* ! _WORLD_H_ */
