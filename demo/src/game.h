@@ -44,8 +44,8 @@ struct game_context
     int* should_terminate;
     /* World */
     world_t world;
-    /* Camera control */
-    struct camctrl cam;
+    /* Camera */
+    entity_t camera;
     /* Renderer state and his cached input */
     struct renderer_state rndr_state;
     struct render_scene cached_scene;

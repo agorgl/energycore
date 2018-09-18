@@ -6,6 +6,7 @@ static void register_component_maps(ecs_t ecs)
     component_map_register(ecs, TRANSFORM, sizeof(struct transform_component));
     component_map_register(ecs, RENDER, sizeof(struct render_component));
     component_map_register(ecs, LIGHT, sizeof(struct light_component));
+    component_map_register(ecs, CAMERA, sizeof(struct camera_component));
 }
 
 world_t world_create()
@@ -130,4 +131,18 @@ struct light_component* light_component_lookup(world_t w, entity_t e)
 {
     ecs_t ecs = w;
     return component_lookup(ecs, e, LIGHT);
+}
+
+struct camera_component* camera_component_create(world_t w, entity_t e)
+{
+    ecs_t ecs = w;
+    struct camera_component* c = component_add(ecs, e, CAMERA, 0);
+    camctrl_defaults(&c->camctrl);
+    return c;
+}
+
+struct camera_component* camera_component_lookup(world_t w, entity_t e)
+{
+    ecs_t ecs = w;
+    return component_lookup(ecs, e, CAMERA);
 }

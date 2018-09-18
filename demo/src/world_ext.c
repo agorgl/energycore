@@ -285,6 +285,15 @@ world_t world_external(const char* scene_file, struct resmgr* rmgr)
         }
     }
 
+    /* Add all scene cameras */
+    for (size_t i = 0; i < sc->num_cameras; ++i) {
+        struct scene_camera* scm = sc->cameras + i;
+        entity_t e = entity_create(world);
+        struct camera_component* cam_c = camera_component_create(world, e);
+        camctrl_setpos(&cam_c->camctrl, *(vec3*)scm->position);
+        camctrl_setdir(&cam_c->camctrl, *(vec3*)scm->target);
+    }
+
     hashmap_destroy(&material_handles_map);
     hashmap_destroy(&texture_handles_map);
     struct hashmap_iter it;

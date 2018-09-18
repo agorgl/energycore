@@ -31,9 +31,10 @@
 #ifndef _WORLD_H_
 #define _WORLD_H_
 
-#include "ecs.h"
 #include <linalgb.h>
 #include <energycore/resource.h>
+#include "ecs.h"
+#include "camctrl.h"
 
 #define MAX_MATERIALS 16
 
@@ -43,6 +44,7 @@ enum component_type {
     TRANSFORM = 1,
     RENDER,
     LIGHT,
+    CAMERA,
     MAX_COMPONENT_TYPE
 };
 
@@ -80,6 +82,10 @@ struct light_component {
     float outer_cone;
 };
 
+struct camera_component {
+    struct camctrl camctrl;
+};
+
 /* World interface */
 world_t world_create();
 void world_update(world_t w, float dt);
@@ -99,5 +105,9 @@ struct render_component* render_component_lookup(world_t w, entity_t e);
 /* Light component interface */
 struct light_component* light_component_create(world_t w, entity_t e);
 struct light_component* light_component_lookup(world_t w, entity_t e);
+
+/* Camera component interface */
+struct camera_component* camera_component_create(world_t w, entity_t e);
+struct camera_component* camera_component_lookup(world_t w, entity_t e);
 
 #endif /* ! _WORLD_H_ */

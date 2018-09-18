@@ -101,10 +101,25 @@ void game_init(struct game_context* ctx)
     bench("[+] Tot time")
         ctx->world = world_external(scene_file, &ctx->rndr_state.rmgr);
 
-    /* Initialize camera */
-    camctrl_defaults(&ctx->cam);
-    ctx->cam.pos = vec3_new(0.0, 1.0, 3.0);
-    camctrl_setdir(&ctx->cam, vec3_normalize(vec3_mul(ctx->cam.pos, -1)));
+    /* Find camera entity */
+    ctx->camera = INVALID_ENTITY;
+    size_t num_entities = entity_total(ctx->world);
+    for (size_t i = 0; i < num_entities; ++i) {
+        entity_t e = entity_at(ctx->world, i);
+        struct camera_component* cc = camera_component_lookup(ctx->world, e);
+        if (cc) {
+            ctx->camera = e;
+            break;
+        }
+    }
+    /* If scene file did not provide, create one */
+    if (!entity_valid(ctx->camera)) {
+        ctx->camera = entity_create(ctx->world);
+        struct camera_component* cc = camera_component_create(ctx->world, ctx->camera);
+        vec3 pos = vec3_new(0.0, 1.0, 3.0);
+        camctrl_setpos(&cc->camctrl, pos);
+        camctrl_setdir(&cc->camctrl, vec3_normalize(vec3_mul(pos, -1)));
+    }
 
     /* Load sky texture from file into the GPU */
     ctx->cached_scene.sky_tex = resmgr_add_texture_file(&ctx->rndr_state.rmgr, "ext/envmaps/sun_clouds.hdr");
@@ -130,6 +145,8 @@ static vec3 sun_dir_from_params(float inclination, float azimuth)
 void game_update(void* userdata, float dt)
 {
     struct game_context* ctx = userdata;
+    struct camera_component* camc = camera_component_lookup(ctx->world, ctx->camera);
+
     /* Update camera position */
     int cam_mov_flags = 0x0;
     if (window_key_state(ctx->wnd, KEY_W) == KEY_ACTION_PRESS)
@@ -140,22 +157,24 @@ void game_update(void* userdata, float dt)
         cam_mov_flags |= cmd_backward;
     if (window_key_state(ctx->wnd, KEY_D) == KEY_ACTION_PRESS)
         cam_mov_flags |= cmd_right;
-    camctrl_move(&ctx->cam, cam_mov_flags, dt);
+    camctrl_move(&camc->camctrl, cam_mov_flags, dt);
+
     /* Update camera look */
     float cur_diff_x = 0, cur_diff_y = 0;
     window_get_cursor_diff(ctx->wnd, &cur_diff_x, &cur_diff_y);
     if (window_is_cursor_grubbed(ctx->wnd))
-        camctrl_look(&ctx->cam, cur_diff_x, cur_diff_y, dt);
+        camctrl_look(&camc->camctrl, cur_diff_x, cur_diff_y, dt);
     /* Update camera matrix */
     if (window_key_state(ctx->wnd, KEY_LEFT_SHIFT) == KEY_ACTION_PRESS) {
-        float old_max_vel = ctx->cam.max_vel;
+        float old_max_vel = camc->camctrl.max_vel;
         /* Temporarily increase move speed, make the calculations and restore it */
-        ctx->cam.max_vel = old_max_vel * 10.0f;
-        camctrl_update(&ctx->cam, dt);
-        ctx->cam.max_vel = old_max_vel;
+        camc->camctrl.max_vel = old_max_vel * 10.0f;
+        camctrl_update(&camc->camctrl, dt);
+        camc->camctrl.max_vel = old_max_vel;
     } else {
-        camctrl_update(&ctx->cam, dt);
+        camctrl_update(&camc->camctrl, dt);
     }
+
     /* Update sun position */
     if (window_key_state(ctx->wnd, KEY_KP2) == KEY_ACTION_PRESS)
         ctx->cached_scene.sky_pp.inclination = clamp(ctx->cached_scene.sky_pp.inclination + 10e-3f, 0.0f, 1.0f);
@@ -166,6 +185,7 @@ void game_update(void* userdata, float dt)
     if (window_key_state(ctx->wnd, KEY_KP6) == KEY_ACTION_PRESS)
         ctx->cached_scene.sky_pp.azimuth = clamp(ctx->cached_scene.sky_pp.azimuth - 10e-3f, 0.0f, 1.0f);
     ctx->cached_scene.lights[0].type_data.dir.direction = sun_dir_from_params(ctx->cached_scene.sky_pp.inclination, ctx->cached_scene.sky_pp.azimuth);
+
     /* Process input events */
     window_update(ctx->wnd);
 }
@@ -239,7 +259,8 @@ void game_render(void* userdata, float interpolation)
     }
 
     /* Render */
-    mat4 iview = camctrl_interpolated_view(&ctx->cam, interpolation);
+    struct camera_component* camc = camera_component_lookup(ctx->world, ctx->camera);
+    mat4 iview = camctrl_interpolated_view(&camc->camctrl, interpolation);
     renderer_render(&ctx->rndr_state, &ctx->cached_scene, (float*)&iview);
 
     /* Show rendered contents from the backbuffer */
