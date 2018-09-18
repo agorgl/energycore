@@ -102,6 +102,13 @@ struct scene_file {
         float outer_cone;
     }* lights;
     size_t num_lights;
+    /* Cameras */
+    struct scene_camera {
+        const char* ref;
+        float position[3];
+        float target[3];
+    }* cameras;
+    size_t num_cameras;
 };
 
 struct scene_file* scene_file_load(const char* filepath);
