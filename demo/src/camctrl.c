@@ -53,6 +53,11 @@ void camctrl_look(struct camctrl* cam, float offx, float offy, float dt)
     cam->angvel.y += offx * cam->ang_accel * dt;
 }
 
+void camctrl_setpos(struct camctrl* cam, vec3 pos)
+{
+    cam->pos = pos;
+}
+
 void camctrl_setdir(struct camctrl* cam, vec3 dir)
 {
     dir = vec3_normalize(vec3_mul(dir, -1));

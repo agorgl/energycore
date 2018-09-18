@@ -64,6 +64,7 @@ void camctrl_defaults(struct camctrl* cam);
 void camctrl_move(struct camctrl* cam, int move_directions, float dt);
 void camctrl_look(struct camctrl* cam, float offx, float offy, float dt);
 void camctrl_update(struct camctrl* cam, float dt);
+void camctrl_setpos(struct camctrl* cam, vec3 pos);
 void camctrl_setdir(struct camctrl* cam, vec3 dir);
 mat4 camctrl_interpolated_view(struct camctrl* cam, float interpolaton);
 
