@@ -33,7 +33,7 @@
 
 #include <linalgb.h>
 #include <energycore/renderer.h>
-#include "ecs/world.h"
+#include "world.h"
 #include "camctrl.h"
 
 struct game_context
