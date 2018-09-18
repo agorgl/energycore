@@ -85,6 +85,23 @@ struct scene_file {
         const char* parent_ref;
     }* objects;
     size_t num_objects;
+    /* Lights */
+    struct scene_light {
+        const char* ref;
+        enum {
+            SLT_DIRECTIONAL,
+            SLT_POINT,
+            SLT_SPOT
+        } type;
+        float color[3];
+        float intensity;
+        float position[3];
+        float falloff;
+        float direction[3];
+        float inner_cone;
+        float outer_cone;
+    }* lights;
+    size_t num_lights;
 };
 
 struct scene_file* scene_file_load(const char* filepath);

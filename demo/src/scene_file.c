@@ -87,6 +87,44 @@ static void parse_scene_object(struct json_object_element_s* eso, struct scene_o
     }
 }
 
+static void parse_scene_light(struct json_object_element_s* eso, struct scene_light* scn_lgt)
+{
+    scn_lgt->ref = strdup(eso->name->string);
+    struct json_object_s* scene_lgt_jo = eso->value->payload;
+    for (struct json_object_element_s* attr = scene_lgt_jo->start; attr; attr = attr->next) {
+        if (strncmp(attr->name->string, "type", attr->name->string_size) == 0) {
+            const char* type = ((struct json_string_s*)attr->value->payload)->string;
+            if (strcmp(type, "DIRECTIONAL") == 0)
+                scn_lgt->type = SLT_DIRECTIONAL;
+            else if (strcmp(type, "POINT") == 0)
+                scn_lgt->type = SLT_POINT;
+            else if (strcmp(type, "SPOT") == 0)
+                scn_lgt->type = SLT_SPOT;
+        } else if (strncmp(attr->name->string, "color", attr->name->string_size) == 0) {
+            struct json_array_s* ev_jar = attr->value->payload;
+            json_parse_float_arr(scn_lgt->color, ev_jar->start, 3);
+        } else if (strncmp(attr->name->string, "intensity", attr->name->string_size) == 0) {
+            struct json_number_s* ev_jnb = attr->value->payload;
+            scn_lgt->intensity = atof(ev_jnb->number);
+        } else if (strncmp(attr->name->string, "position", attr->name->string_size) == 0) {
+            struct json_array_s* ev_jar = attr->value->payload;
+            json_parse_float_arr(scn_lgt->position, ev_jar->start, 3);
+        } else if (strncmp(attr->name->string, "falloff", attr->name->string_size) == 0) {
+            struct json_number_s* ev_jnb = attr->value->payload;
+            scn_lgt->falloff = atof(ev_jnb->number);
+        } else if (strncmp(attr->name->string, "direction", attr->name->string_size) == 0) {
+            struct json_array_s* ev_jar = attr->value->payload;
+            json_parse_float_arr(scn_lgt->direction, ev_jar->start, 3);
+        } else if (strncmp(attr->name->string, "inner_cone", attr->name->string_size) == 0) {
+            struct json_number_s* ev_jnb = attr->value->payload;
+            scn_lgt->inner_cone = atof(ev_jnb->number);
+        } else if (strncmp(attr->name->string, "outer_cone", attr->name->string_size) == 0) {
+            struct json_number_s* ev_jnb = attr->value->payload;
+            scn_lgt->outer_cone = atof(ev_jnb->number);
+        }
+    }
+}
+
 static const char* parse_prefab_parent(struct json_object_s* scene_obj_jo)
 {
     for (struct json_object_element_s* attr = scene_obj_jo->start; attr; attr = attr->next)
@@ -277,7 +315,7 @@ struct scene_file* scene_file_load(const char* filepath)
     }
 
     /* Populate scene objects */
-    size_t scene_objects_capacity = 0;
+    size_t scene_objects_capacity = 0, scene_lights_capacity = 0;
     for (struct json_object_element_s* es = scenes_jo->start; es; es = es->next) {
         /* Iterate through scene object types */
         struct json_object_s* scene_jo = es->value->payload;
@@ -314,6 +352,18 @@ struct scene_file* scene_file_load(const char* filepath)
                             }
                         }
                     }
+                }
+            } else if (strncmp(est->name->string, "lights", est->name->string_size) == 0) {
+                struct json_object_s* scene_lgts_jo = est->value->payload;
+                /* Extend scene_lights array */
+                scene_lights_capacity += scene_lgts_jo->length;
+                sc->lights = realloc(sc->lights, scene_lights_capacity * sizeof(struct scene_light));
+                /* Iterate through lights */
+                for (struct json_object_element_s* eso = scene_lgts_jo->start; eso; eso = eso->next) {
+                    /* Populate light's attributes */
+                    struct scene_light* scn_lgt = sc->lights + (sc->num_lights)++;
+                    memset(scn_lgt, 0, sizeof(*scn_lgt));
+                    parse_scene_light(eso, scn_lgt);
                 }
             }
         }
@@ -458,11 +508,19 @@ static void free_scene_object(struct scene_object* o)
         free((void*)o->name);
 }
 
+static void free_scene_light(struct scene_light* l)
+{
+    free((void*)l->ref);
+}
+
 void scene_file_destroy(struct scene_file* sc)
 {
     for (size_t i = 0; i < sc->num_objects; ++i)
         free_scene_object(sc->objects + i);
     free(sc->objects);
+    for (size_t i = 0; i < sc->num_lights; ++i)
+        free_scene_light(sc->lights + i);
+    free(sc->lights);
     for (size_t i = 0; i < sc->num_materials; ++i)
         free_material(sc->materials + i);
     free(sc->materials);
