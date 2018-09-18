@@ -7,6 +7,7 @@ out vec4 color;
 struct dir_light {
     vec3 direction;
     vec3 color;
+    float intensity;
 };
 uniform dir_light dir_l;
 uniform vec3 view_pos;
@@ -23,8 +24,7 @@ void main()
 
     // Light
     vec3 L = normalize(dir_l.direction);
-    float light_intensity = 4.0;
-    vec3 light_col = dir_l.color * light_intensity;
+    vec3 light_col = dir_l.color * dir_l.intensity;
     float light_attenuation = 1.0;
 
     // Material

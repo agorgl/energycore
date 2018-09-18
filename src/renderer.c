@@ -499,10 +499,12 @@ static void light_pass(struct renderer_state* rs, struct render_scene* rscn, mat
                 /* Full screen quad for directional light */
                 glUniform3fv(glGetUniformLocation(shdr, "dir_l.direction"), 1, light->type_data.dir.direction.xyz);
                 glUniform3fv(glGetUniformLocation(shdr, "dir_l.color"), 1, light->color.xyz);
+                glUniform1f(glGetUniformLocation(shdr, "dir_l.intensity"), light->intensity);
                 render_quad();
                 break;
             }
             case LT_POINT:
+            case LT_SPOT:
                 /* Unimplemented */
                 break;
         }

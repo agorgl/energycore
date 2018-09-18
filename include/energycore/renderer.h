@@ -47,10 +47,12 @@ struct render_light {
     /* Light type */
     enum render_light_type {
         LT_DIRECTIONAL,
-        LT_POINT
+        LT_POINT,
+        LT_SPOT
     } type;
     /* Common light type data */
     vec3 color;
+    float intensity;
     /* Light type-specific data */
     union {
         struct {
@@ -60,6 +62,12 @@ struct render_light {
             vec3 position;
             float radius;
         } pt;
+        struct {
+            vec3 position;
+            vec3 direction;
+            float inner_cone;
+            float outer_cone;
+        } spt;
     } type_data;
 };
 
