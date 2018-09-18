@@ -257,6 +257,34 @@ world_t world_external(const char* scene_file, struct resmgr* rmgr)
             transform_component_set_parent(world, tc_child, tc_parnt);
         }
     }
+
+    /* Add all scene lights */
+    for (size_t i = 0; i < sc->num_lights; ++i) {
+        struct scene_light* sl = sc->lights + i;
+        entity_t e = entity_create(world);
+        struct light_component* light_c = light_component_create(world, e);
+        memcpy(light_c->color.rgb, sl->color, sizeof(light_c->color.rgb));
+        light_c->intensity = sl->intensity;
+        switch (sl->type) {
+            case SLT_DIRECTIONAL:
+                light_c->type = LC_DIRECTIONAL;
+                memcpy(light_c->direction.xyz, sl->direction, sizeof(light_c->direction.xyz));
+                break;
+            case SLT_POINT:
+                light_c->type = LC_POINT;
+                memcpy(light_c->position.xyz, sl->position, sizeof(light_c->position.xyz));
+                light_c->falloff = sl->falloff;
+                break;
+            case SLT_SPOT:
+                light_c->type = LC_SPOT;
+                memcpy(light_c->position.xyz, sl->position, sizeof(light_c->position.xyz));
+                memcpy(light_c->direction.xyz, sl->direction, sizeof(light_c->direction.xyz));
+                light_c->inner_cone = sl->inner_cone;
+                light_c->outer_cone = sl->outer_cone;
+                break;
+        }
+    }
+
     hashmap_destroy(&material_handles_map);
     hashmap_destroy(&texture_handles_map);
     struct hashmap_iter it;

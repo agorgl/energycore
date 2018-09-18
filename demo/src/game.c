@@ -170,44 +170,62 @@ void game_update(void* userdata, float dt)
     window_update(ctx->wnd);
 }
 
-static void prepare_render_scene_lights(struct render_scene* rscn)
-{
-    /* Sample directional light */
-    rscn->num_lights = 1;
-    rscn->lights = calloc(rscn->num_lights, sizeof(*rscn->lights));
-    rscn->lights[0].type = LT_DIRECTIONAL;
-    rscn->lights[0].color = vec3_new(1, 1, 1);
-    rscn->lights[0].type_data.dir.direction = vec3_new(0.8, 1.0, 0.8);
-}
-
 static void prepare_render_scene(struct game_context* ctx, struct render_scene* rscn)
 {
     world_t world = ctx->world;
-    /* Count total meshes */
+
+    /* Count total meshes and lights */
     const size_t num_ents = entity_total(world);
-    rscn->num_objects = 0;
+    rscn->num_objects = 0; rscn->num_lights = 0;
     for (unsigned int i = 0; i < num_ents; ++i) {
         entity_t e = entity_at(world, i);
         struct render_component* rc = render_component_lookup(world, e);
+        struct light_component* lc = light_component_lookup(world, e);
         if (rc)
             ++rscn->num_objects;
+        if (lc)
+            ++rscn->num_lights;
     }
 
-    /* Populate renderer mesh inputs */
+    /* Populate renderer mesh and light inputs */
     rscn->objects = calloc(rscn->num_objects, sizeof(*rscn->objects));
-    for (unsigned int i = 0, cur_obj = 0; i < num_ents; ++i) {
+    rscn->lights  = calloc(rscn->num_lights,  sizeof(*rscn->lights));
+    for (unsigned int i = 0, cur_obj = 0, cur_lgt = 0; i < num_ents; ++i) {
         entity_t e = entity_at(world, i);
         struct render_component* rc = render_component_lookup(world, e);
-        if (!rc)
-            continue;
-        mat4 transform = transform_world_mat(world, e);
-        /* Target */
-        struct render_object* ro = &rscn->objects[cur_obj++];
-        memcpy(ro->model_mat, transform.m, 16 * sizeof(float));
-        memcpy(ro->materials, rc->materials, sizeof(ro->materials));
-        ro->mesh = rc->mesh;
+        struct light_component* lc = light_component_lookup(world, e);
+        if (rc) {
+            mat4 transform = transform_world_mat(world, e);
+            /* Target */
+            struct render_object* ro = &rscn->objects[cur_obj++];
+            memcpy(ro->model_mat, transform.m, 16 * sizeof(float));
+            memcpy(ro->materials, rc->materials, sizeof(ro->materials));
+            ro->mesh = rc->mesh;
+        }
+        if (lc) {
+            struct render_light* rl = &rscn->lights[cur_lgt++];
+            rl->color = lc->color;
+            rl->intensity = lc->intensity;
+            switch (lc->type) {
+                case LC_DIRECTIONAL:
+                    rl->type = LT_DIRECTIONAL;
+                    rl->type_data.dir.direction = lc->direction;
+                    break;
+                case LC_POINT:
+                    rl->type = LT_POINT;
+                    rl->type_data.pt.position = lc->position;
+                    rl->type_data.pt.radius = lc->falloff;
+                    break;
+                case LC_SPOT:
+                    rl->type = LT_SPOT;
+                    rl->type_data.spt.position = lc->position;
+                    rl->type_data.spt.direction = lc->direction;
+                    rl->type_data.spt.inner_cone = lc->inner_cone;
+                    rl->type_data.spt.outer_cone = lc->outer_cone;
+                    break;
+            }
+        }
     }
-    prepare_render_scene_lights(rscn);
 }
 
 void game_render(void* userdata, float interpolation)

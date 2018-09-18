@@ -42,6 +42,7 @@ typedef ecs_t world_t;
 enum component_type {
     TRANSFORM = 1,
     RENDER,
+    LIGHT,
     MAX_COMPONENT_TYPE
 };
 
@@ -64,6 +65,21 @@ struct render_component {
     rid materials[MAX_MATERIALS];
 };
 
+struct light_component {
+    enum {
+        LC_DIRECTIONAL,
+        LC_POINT,
+        LC_SPOT
+    } type;
+    vec3 color;
+    float intensity;
+    vec3 position;
+    float falloff;
+    vec3 direction;
+    float inner_cone;
+    float outer_cone;
+};
+
 /* World interface */
 world_t world_create();
 void world_update(world_t w, float dt);
@@ -79,5 +95,9 @@ mat4 transform_world_mat(world_t w, entity_t e);
 /* Render component interface */
 struct render_component* render_component_create(world_t w, entity_t e);
 struct render_component* render_component_lookup(world_t w, entity_t e);
+
+/* Light component interface */
+struct light_component* light_component_create(world_t w, entity_t e);
+struct light_component* light_component_lookup(world_t w, entity_t e);
 
 #endif /* ! _WORLD_H_ */
