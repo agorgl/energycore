@@ -92,9 +92,9 @@ float exposure_value()
 
 void main()
 {
+    float exposure_prev = exposure_val;
     float exposure = exposure_value();
-    exposure_prev = exposure_cur;
-    exposure_cur = progressive_adaptation
+    exposure_val = progressive_adaptation
         ? interpolate_exposure(exposure, exposure_prev, delta_time, speed_up, speed_down)
         : exposure;
 }

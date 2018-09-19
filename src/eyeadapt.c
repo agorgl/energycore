@@ -11,7 +11,7 @@
 struct histogram_buf {
     float lum_range[2];
     uint32_t histogram[NUM_HISTOGRAM_BINS];
-    float exposure_cur, exposure_prev;
+    float exposure_val;
 };
 
 void eyeadapt_init(struct eyeadapt* s)
