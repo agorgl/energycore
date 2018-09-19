@@ -44,9 +44,10 @@ void eyeadapt_luminance_hist(struct eyeadapt* s)
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
     glUseProgram(s->gl.shdr_hist);
-    glBindImageTexture(0, draw_tex, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA16F);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, draw_tex);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, s->gl.ssbo);
-    glDispatchCompute(ceil(src_width / (16 * 16)), ceil(src_height / (16)), 1);
+    glDispatchCompute(ceil(src_width / 16 / 2), ceil(src_height / 16 / 2), 1);
 
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
