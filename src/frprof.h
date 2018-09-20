@@ -41,7 +41,7 @@ struct frame_prof {
     unsigned int enabled;
     struct frame_prof_tp {
         unsigned int query_ids[FP_NUM_BUFFERS][2];
-        unsigned long samples[FP_NUM_SAMPLES];
+        float samples[FP_NUM_SAMPLES];
         size_t cur_sample;
     } timepoints[FP_MAX_TIMEPOINTS];
     size_t cur_timepoint;

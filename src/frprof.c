@@ -62,7 +62,7 @@ void frame_prof_flush(struct frame_prof* fp)
         glGetQueryObjectui64v(fp->timepoints[i].query_ids[last_buf][0], GL_QUERY_RESULT, &tp_begin);
         glGetQueryObjectui64v(fp->timepoints[i].query_ids[last_buf][1], GL_QUERY_RESULT, &tp_end);
         tp->cur_sample = (tp->cur_sample == FP_NUM_SAMPLES - 1) ? 0 : tp->cur_sample + 1;
-        tp->samples[tp->cur_sample] = (tp_end - tp_begin) / 1000000;
+        tp->samples[tp->cur_sample] = (tp_end - tp_begin) / 1000000.0f;
     }
 
 new_frame:
