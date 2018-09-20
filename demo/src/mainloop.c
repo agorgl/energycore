@@ -1,23 +1,20 @@
 #include "mainloop.h"
 #include <prof.h>
 
-typedef unsigned long timepoint_type;
-typedef timepoint_type timepoint_diff;
-
-static inline timepoint_type clock_msec()
+static inline float clock_msec()
 {
-    return millisecs();
+    return nanosecs() / 1.0e6;
 }
 
 void mainloop(struct mainloop_data* loop_data)
 {
-    const float ms_per_update = 1000 / loop_data->updates_per_second;
+    const float ms_per_update = 1000.0f / loop_data->updates_per_second;
 
     float interpolation;
-    timepoint_type previous, current, lag;
-    timepoint_diff elapsed;
+    float previous, current, lag;
+    float elapsed;
 
-    lag = 0;
+    lag = 0.0f;
     previous = clock_msec();
     while (!loop_data->should_terminate) {
         current = clock_msec();
