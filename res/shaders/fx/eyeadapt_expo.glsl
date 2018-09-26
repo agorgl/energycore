@@ -12,7 +12,7 @@ uniform float delta_time;
 const vec2 active_range = vec2(0.45, 0.95); // [0,1]
 
 // Minimum/Maximum average luminance to consider for auto exposure (in EV).
-const vec2 avglum_range = vec2(-5, 1);
+const vec2 avglum_range = vec2(-5, 2);
 
 // Set this to true if you want the auto exposure to be animated (on = progressive, off = fixed)
 const bool progressive_adaptation = true;
@@ -41,7 +41,7 @@ float interpolate_exposure(float new_exposure, float old_exposure, float speed_d
     return exposure;
 }
 
-float average_luminance(float low_percent, float high_percent, float min_brightness, float max_brightness, float max_histogram_value, float scale, float offs)
+float average_luminance(float low_percent, float high_percent, float max_histogram_value, float scale, float offs)
 {
     // Sum all bins
     float sum = 0;
@@ -67,8 +67,7 @@ float average_luminance(float low_percent, float high_percent, float min_brightn
         accumulator  += bin_value;
     }
 
-    // Clamp to user brightness range
-    float avg_lum = clamp(filtered_sum / max(accumulator, 1.0e-4), min_brightness, max_brightness);
+    float avg_lum = filtered_sum / max(accumulator, 1.0e-4);
     return avg_lum;
 }
 
@@ -81,8 +80,8 @@ float log10(float n)
 float exposure_multiplier(float avg_lum)
 {
     float alum = max(1.0e-4, avg_lum);
-    float key_value = 0.18;
     //float key_value = 1.03 - (2.0 / (2.0 + log10(alum + 1.0)));
+    float key_value = 1.0;
     float exposure = key_value / alum;
     return exposure;
 }
@@ -111,10 +110,12 @@ void main()
         float max_value = 1.0 / float(group_pyramid[0]);
         float scale     = 1.0 / (lum_range.y - lum_range.x);
         float offs      = -lum_range.x * scale;
-        float avg_lum   = average_luminance(active_range.x, active_range.y,
-                                            avglum_range.x, avglum_range.y,
-                                            max_value, scale, offs);
-        float exposure = exposure_multiplier(avg_lum);
+        // Average luminance without outliers from histogram
+        float avg_lum   = average_luminance(active_range.x, active_range.y, max_value, scale, offs);
+        // Clamp to user brightness range
+        float cavg_lum = clamp(avg_lum, exp2(avglum_range.x), exp2(avglum_range.y));
+        // Exposure multiplier from clamped average luminance
+        float exposure = exposure_multiplier(cavg_lum);
         exposure_val = progressive_adaptation
             ? interpolate_exposure(exposure, exposure_prev, speed_down, speed_up, delta_time)
             : exposure;
