@@ -41,7 +41,7 @@ float interpolate_exposure(float new_exposure, float old_exposure, float speed_d
     return exposure;
 }
 
-float average_luminance(float low_percent, float high_percent, float max_histogram_value, float scale, float offs)
+float average_luminance(float low_percent, float high_percent, float max_histogram_value, float scale, float offst)
 {
     // Sum all bins
     float sum = 0;
@@ -62,7 +62,7 @@ float average_luminance(float low_percent, float high_percent, float max_histogr
         bin_value = min(fraction_sums.y, bin_value);
         fraction_sums.y -= bin_value;
         // Luminance at bin
-        float luminance = luminance_from_histogram_position(float(i) / NUM_HISTOGRAM_BINS, scale, offs);
+        float luminance = luminance_from_histogram_position(float(i) / NUM_HISTOGRAM_BINS, scale, offst);
         filtered_sum += luminance * bin_value;
         accumulator  += bin_value;
     }
