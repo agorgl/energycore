@@ -102,9 +102,6 @@ void postfx_blit_fb_to_read(struct postfx* pfx, unsigned int fb)
         0, 0, pfx->width, pfx->height,
         GL_COLOR_BUFFER_BIT, GL_NEAREST
     );
-    glBindTexture(GL_TEXTURE_2D, pfx->glh.stashed);
-    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, pfx->width, pfx->height);
-    glBindTexture(GL_TEXTURE_2D, 0);
     glBindFramebuffer(GL_FRAMEBUFFER, pfx->glh.fbo[pfx->cur_fbo]);
 }
 

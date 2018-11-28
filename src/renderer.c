@@ -559,6 +559,7 @@ static void postprocess_pass(struct renderer_state* rs, unsigned int cur_fb)
     GLuint shdr = 0;
     postfx_blit_fb_to_read(&is->postfx, is->gbuf->fbo);
     if (rs->options.use_antialiasing) {
+        postfx_stash_cur(&is->postfx);
         shdr = is->shdrs.fx.smaa;
         glDisable(GL_BLEND);
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
