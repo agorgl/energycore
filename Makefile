@@ -537,6 +537,22 @@ INSTALL_FILES_$(D) := $$(INSTALL_FILES)
 PKG_INFO_$(D) := $$(call extdep-conf, $$(INSTALL_PAIR_$(D)))
 endef
 
+#--------------------------------------------------
+#=- Generate compilation database entries
+# 1 = src file 2 = compilation command
+define compilation-database-entry-template
+    {
+        "directory": "$(patsubst %/,%,$(dir $(MKLOC)))",
+        "file":      "$(strip $(1))",
+        "command":   "$(strip $(2))"
+    }
+endef
+
+define compile-database-entry
+DB_ENTRY_$(strip $1) = $$(call compilation-database-entry-template, $(1), $(2))
+DB_ENTRY_LIST += DB_ENTRY_$(strip $1)
+endef
+
 #---------------------------------------------------------------
 # Rules
 #---------------------------------------------------------------
@@ -625,6 +641,16 @@ CXXCOMPILE_$(D) = $(CXX) $(CFLAGS) $(CXXFLAGS) $$(MCFLAGS_$(D)) $$(CPPFLAGS_$(D)
 # Generate compile rules
 $(foreach ext, c m, $(call compile-rule, $(ext), $$(CCOMPILE_$(D)), $(DP))${\n})
 $(foreach ext, cpp cxx cc mm, $(call compile-rule, $(ext), $$(CXXCOMPILE_$(D)), $(DP))${\n})
+
+# Generate compilation database entries
+$(foreach cu, $(SRC_$(D)), $(call compile-database-entry, $(cu), \
+	$$(subst $$@,$(BUILDDIR)/cdb/$(cu)$(OBJEXT), \
+		$$(subst $$<,$(cu), \
+			$$(if $$(filter c m, $$(patsubst .%,%,$$(suffix $(cu)))), \
+				$$(CCOMPILE_$(D)), \
+				$$(CXXCOMPILE_$(D)))))) \
+	${\n})
+
 endef
 
 #---------------------------------------------------------------
@@ -665,6 +691,17 @@ SO_DEPS  := $(strip $(sort $(foreach sop, $(SO_PROJS), $(foreach dep, $(DEPS_$(s
 # Make these projects have position independent code
 $(foreach pic, $(SO_PROJS) $(SO_DEPS), $(eval MORECFLAGS_$(pic) += $(CSOFLAGS)))
 
+# Dump compilation database
+compile_db:
+	$(info [)
+	$(foreach e, \
+		$(filter-out \
+			$(lastword $(DB_ENTRY_LIST)), \
+			$(DB_ENTRY_LIST)), \
+		$(info $($(e)),))
+	$(info $($(lastword $(DB_ENTRY_LIST))))
+	$(info ])
+
 # Cleanup rule
 clean:
 	@echo Cleaning...
@@ -691,5 +728,6 @@ PHONYPREREQS := $(foreach ruletype, $(PHONYRULETYPES), $(addprefix $(ruletype)_,
 		install \
 		showvars \
 		showvars_all \
+		compile_db \
 		clean
 .PHONY: $(PHONYPREREQS)
