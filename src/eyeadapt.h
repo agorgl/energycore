@@ -37,10 +37,12 @@ struct eyeadapt {
         unsigned int ssbo;
     } gl;
     unsigned long last_change;
+    float last_exposure;
 };
 
 void eyeadapt_init(struct eyeadapt* s);
 void eyeadapt_luminance_hist(struct eyeadapt* s);
+float eyeadapt_exposure_mult(struct eyeadapt* s);
 void eyeadapt_destroy(struct eyeadapt* s);
 
 #endif /* ! _EYEADAPT_H_ */

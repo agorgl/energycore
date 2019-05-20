@@ -1,7 +1,6 @@
 #version 430 core
 out vec4 color;
 uniform sampler2D tex;
-#include "eyeadapt_buf.glsl"
 
 //------------------------------------------------------------
 // Helpers
@@ -101,8 +100,6 @@ vec3 aces_film(vec3 x)
 void main()
 {
     vec3 hdr_color = texelFetch(tex, ivec2(gl_FragCoord.xy), 0).rgb;
-    float exposure_value = exposure_val;
-    hdr_color *= exposure_value;
 
     // Tone mapping types
     const int tonemap_type = 3;

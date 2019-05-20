@@ -9,23 +9,19 @@ uniform float delta_time;
 
 // Filters the dark/bright part of the histogram when computing the average luminance
 // to avoid very dark/bright pixels from contributing to the auto exposure.
-const vec2 active_range = vec2(0.45, 0.95); // [0,1]
+const vec2 active_range = vec2(0.80, 0.98); // [0,1]
 
 // Minimum/Maximum average luminance to consider for auto exposure (in EV).
-const vec2 avglum_range = vec2(-5, 2);
+const vec2 avglum_range = vec2(-10, 20);
 
 // Set this to true if you want the auto exposure to be animated (on = progressive, off = fixed)
 const bool progressive_adaptation = true;
 
 // Adaptation speed from a dark to a light environment.
-const float speed_up = 2.0;
+const float speed_up = 3.0;
 
 // Adaptation speed from a light to a dark environment.
 const float speed_down = 1.0;
-
-// Lower/Upper bounds for the brightness range of the generated histogram (in EV).
-// The bigger the spread between min & max, the lower the precision will be.
-//const vec2 lum_range = vec2(-8, 4); // [-16,1], [1,16]
 
 // Position is in [0,1] range
 float luminance_from_histogram_position(float position, float scale, float offs)
@@ -86,6 +82,11 @@ float exposure_multiplier(float avg_lum)
     return exposure;
 }
 
+float ev100_to_luminance(float ev100)
+{
+    return 1.2 * pow(2.0, ev100);
+}
+
 void main()
 {
     const uint thread_id = gl_LocalInvocationIndex;
@@ -108,12 +109,16 @@ void main()
     if (thread_id == 0) {
         float exposure_prev = exposure_val;
         float max_value = 1.0 / float(group_pyramid[0]);
-        float scale     = 1.0 / (lum_range.y - lum_range.x);
-        float offs      = -lum_range.x * scale;
+        float scale     = scale_offst.x;
+        float offst     = scale_offst.y;
+
         // Average luminance without outliers from histogram
-        float avg_lum   = average_luminance(active_range.x, active_range.y, max_value, scale, offs);
+        float avg_lum   = average_luminance(active_range.x, active_range.y, max_value, scale, offst);
         // Clamp to user brightness range
-        float cavg_lum = clamp(avg_lum, exp2(avglum_range.x), exp2(avglum_range.y));
+        float min_brightness = ev100_to_luminance(avglum_range.x);
+        float max_brightness = ev100_to_luminance(avglum_range.y);
+        float cavg_lum = clamp(avg_lum, min_brightness, max_brightness);
+
         // Exposure multiplier from clamped average luminance
         float exposure = exposure_multiplier(cavg_lum);
         exposure_val = progressive_adaptation

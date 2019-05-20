@@ -434,9 +434,11 @@ static void geometry_pass(struct renderer_state* rs, struct render_scene* rscn, 
  *-----------------------------------------------------------------*/
 static void render_sky(struct renderer_state* rs, struct render_scene* rscn, float* view, float* proj)
 {
+    float exp_mul = eyeadapt_exposure_mult(&rs->internal->eyeadpt);
     switch (rscn->sky_type) {
         case RST_TEXTURE: {
             GLuint sky_tex = resmgr_get_texture(&rs->rmgr, rscn->sky_tex)->id;
+            rs->internal->sky_rndr.tex.exposure = exp_mul;
             sky_texture_render(&rs->internal->sky_rndr.tex, (mat4*)view, (mat4*)proj, sky_tex);
             break;
         }
@@ -459,6 +461,9 @@ static void light_pass(struct renderer_state* rs, struct render_scene* rscn, mat
     /* Bind gbuffer input textures and target fbo */
     struct renderer_internal_state* is = rs->internal;
     gbuffer_bind_for_light_pass(is->gbuf);
+
+    /* Get exposure for pre-exposing light intensities */
+    float exp_mul = eyeadapt_exposure_mult(&is->eyeadpt);
 
     /* Clear */
     glClear(GL_COLOR_BUFFER_BIT);
@@ -499,7 +504,7 @@ static void light_pass(struct renderer_state* rs, struct render_scene* rscn, mat
                 /* Full screen quad for directional light */
                 glUniform3fv(glGetUniformLocation(shdr, "dir_l.direction"), 1, light->type_data.dir.direction.xyz);
                 glUniform3fv(glGetUniformLocation(shdr, "dir_l.color"), 1, light->color.xyz);
-                glUniform1f(glGetUniformLocation(shdr, "dir_l.intensity"), light->intensity);
+                glUniform1f(glGetUniformLocation(shdr, "dir_l.intensity"), light->intensity * exp_mul); /* Pre-expose */
                 render_quad();
                 break;
             }
@@ -617,7 +622,6 @@ static void postprocess_pass(struct renderer_state* rs, unsigned int cur_fb)
     }
     if (rs->options.use_tonemapping) {
         eyeadapt_luminance_hist(&is->eyeadpt);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, is->eyeadpt.gl.ssbo);
         shdr = is->shdrs.fx.tonemap;
         glUseProgram(shdr);
         postfx_pass(&is->postfx);

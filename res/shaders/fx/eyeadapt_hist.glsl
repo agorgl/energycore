@@ -23,9 +23,9 @@ void main()
     barrier();
 
     // Precompute some parameters
-    float lum_min = lum_range.x, lum_max = lum_range.y;
-    float scale = 1.0 / (lum_max - lum_min);
-    float offst = -lum_min * scale;
+    float one_over_preexposure = 1.0 / exposure_val;
+    float scale = scale_offst.x;
+    float offst = scale_offst.y;
 
     // It is possible that we emit more threads than we have pixels.
     // This is caused due to rounding up an image to a multiple of the tile size
@@ -41,6 +41,8 @@ void main()
             weight = uint(64.0 * vfactor);
         }
         vec3 c = texture(img, sspos).rgb;
+        c *= one_over_preexposure;
+        //float lum = max(c.x, max(c.y, c.z));
         float lum = dot(c, vec3(0.2126729, 0.7151522, 0.0721750));
         uint bin = uint(histogram_bin_from_luminance(lum, scale, offst) * float(NUM_HISTOGRAM_BINS - 1));
         atomicAdd(group_histogram[bin], weight);

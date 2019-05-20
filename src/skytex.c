@@ -28,11 +28,13 @@ in VS_OUT {
 } fs_in;
 
 uniform samplerCube sky_tex;
+uniform float exposure;
 
 void main()
 {
     vec3 color = texture(sky_tex, fs_in.tex_coords).rgb;
-    fcolor = vec4(color, 1.0);
+    float intensity = 3.0 * 1.0e4; // Lux
+    fcolor = vec4(intensity * color * exposure, 1.0);
 }
 );
 
@@ -52,6 +54,7 @@ void sky_texture_render(struct sky_texture* st, mat4* view, mat4* proj, unsigned
     mat4 nt_view = mat3_to_mat4(mat4_to_mat3(*view));
     glUniformMatrix4fv(glGetUniformLocation(st->shdr, "proj"), 1, GL_FALSE, proj->m);
     glUniformMatrix4fv(glGetUniformLocation(st->shdr, "view"), 1, GL_FALSE, nt_view.m);
+    glUniform1f(glGetUniformLocation(st->shdr, "exposure"), st->exposure);
     glActiveTexture(GL_TEXTURE0);
     glUniform1i(glGetUniformLocation(st->shdr, "sky_tex"), 0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap);

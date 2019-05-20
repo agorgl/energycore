@@ -35,6 +35,7 @@
 
 struct sky_texture {
     unsigned int shdr;
+    float exposure;
 };
 
 void sky_texture_init(struct sky_texture* sb);
